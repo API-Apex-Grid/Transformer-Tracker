@@ -1,0 +1,200 @@
+"use client";
+
+import { useState } from "react";
+import { Transformer } from "@/app/transformer/page";
+
+interface AddTransformerModalProps {
+  addTransformer: (transformer: Transformer) => void;
+}
+
+const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [region, setRegion] = useState("");
+  const [transformerNumber, setTransformerNumber] = useState("");
+  const [poleNumber, setPoleNumber] = useState("");
+  const [type, setType] = useState("");
+  const [location, setLocation] = useState("");
+
+  const showSetTransformer = () => setIsOpen(true);
+  const hideSetTransformer = () => {
+    setIsOpen(false);
+    setRegion("");
+    setTransformerNumber("");
+    setPoleNumber("");
+    setType("");
+    setLocation("");
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    addTransformer({ region, transformerNumber, poleNumber, type, location });
+    hideSetTransformer();
+  };
+
+  return (
+    <>
+      <button
+        onClick={showSetTransformer}
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-4"
+      >
+        Add Transformer
+      </button>
+
+      {isOpen && (
+        <div
+          className="relative z-10"
+          aria-labelledby="modal-title"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="fixed inset-0 bg-gray-500/75 transition-opacity"
+            onClick={hideSetTransformer}
+          />
+
+          <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div
+                className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <form onSubmit={handleSubmit}>
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                        <h3
+                          className="text-lg leading-6 font-medium text-gray-900"
+                          id="modal-headline"
+                        >
+                          Add Transformer
+                        </h3>
+                        <div className="mt-2">
+                          <div className="mb-4">
+                            <label
+                              htmlFor="region"
+                              className="block text-gray-700 text-sm font-bold mb-2"
+                            >
+                              Region
+                            </label>
+                            <select
+                              id="region"
+                              value={region}
+                              onChange={(e) => setRegion(e.target.value)}
+                              className="shadow appearance-none border rounded w-full py-2 px-3 pr-8 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-no-repeat bg-right"
+                              style={{
+                                backgroundImage:
+                                  "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                              }}
+                            >
+                              <option value="" disabled>
+                                Select a region
+                              </option>
+                              <option>Anuradhapura</option>
+                              <option>Colombo</option>
+                              <option>Trincomalee</option>
+                              <option>Jaffna</option>
+                              <option>Kandy</option>
+                              <option>Galle</option>
+                            </select>
+                          </div>
+                          <div className="mb-4">
+                            <label
+                              htmlFor="transformerNumber"
+                              className="block text-gray-700 text-sm font-bold mb-2"
+                            >
+                              Transformer Number
+                            </label>
+                            <input
+                              type="text"
+                              id="transformerNumber"
+                              value={transformerNumber}
+                              onChange={(e) =>
+                                setTransformerNumber(e.target.value)
+                              }
+                              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            />
+                          </div>
+                          <div className="mb-4">
+                            <label
+                              htmlFor="poleNumber"
+                              className="block text-gray-700 text-sm font-bold mb-2"
+                            >
+                              Pole Number
+                            </label>
+                            <input
+                              type="text"
+                              id="poleNumber"
+                              value={poleNumber}
+                              onChange={(e) => setPoleNumber(e.target.value)}
+                              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            />
+                          </div>
+                          <div className="mb-4">
+                            <label
+                              htmlFor="type"
+                              className="block text-gray-700 text-sm font-bold mb-2"
+                            >
+                              Type
+                            </label>
+                            <select
+                              id="type"
+                              value={type}
+                              onChange={(e) => setType(e.target.value)}
+                              className="shadow appearance-none border rounded w-full py-2 px-3 pr-8 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-no-repeat bg-right"
+                              style={{
+                                backgroundImage:
+                                  "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                              }}
+                            >
+                              <option value="" disabled>
+                                Select a type
+                              </option>
+                              <option>Type A</option>
+                              <option>Type B</option>
+                              <option>Type C</option>
+                            </select>
+                          </div>
+                          <div className="mb-4">
+                            <label
+                              htmlFor="location"
+                              className="block text-gray-700 text-sm font-bold mb-2"
+                            >
+                              Location Details
+                            </label>
+                            <textarea
+                              id="location"
+                              value={location}
+                              onChange={(e) => setLocation(e.target.value)}
+                              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            ></textarea>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="submit"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={hideSetTransformer}
+                      type="button"
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default AddTransformerModal;
