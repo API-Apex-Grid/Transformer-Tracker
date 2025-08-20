@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Transformer } from "@/app/transformer/page";
+import { Transformer } from "@/types/transformer";
 
 interface AddTransformerModalProps {
   addTransformer: (transformer: Transformer) => void;
@@ -25,8 +25,18 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     setLocation("");
   };
 
+  const [errors, setErrors] = useState<{[k: string]: string}>({});
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const newErrors: {[k: string]: string} = {};
+    if (!region) newErrors.region = "Region is required";
+    if (!transformerNumber) newErrors.transformerNumber = "Transformer number is required";
+    if (!poleNumber) newErrors.poleNumber = "Pole number is required";
+    if (!type) newErrors.type = "Type is required";
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+
     addTransformer({ region, transformerNumber, poleNumber, type, location });
     hideSetTransformer();
   };
@@ -35,7 +45,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     <>
       <button
         onClick={showSetTransformer}
-        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-4"
+        className="bg-black hover:bg-black/80 text-white font-bold py-2 px-4 rounded mb-4"
       >
         Add Transformer
       </button>
@@ -72,7 +82,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                           <div className="mb-4">
                             <label
                               htmlFor="region"
-                              className="block text-gray-700 text-sm font-bold mb-2"
+                              className="block text-black text-sm font-bold mb-2"
                             >
                               Region
                             </label>
@@ -80,7 +90,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                               id="region"
                               value={region}
                               onChange={(e) => setRegion(e.target.value)}
-                              className="shadow appearance-none border rounded w-full py-2 px-3 pr-8 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-no-repeat bg-right"
+                              className="shadow appearance-none border rounded w-full py-2 px-3 pr-8 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white bg-no-repeat bg-right"
                               style={{
                                 backgroundImage:
                                   "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
@@ -96,11 +106,14 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                               <option>Kandy</option>
                               <option>Galle</option>
                             </select>
+                            {errors.region && (
+                              <p className="mt-1 text-sm text-red-600">{errors.region}</p>
+                            )}
                           </div>
                           <div className="mb-4">
                             <label
                               htmlFor="transformerNumber"
-                              className="block text-gray-700 text-sm font-bold mb-2"
+                              className="block text-black text-sm font-bold mb-2"
                             >
                               Transformer Number
                             </label>
@@ -111,13 +124,16 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                               onChange={(e) =>
                                 setTransformerNumber(e.target.value)
                               }
-                              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                             />
+                            {errors.transformerNumber && (
+                              <p className="mt-1 text-sm text-red-600">{errors.transformerNumber}</p>
+                            )}
                           </div>
                           <div className="mb-4">
                             <label
                               htmlFor="poleNumber"
-                              className="block text-gray-700 text-sm font-bold mb-2"
+                              className="block text-black text-sm font-bold mb-2"
                             >
                               Pole Number
                             </label>
@@ -126,13 +142,16 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                               id="poleNumber"
                               value={poleNumber}
                               onChange={(e) => setPoleNumber(e.target.value)}
-                              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                             />
+                            {errors.poleNumber && (
+                              <p className="mt-1 text-sm text-red-600">{errors.poleNumber}</p>
+                            )}
                           </div>
                           <div className="mb-4">
                             <label
                               htmlFor="type"
-                              className="block text-gray-700 text-sm font-bold mb-2"
+                              className="block text-black text-sm font-bold mb-2"
                             >
                               Type
                             </label>
@@ -140,7 +159,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                               id="type"
                               value={type}
                               onChange={(e) => setType(e.target.value)}
-                              className="shadow appearance-none border rounded w-full py-2 px-3 pr-8 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-no-repeat bg-right"
+                              className="shadow appearance-none border rounded w-full py-2 px-3 pr-8 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white bg-no-repeat bg-right"
                               style={{
                                 backgroundImage:
                                   "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
@@ -149,15 +168,17 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                               <option value="" disabled>
                                 Select a type
                               </option>
-                              <option>Type A</option>
-                              <option>Type B</option>
-                              <option>Type C</option>
+                              <option>Distribution</option>
+                              <option>Bulk</option>
                             </select>
+                            {errors.type && (
+                              <p className="mt-1 text-sm text-red-600">{errors.type}</p>
+                            )}
                           </div>
                           <div className="mb-4">
                             <label
                               htmlFor="location"
-                              className="block text-gray-700 text-sm font-bold mb-2"
+                              className="block text-black text-sm font-bold mb-2"
                             >
                               Location Details
                             </label>
@@ -165,7 +186,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                               id="location"
                               value={location}
                               onChange={(e) => setLocation(e.target.value)}
-                              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                             ></textarea>
                           </div>
                         </div>
@@ -175,14 +196,14 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                   <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                     <button
                       type="submit"
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
                     >
                       Add
                     </button>
                     <button
                       onClick={hideSetTransformer}
                       type="button"
-                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                     >
                       Cancel
                     </button>
