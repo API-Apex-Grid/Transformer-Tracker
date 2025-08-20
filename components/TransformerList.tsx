@@ -20,27 +20,27 @@ const TransformerList = ({ transformers, onEdit, onDelete }: TransformerListProp
   const closeMenu = () => setOpenMenu(null);
 
   return (
-  <div className="overflow-x-auto pb-24">
-      <table className="min-w-full bg-white text-black">
+    <div className="overflow-x-auto pb-24">
+      <table className="min-w-full bg-white text-black table-fixed">
         <thead>
           <tr>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-32">
               Region
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-40">
               Transformer No.
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-28">
               Pole No.
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-28">
               Type
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-[45%]">
               Location
             </th>
             {(onEdit || onDelete) && (
-              <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-medium uppercase tracking-wider">
+              <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-medium uppercase tracking-wider w-16">
                 Actions
               </th>
             )}
@@ -49,23 +49,23 @@ const TransformerList = ({ transformers, onEdit, onDelete }: TransformerListProp
         <tbody>
           {transformers.map((transformer, index) => (
             <tr key={index}>
-              <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-32 min-w-0">
                 {transformer.region}
               </td>
-              <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
                 {transformer.transformerNumber}
               </td>
-              <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-28 min-w-0">
                 {transformer.poleNumber}
               </td>
-              <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-28 min-w-0">
                 {transformer.type}
               </td>
-              <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
+              <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-[45%] min-w-0">
                 {transformer.location}
               </td>
               {(onEdit || onDelete) && (
-              <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200 text-right relative">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 text-right relative w-16">
                 <button
                   aria-label="Actions"
                   className="inline-flex items-center justify-center w-8 h-8 rounded hover:bg-gray-100 text-black"
