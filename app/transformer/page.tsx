@@ -8,6 +8,7 @@ import EditTransformerModal from "@/components/EditTransformerModal";
 import TransformerDetailsPanel from "@/components/TransformerDetailsPanel";
 import InspectionsList from "@/components/InspectionsList";
 import AddInspectionModal from "@/components/AddInspectionModal";
+import EditInspectionModal from "@/components/EditInspectionModal";
 import { Transformer } from "@/types/transformer";
 import { Inspection } from "@/types/inspection";
 import { useTransformers } from "@/context/TransformersContext";
@@ -15,10 +16,12 @@ import { useInspections } from "@/context/InspectionsContext";
 
 const TransformerPage = () => {
   const { transformers, addTransformer: addFromCtx, updateTransformer, deleteTransformer: deleteFromCtx } = useTransformers();
-  const { inspections, addInspection: addInspectionCtx } = useInspections();
+  const { inspections, addInspection: addInspectionCtx, updateInspection, deleteInspection } = useInspections();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [viewingTransformer, setViewingTransformer] = useState<Transformer | null>(null);
+  const [isEditInspectionOpen, setIsEditInspectionOpen] = useState(false);
+  const [editingInspectionIndex, setEditingInspectionIndex] = useState<number | null>(null);
 
   const router = useRouter();
 
@@ -70,6 +73,38 @@ const TransformerPage = () => {
 
   const addInspection = (inspection: Inspection) => {
     addInspectionCtx(inspection);
+  };
+
+  const openEditInspection = (index: number) => {
+    setEditingInspectionIndex(index);
+    setIsEditInspectionOpen(true);
+  };
+
+  const closeEditInspection = () => {
+    setIsEditInspectionOpen(false);
+    setEditingInspectionIndex(null);
+  };
+
+  const saveEditInspection = (updated: Inspection) => {
+    if (editingInspectionIndex === null) return;
+    const relatedInspections = getRelatedInspections(viewingTransformer!.transformerNumber);
+    const originalIndex = inspections.findIndex(inspection =>
+      inspection.inspectionNumber === relatedInspections[editingInspectionIndex].inspectionNumber
+    );
+    if (originalIndex !== -1) {
+      updateInspection(originalIndex, updated);
+    }
+  };
+
+  const deleteInspectionHandler = (index: number) => {
+    if (!viewingTransformer) return;
+    const relatedInspections = getRelatedInspections(viewingTransformer.transformerNumber);
+    const originalIndex = inspections.findIndex(inspection =>
+      inspection.inspectionNumber === relatedInspections[index].inspectionNumber
+    );
+    if (originalIndex !== -1) {
+      deleteInspection(originalIndex);
+    }
   };
 
   return (
@@ -129,6 +164,8 @@ const TransformerPage = () => {
           <InspectionsList
             inspections={getRelatedInspections(viewingTransformer.transformerNumber)}
             hideTransformerColumn={true}
+            onEdit={openEditInspection}
+            onDelete={deleteInspectionHandler}
           />
         </>
       ) : (
@@ -145,6 +182,13 @@ const TransformerPage = () => {
         initial={editingIndex !== null ? transformers[editingIndex] : null}
         onClose={closeEdit}
         onSave={saveEdit}
+      />
+      <EditInspectionModal
+        isOpen={isEditInspectionOpen}
+        initial={editingInspectionIndex !== null && viewingTransformer ?
+          getRelatedInspections(viewingTransformer.transformerNumber)[editingInspectionIndex] : null}
+        onClose={closeEditInspection}
+        onSave={saveEditInspection}
       />
     </div>
   );
