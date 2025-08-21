@@ -16,23 +16,41 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   const [inspections, setInspections] = useState<Inspection[]>([]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("inspections");
-      if (raw) setInspections(JSON.parse(raw));
-    } catch {}
+    (async () => {
+      const res = await fetch("/api/inspections", { cache: "no-store" });
+      const data = await res.json();
+      setInspections(data);
+    })();
   }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("inspections", JSON.stringify(inspections));
-    } catch {}
-  }, [inspections]);
+  const addInspection = async (i: Inspection) => {
+    const res = await fetch("/api/inspections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(i),
+    });
+    const created = await res.json();
+    setInspections((prev) => [...prev, created]);
+  };
 
-  const addInspection = (i: Inspection) => setInspections((prev) => [...prev, i]);
-  const updateInspection = (index: number, i: Inspection) =>
-    setInspections((prev) => prev.map((it, idx) => (idx === index ? i : it)));
-  const deleteInspection = (index: number) =>
+  const updateInspection = async (index: number, i: Inspection) => {
+    const id = inspections[index]?.id;
+    if (!id) return;
+    const res = await fetch(`/api/inspections/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(i),
+    });
+    const updated = await res.json();
+    setInspections((prev) => prev.map((it, idx) => (idx === index ? updated : it)));
+  };
+
+  const deleteInspection = async (index: number) => {
+    const id = inspections[index]?.id;
+    if (!id) return;
+    await fetch(`/api/inspections/${id}`, { method: "DELETE" });
     setInspections((prev) => prev.filter((_, idx) => idx !== index));
+  };
 
   const value = useMemo(
     () => ({ inspections, addInspection, updateInspection, deleteInspection }),

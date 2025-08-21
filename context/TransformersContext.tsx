@@ -15,26 +15,43 @@ const TransformersContext = createContext<TransformersContextValue | undefined>(
 export function TransformersProvider({ children }: { children: React.ReactNode }) {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
 
-  // load from localStorage once
+  // load from API
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("transformers");
-      if (raw) setTransformers(JSON.parse(raw));
-    } catch { /* noop */ }
+    (async () => {
+      const res = await fetch("/api/transformers", { cache: "no-store" });
+      const data = await res.json();
+      setTransformers(data);
+    })();
   }, []);
 
-  // persist to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem("transformers", JSON.stringify(transformers));
-    } catch { /* noop */ }
-  }, [transformers]);
+  const addTransformer = async (t: Transformer) => {
+    const res = await fetch("/api/transformers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(t),
+    });
+    const created = await res.json();
+    setTransformers((prev) => [...prev, created]);
+  };
 
-  const addTransformer = (t: Transformer) => setTransformers((prev) => [...prev, t]);
-  const updateTransformer = (index: number, t: Transformer) =>
-    setTransformers((prev) => prev.map((it, i) => (i === index ? t : it)));
-  const deleteTransformer = (index: number) =>
+  const updateTransformer = async (index: number, t: Transformer) => {
+    const id = transformers[index]?.id;
+    if (!id) return;
+    const res = await fetch(`/api/transformers/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(t),
+    });
+    const updated = await res.json();
+    setTransformers((prev) => prev.map((it, i) => (i === index ? updated : it)));
+  };
+
+  const deleteTransformer = async (index: number) => {
+    const id = transformers[index]?.id;
+    if (!id) return;
+    await fetch(`/api/transformers/${id}`, { method: "DELETE" });
     setTransformers((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const value = useMemo(
     () => ({ transformers, addTransformer, updateTransformer, deleteTransformer }),

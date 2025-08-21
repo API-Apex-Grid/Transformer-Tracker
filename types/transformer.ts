@@ -1,4 +1,5 @@
 export interface Transformer {
+  id?: string;
   region: string;
   transformerNumber: string;
   poleNumber: string;

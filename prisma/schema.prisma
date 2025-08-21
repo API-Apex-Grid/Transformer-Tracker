@@ -1,0 +1,37 @@
+// Prisma schema for PostgreSQL
+// After setting DATABASE_URL env var, run:
+//   npx prisma migrate dev --name init
+//   npx prisma generate
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Transformer {
+  id                 String   @id @default(cuid())
+  region             String
+  transformerNumber  String
+  poleNumber         String
+  type               String
+  location           String
+  sunnyImage         String?
+  cloudyImage        String?
+  windyImage         String?
+
+  @@unique([transformerNumber, poleNumber])
+}
+
+model Inspection {
+  id                String   @id @default(cuid())
+  transformerNumber String
+  inspectionNumber  String   @unique
+  inspectedDate     String
+  maintainanceDate  String
+  branch            String
+  status            String
+}
