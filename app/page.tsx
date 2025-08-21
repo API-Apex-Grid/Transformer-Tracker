@@ -58,7 +58,6 @@ export default function Home() {
             Sign in
           </button>
         </form>
-        <p className="text-xs text-black mt-4 text-center">Use admin / admin</p>
       </div>
     </div>
   );
