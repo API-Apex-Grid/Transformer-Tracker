@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Transformer } from "@/types/transformer";
+import { Inspection } from "@/types/inspection";
 
-interface TransformerListProps {
-  transformers: Transformer[];
+interface InspectionListProps {
+  inspections: Inspection[];
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
   onView?: (index: number) => void;
+  hideTransformerColumn?: boolean;
 }
 
-const TransformerList = ({ transformers, onEdit, onDelete, onView }: TransformerListProps) => {
+const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransformerColumn = false }: InspectionListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   const toggleMenu = (index: number) => {
@@ -24,20 +25,22 @@ const TransformerList = ({ transformers, onEdit, onDelete, onView }: Transformer
       <table className="min-w-full bg-white text-black table-fixed">
         <thead>
           <tr>
+            {!hideTransformerColumn && (
+              <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
+                Transformer No.
+              </th>
+            )}
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
+              Inspection No.
+            </th>
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-36">
+              Inspected Date
+            </th>
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
+              Maintainance Date
+            </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
-              Region
-            </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-48">
-              Transformer No.
-            </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
-              Pole No.
-            </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
-              Type
-            </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-[35%]">
-              Location
+              Status
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-center text-xs leading-4 font-bold uppercase tracking-wider w-20">
               View
@@ -50,22 +53,32 @@ const TransformerList = ({ transformers, onEdit, onDelete, onView }: Transformer
           </tr>
         </thead>
         <tbody>
-          {transformers.map((transformer, index) => (
+          {inspections.map((inspection, index) => (
             <tr key={index}>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-32 min-w-0">
-                {transformer.region}
+              {!hideTransformerColumn && (
+                <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
+                  {inspection.transformerNumber}
+                </td>
+              )}
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
+                {inspection.inspectionNumber}
               </td>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-48 min-w-0">
-                {transformer.transformerNumber}
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-36 min-w-0">
+                {inspection.inspectedDate}
               </td>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-32 min-w-0">
-                {transformer.poleNumber}
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
+                {inspection.maintainanceDate}
               </td>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-32 min-w-0">
-                {transformer.type}
-              </td>
-              <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-[35%] min-w-0">
-                {transformer.location}
+              <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-32 min-w-0">
+                <span
+                  className={`inline-block px-2 py-1 text-xs font-semibold rounded ${inspection.status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
+                      inspection.status === 'In Progress' ? 'bg-green-100 text-green-800 border border-green-300' :
+                        inspection.status === 'Completed' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                          'bg-gray-100 text-gray-800 border border-gray-300'
+                    }`}
+                >
+                  {inspection.status}
+                </span>
               </td>
               <td className="px-6 py-4 align-top border-b border-gray-200 text-center w-20">
                 <button
@@ -127,4 +140,4 @@ const TransformerList = ({ transformers, onEdit, onDelete, onView }: Transformer
   );
 };
 
-export default TransformerList;
+export default InspectionsList;
