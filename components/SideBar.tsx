@@ -53,7 +53,7 @@ const Sidebar = () => {
             Transformers
           </Link>
           <Link
-            href="/transformer/inspections"
+            href="/inspections"
             className="text-white hover:text-gray-300 pl-4"
             onClick={() => setIsOpen(false)}
           >
