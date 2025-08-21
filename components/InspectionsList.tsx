@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -24,19 +23,19 @@ const InspectionsList = ({ inspections, onEdit, onDelete }: InspectionListProps)
       <table className="min-w-full bg-white text-black table-fixed">
         <thead>
           <tr>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-32">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-40">
               Transformer No.
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-40">
               Inspection No.
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-28">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-36">
               Inspected Date
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-28">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-40">
               Maintainance Date
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-[45%]">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-32">
               Status
             </th>
             {(onEdit || onDelete) && (
@@ -49,19 +48,19 @@ const InspectionsList = ({ inspections, onEdit, onDelete }: InspectionListProps)
         <tbody>
           {inspections.map((inspection, index) => (
             <tr key={index}>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-32 min-w-0">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
                 {inspection.transformerNumber}
               </td>
               <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
                 {inspection.inspectionNumber}
               </td>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-28 min-w-0">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-36 min-w-0">
                 {inspection.inspectedDate}
               </td>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-28 min-w-0">
+              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
                 {inspection.maintainanceDate}
               </td>
-              <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-[45%] min-w-0">
+              <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-32 min-w-0">
                 <div className="mt-2">
                   <span
                     className={`inline-block px-2 py-1 text-xs font-semibold rounded ${inspection.status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
