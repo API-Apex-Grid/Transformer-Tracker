@@ -7,9 +7,10 @@ interface InspectionListProps {
   inspections: Inspection[];
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
+  hideTransformerColumn?: boolean;
 }
 
-const InspectionsList = ({ inspections, onEdit, onDelete }: InspectionListProps) => {
+const InspectionsList = ({ inspections, onEdit, onDelete, hideTransformerColumn = false }: InspectionListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   const toggleMenu = (index: number) => {
@@ -23,23 +24,25 @@ const InspectionsList = ({ inspections, onEdit, onDelete }: InspectionListProps)
       <table className="min-w-full bg-white text-black table-fixed">
         <thead>
           <tr>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-40">
-              Transformer No.
-            </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-40">
+            {!hideTransformerColumn && (
+              <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
+                Transformer No.
+              </th>
+            )}
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
               Inspection No.
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-36">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-36">
               Inspected Date
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-40">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
               Maintainance Date
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-32">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
               Status
             </th>
             {(onEdit || onDelete) && (
-              <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-medium uppercase tracking-wider w-16">
+              <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-bold uppercase tracking-wider w-16">
                 Actions
               </th>
             )}
@@ -48,9 +51,11 @@ const InspectionsList = ({ inspections, onEdit, onDelete }: InspectionListProps)
         <tbody>
           {inspections.map((inspection, index) => (
             <tr key={index}>
-              <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
-                {inspection.transformerNumber}
-              </td>
+              {!hideTransformerColumn && (
+                <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
+                  {inspection.transformerNumber}
+                </td>
+              )}
               <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
                 {inspection.inspectionNumber}
               </td>

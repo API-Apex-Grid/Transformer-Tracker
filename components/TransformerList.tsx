@@ -7,9 +7,10 @@ interface TransformerListProps {
   transformers: Transformer[];
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
+  onView?: (index: number) => void;
 }
 
-const TransformerList = ({ transformers, onEdit, onDelete }: TransformerListProps) => {
+const TransformerList = ({ transformers, onEdit, onDelete, onView }: TransformerListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   const toggleMenu = (index: number) => {
@@ -23,23 +24,26 @@ const TransformerList = ({ transformers, onEdit, onDelete }: TransformerListProp
       <table className="min-w-full bg-white text-black table-fixed">
         <thead>
           <tr>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-32">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
               Region
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-48">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-48">
               Transformer No.
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-32">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
               Pole No.
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-32">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
               Type
             </th>
-            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-medium uppercase tracking-wider w-[35%]">
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-[35%]">
               Location
             </th>
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-center text-xs leading-4 font-bold uppercase tracking-wider w-20">
+              View
+            </th>
             {(onEdit || onDelete) && (
-              <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-medium uppercase tracking-wider w-16">
+              <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-bold uppercase tracking-wider w-16">
                 Actions
               </th>
             )}
@@ -62,6 +66,14 @@ const TransformerList = ({ transformers, onEdit, onDelete }: TransformerListProp
               </td>
               <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-[35%] min-w-0">
                 {transformer.location}
+              </td>
+              <td className="px-6 py-4 align-top border-b border-gray-200 text-center w-20">
+                <button
+                  onClick={() => onView && onView(index)}
+                  className="bg-black hover:bg-black/80 text-white px-3 py-1 rounded text-sm font-medium"
+                >
+                  View
+                </button>
               </td>
               {(onEdit || onDelete) && (
                 <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 text-right relative w-16">
