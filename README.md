@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Apex Grid
 
-## Getting Started
+Next.js App Router project using SQLite via Prisma. Data lives in `prisma/dev.db`. The sidebar is global (left toggle). Inspections are independent from Transformers.
 
-First, run the development server:
+## Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 18+ (20+ recommended)
+- Any package manager (examples use npm; Windows PowerShell friendly)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Install
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Install dependencies: `pnpm install` (or `npm install`)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Database (SQLite + Prisma)
 
-## Learn More
+- Schema: `prisma/schema.prisma` with SQLite at `prisma/dev.db`.
+- First-time setup and migration:
+  - `pnpm run db:setup` (or `npm run db:setup`)
+    - Runs `prisma generate` and `prisma migrate dev --name init`
+- Useful commands:
+  - `pnpm run prisma:studio` (or `npm run prisma:studio`) — open Prisma Studio
+  - `pnpm run db:reset` (or `npm run db:reset`) — reset and re-seed the DB (destructive for dev DB)
 
-To learn more about Next.js, take a look at the following resources:
+## Run (development)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Start dev server: `pnpm run dev` (or `npm run dev`)
+- Open <http://localhost:3000>
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Login for local dev: username `admin`, password `admin`.
 
-## Deploy on Vercel
+## Project structure (high-level)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `app/` — App Router routes and API handlers
+  - `app/api/transformers` and `app/api/inspections` — CRUD endpoints using Prisma
+- `components/` — UI components (including sidebar and modals)
+- `lib/prisma.ts` — Prisma client singleton
+- `prisma/` — Prisma schema, migrations, and the SQLite DB file
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Production notes
+
+- SQLite is ideal for local/dev. For production, point Prisma to a server DB and run `prisma migrate deploy`.
+- Build/start: `pnpm run build` then `pnpm run start` (or `npm run build` / `npm start`).
+
+## Troubleshooting
+
+- If Prisma complains about the client, run `pnpm run prisma:generate` (or `npm run prisma:generate`).
+- If migrations fail after schema edits, run `pnpm run db:reset` (or `npm run db:reset`) — dev only.
+
+## License
+
+MIT
