@@ -4,7 +4,7 @@ export interface Transformer {
   poleNumber: string;
   type: string;
   location: string;
-  sunnyImage?: File | string | null;
-  cloudyImage?: File | string | null;
-  windyImage?: File | string | null;
+  sunnyImage?: string | null;
+  cloudyImage?: string | null;
+  windyImage?: string | null;
 }

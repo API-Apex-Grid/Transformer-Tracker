@@ -107,6 +107,17 @@ const TransformerPage = () => {
     }
   };
 
+  const updateViewingTransformer = (updatedTransformer: Transformer) => {
+    // Find the index of the transformer being viewed
+    const index = transformers.findIndex(t => t.transformerNumber === updatedTransformer.transformerNumber);
+    if (index !== -1) {
+      // Update the transformer in the context
+      updateTransformer(index, updatedTransformer);
+      // Update the local viewing state
+      setViewingTransformer(updatedTransformer);
+    }
+  };
+
   return (
     <div className="p-4 pb-24">
       <div className="flex items-center justify-between mb-4">
@@ -151,6 +162,7 @@ const TransformerPage = () => {
         <TransformerDetailsPanel
           transformer={viewingTransformer}
           onClose={closeView}
+          onUpdateTransformer={updateViewingTransformer}
         />
       )}
 

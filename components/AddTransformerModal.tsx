@@ -15,9 +15,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
   const [poleNumber, setPoleNumber] = useState("");
   const [type, setType] = useState("");
   const [location, setLocation] = useState("");
-  const [sunnyImage, setSunnyImage] = useState<File | null>(null);
-  const [cloudyImage, setCloudyImage] = useState<File | null>(null);
-  const [windyImage, setWindyImage] = useState<File | null>(null);
+  const [sunnyImage, setSunnyImage] = useState<string | null>(null);
+  const [cloudyImage, setCloudyImage] = useState<string | null>(null);
+  const [windyImage, setWindyImage] = useState<string | null>(null);
 
   const showSetTransformer = () => {
     setIsOpen(true);
@@ -82,16 +82,35 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
   };
 
   const handleFileChange = (weather: string, file: File | null) => {
-    switch (weather) {
-      case 'sunny':
-        setSunnyImage(file);
-        break;
-      case 'cloudy':
-        setCloudyImage(file);
-        break;
-      case 'windy':
-        setWindyImage(file);
-        break;
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        switch (weather) {
+          case 'sunny':
+            setSunnyImage(base64);
+            break;
+          case 'cloudy':
+            setCloudyImage(base64);
+            break;
+          case 'windy':
+            setWindyImage(base64);
+            break;
+        }
+      };
+      reader.readAsDataURL(file);
+    } else {
+      switch (weather) {
+        case 'sunny':
+          setSunnyImage(null);
+          break;
+        case 'cloudy':
+          setCloudyImage(null);
+          break;
+        case 'windy':
+          setWindyImage(null);
+          break;
+      }
     }
   };
 
@@ -257,6 +276,11 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   onChange={(e) => handleFileChange('sunny', e.target.files?.[0] || null)}
                                   className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                                 />
+                                {sunnyImage && (
+                                  <div className="mt-2">
+                                    <img src={sunnyImage} alt="Sunny weather preview" className="w-20 h-20 object-cover rounded border" />
+                                  </div>
+                                )}
                               </div>
 
                               <div>
@@ -269,6 +293,11 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   onChange={(e) => handleFileChange('cloudy', e.target.files?.[0] || null)}
                                   className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                                 />
+                                {cloudyImage && (
+                                  <div className="mt-2">
+                                    <img src={cloudyImage} alt="Cloudy weather preview" className="w-20 h-20 object-cover rounded border" />
+                                  </div>
+                                )}
                               </div>
 
                               <div>
@@ -281,6 +310,11 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   onChange={(e) => handleFileChange('windy', e.target.files?.[0] || null)}
                                   className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                                 />
+                                {windyImage && (
+                                  <div className="mt-2">
+                                    <img src={windyImage} alt="Windy weather preview" className="w-20 h-20 object-cover rounded border" />
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

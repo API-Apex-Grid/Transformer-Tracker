@@ -6,9 +6,10 @@ import { useState } from "react";
 interface TransformerDetailsPanelProps {
     transformer: Transformer;
     onClose: () => void;
+    onUpdateTransformer?: (updatedTransformer: Transformer) => void;
 }
 
-const TransformerDetailsPanel = ({ transformer, onClose }: TransformerDetailsPanelProps) => {
+const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: TransformerDetailsPanelProps) => {
     const [viewingImage, setViewingImage] = useState<string | null>(null);
     const [editingWeather, setEditingWeather] = useState<string | null>(null);
 
@@ -27,8 +28,25 @@ const TransformerDetailsPanel = ({ transformer, onClose }: TransformerDetailsPan
     };
 
     const handleFileChange = (weather: string, file: File | null) => {
-        // Handle file upload logic here
-        console.log(`Updating ${weather} image:`, file);
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64 = e.target?.result as string;
+
+                // Update the transformer with the new image
+                const updatedTransformer = {
+                    ...transformer,
+                    [`${weather}Image`]: base64
+                };
+
+                if (onUpdateTransformer) {
+                    onUpdateTransformer(updatedTransformer);
+                }
+
+                console.log(`Updated ${weather} image for transformer ${transformer.transformerNumber}`);
+            };
+            reader.readAsDataURL(file);
+        }
         setEditingWeather(null);
     };
 
@@ -78,8 +96,8 @@ const TransformerDetailsPanel = ({ transformer, onClose }: TransformerDetailsPan
                             <div className="flex items-center justify-between mb-3">
                                 <h4 className="font-medium text-gray-900 capitalize">{weather} Weather</h4>
                                 <span className={`px-2 py-1 text-xs font-semibold rounded ${baselineImages[weather as keyof typeof baselineImages]
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-red-100 text-red-800'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
                                     }`}>
                                     {baselineImages[weather as keyof typeof baselineImages] ? 'Available' : 'Not Available'}
                                 </span>
@@ -145,9 +163,18 @@ const TransformerDetailsPanel = ({ transformer, onClose }: TransformerDetailsPan
                                 </svg>
                             </button>
                         </div>
-                        <div className="bg-gray-100 p-8 rounded text-center">
-                            <p className="text-gray-500">Image preview would appear here</p>
-                            <p className="text-sm text-gray-400 mt-2">({viewingImage} weather baseline image)</p>
+                        <div className="flex justify-center">
+                            {baselineImages[viewingImage as keyof typeof baselineImages] ? (
+                                <img
+                                    src={baselineImages[viewingImage as keyof typeof baselineImages] as string}
+                                    alt={`${viewingImage} weather baseline`}
+                                    className="max-w-full max-h-96 object-contain rounded"
+                                />
+                            ) : (
+                                <div className="bg-gray-100 p-8 rounded text-center">
+                                    <p className="text-gray-500">No image available</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
