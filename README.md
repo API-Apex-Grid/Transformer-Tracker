@@ -45,7 +45,3 @@ Login for local dev: username `admin`, password `admin`.
 
 - If Prisma complains about the client, run `pnpm run prisma:generate` (or `npm run prisma:generate`).
 - If migrations fail after schema edits, run `pnpm run db:reset` (or `npm run db:reset`) — dev only.
-
-## License
-
-MIT
