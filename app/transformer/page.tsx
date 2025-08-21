@@ -42,7 +42,7 @@ const TransformerPage = () => {
 
   const saveEdit = (updated: Transformer) => {
     if (editingIndex === null) return;
-  updateTransformer(editingIndex, updated);
+    updateTransformer(editingIndex, updated);
   };
 
   const deleteTransformer = (index: number) => {
@@ -72,7 +72,7 @@ const TransformerPage = () => {
               Transformers
             </button>
             <button
-              onClick={() => router.push("transformer/inspections")}
+              onClick={() => router.push("/inspections")}
               className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-300 font-medium"
             >
               Inspections
