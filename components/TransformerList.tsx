@@ -40,6 +40,7 @@ const TransformerList = ({ transformers, onEdit, onDelete, onView }: Transformer
               Location
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-center text-xs leading-4 font-bold uppercase tracking-wider w-20">
+              View
             </th>
             {(onEdit || onDelete) && (
               <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-bold uppercase tracking-wider w-16">
@@ -92,24 +93,28 @@ const TransformerList = ({ transformers, onEdit, onDelete, onView }: Transformer
                   </button>
                   {openMenu === index && (
                     <div className="absolute right-4 mt-2 w-28 bg-white border border-gray-200 rounded-md shadow-lg z-20">
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-black"
-                        onClick={() => {
-                          onEdit && onEdit(index);
-                          closeMenu();
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                        onClick={() => {
-                          onDelete && onDelete(index);
-                          closeMenu();
-                        }}
-                      >
-                        Delete
-                      </button>
+                      {onEdit && (
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-black"
+                          onClick={() => {
+                            onEdit(index);
+                            closeMenu();
+                          }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            onDelete(index);
+                            closeMenu();
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   )}
                 </td>

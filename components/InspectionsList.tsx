@@ -7,10 +7,11 @@ interface InspectionListProps {
   inspections: Inspection[];
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
+  onView?: (index: number) => void;
   hideTransformerColumn?: boolean;
 }
 
-const InspectionsList = ({ inspections, onEdit, onDelete, hideTransformerColumn = false }: InspectionListProps) => {
+const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransformerColumn = false }: InspectionListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   const toggleMenu = (index: number) => {
@@ -41,6 +42,9 @@ const InspectionsList = ({ inspections, onEdit, onDelete, hideTransformerColumn 
             <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-32">
               Status
             </th>
+            <th className="px-6 py-3 border-b-2 border-gray-300 text-center text-xs leading-4 font-bold uppercase tracking-wider w-20">
+              View
+            </th>
             {(onEdit || onDelete) && (
               <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-bold uppercase tracking-wider w-16">
                 Actions
@@ -66,17 +70,23 @@ const InspectionsList = ({ inspections, onEdit, onDelete, hideTransformerColumn 
                 {inspection.maintainanceDate}
               </td>
               <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-32 min-w-0">
-                <div className="mt-2">
-                  <span
-                    className={`inline-block px-2 py-1 text-xs font-semibold rounded ${inspection.status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
+                <span
+                  className={`inline-block px-2 py-1 text-xs font-semibold rounded ${inspection.status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
                       inspection.status === 'In Progress' ? 'bg-green-100 text-green-800 border border-green-300' :
                         inspection.status === 'Completed' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
                           'bg-gray-100 text-gray-800 border border-gray-300'
-                      }`}
-                  >
-                    {inspection.status}
-                  </span>
-                </div>
+                    }`}
+                >
+                  {inspection.status}
+                </span>
+              </td>
+              <td className="px-6 py-4 align-top border-b border-gray-200 text-center w-20">
+                <button
+                  onClick={() => onView && onView(index)}
+                  className="bg-black hover:bg-black/80 text-white px-3 py-1 rounded text-sm font-medium"
+                >
+                  View
+                </button>
               </td>
               {(onEdit || onDelete) && (
                 <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 text-right relative w-16">
@@ -96,24 +106,28 @@ const InspectionsList = ({ inspections, onEdit, onDelete, hideTransformerColumn 
                   </button>
                   {openMenu === index && (
                     <div className="absolute right-4 mt-2 w-28 bg-white border border-gray-200 rounded-md shadow-lg z-20">
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-black"
-                        onClick={() => {
-                          onEdit && onEdit(index);
-                          closeMenu();
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                        onClick={() => {
-                          onDelete && onDelete(index);
-                          closeMenu();
-                        }}
-                      >
-                        Delete
-                      </button>
+                      {onEdit && (
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-black"
+                          onClick={() => {
+                            onEdit(index);
+                            closeMenu();
+                          }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            onDelete(index);
+                            closeMenu();
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   )}
                 </td>

@@ -9,6 +9,7 @@ import TransformerDetailsPanel from "@/components/TransformerDetailsPanel";
 import InspectionsList from "@/components/InspectionsList";
 import AddInspectionModal from "@/components/AddInspectionModal";
 import EditInspectionModal from "@/components/EditInspectionModal";
+import InspectionDetailsPanel from "@/components/InspectionDetailsPanel";
 import { Transformer } from "@/types/transformer";
 import { Inspection } from "@/types/inspection";
 import { useTransformers } from "@/context/TransformersContext";
@@ -22,6 +23,7 @@ const TransformerPage = () => {
   const [viewingTransformer, setViewingTransformer] = useState<Transformer | null>(null);
   const [isEditInspectionOpen, setIsEditInspectionOpen] = useState(false);
   const [editingInspectionIndex, setEditingInspectionIndex] = useState<number | null>(null);
+  const [viewingInspection, setViewingInspection] = useState<Inspection | null>(null);
 
   const router = useRouter();
 
@@ -107,6 +109,16 @@ const TransformerPage = () => {
     }
   };
 
+  const openViewInspection = (index: number) => {
+    if (!viewingTransformer) return;
+    const relatedInspections = getRelatedInspections(viewingTransformer.transformerNumber);
+    setViewingInspection(relatedInspections[index]);
+  };
+
+  const closeViewInspection = () => {
+    setViewingInspection(null);
+  };
+
   const updateViewingTransformer = (updatedTransformer: Transformer) => {
     // Find the index of the transformer being viewed
     const index = transformers.findIndex(t => t.transformerNumber === updatedTransformer.transformerNumber);
@@ -121,7 +133,9 @@ const TransformerPage = () => {
   return (
     <div className="p-4 pb-24">
       <div className="flex items-center justify-between mb-4">
-        {viewingTransformer ? (
+        {viewingInspection ? (
+          <h1 className="text-2xl font-bold">Inspection {viewingInspection.inspectionNumber}</h1>
+        ) : viewingTransformer ? (
           <h1 className="text-2xl font-bold">Transformer {viewingTransformer.transformerNumber}</h1>
         ) : (
           <h1 className="text-2xl font-bold">All Transformers</h1>
@@ -138,7 +152,7 @@ const TransformerPage = () => {
           >
             Log out
           </button>
-          {!viewingTransformer && (
+          {!viewingTransformer && !viewingInspection && (
             <div className="flex bg-gray-200 rounded-lg p-1">
               <button
                 className="px-4 py-2 rounded-md bg-black text-white font-medium"
@@ -158,7 +172,7 @@ const TransformerPage = () => {
 
       {!viewingTransformer && <AddTransformerModal addTransformer={addTransformer} />}
 
-      {viewingTransformer && (
+      {viewingTransformer && !viewingInspection && (
         <TransformerDetailsPanel
           transformer={viewingTransformer}
           onClose={closeView}
@@ -166,7 +180,14 @@ const TransformerPage = () => {
         />
       )}
 
-      {viewingTransformer ? (
+      {viewingInspection && (
+        <InspectionDetailsPanel
+          inspection={viewingInspection}
+          onClose={closeViewInspection}
+        />
+      )}
+
+      {viewingTransformer && !viewingInspection ? (
         <>
           <h1 className="text-xl font-bold mb-4">Transformer Inspections</h1>
           <AddInspectionModal
@@ -178,16 +199,17 @@ const TransformerPage = () => {
             hideTransformerColumn={true}
             onEdit={openEditInspection}
             onDelete={deleteInspectionHandler}
+            onView={openViewInspection}
           />
         </>
-      ) : (
+      ) : !viewingInspection ? (
         <TransformerList
           transformers={transformers}
           onEdit={openEdit}
           onDelete={deleteTransformer}
           onView={openView}
         />
-      )}
+      ) : null}
 
       <EditTransformerModal
         isOpen={isEditOpen}
