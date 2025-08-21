@@ -40,7 +40,6 @@ const TransformerList = ({ transformers, onEdit, onDelete, onView }: Transformer
               Location
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-center text-xs leading-4 font-bold uppercase tracking-wider w-20">
-              View
             </th>
             {(onEdit || onDelete) && (
               <th className="px-6 py-3 border-b-2 border-gray-300 text-right text-xs leading-4 font-bold uppercase tracking-wider w-16">
