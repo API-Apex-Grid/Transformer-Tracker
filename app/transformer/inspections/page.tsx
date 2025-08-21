@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import AddTransformerModal from "@/components/AddTransformerModal";
-import EditTransformerModal from "@/components/EditTransformerModal";
 import { Inspection } from "@/types/inspection";
 import InspectionsList from "@/components/InspectionsList";
 import AddInspectionModal from "@/components/AddInspectionModal";
+import EditInspectionModal from "@/components/EditInspectionModal";
 
 const InspectionsPage = () => {
     const [inspections, setInspections] = useState<Inspection[]>([]);
@@ -52,7 +51,7 @@ const InspectionsPage = () => {
     return (
         <div className="p-4 pb-24">
             <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold">Inspections</h1>
+                <h1 className="text-2xl font-bold">All Inspections</h1>
                 <div className="flex flex-col items-end gap-2">
                     <button
                         onClick={() => {
@@ -82,12 +81,12 @@ const InspectionsPage = () => {
             </div>
             <AddInspectionModal addInspection={addInspection} />
             <InspectionsList inspections={inspections} onEdit={openEdit} onDelete={deleteInspection} />
-            {/* <EditTransformerModal
+            <EditInspectionModal
                 isOpen={isEditOpen}
                 initial={editingIndex !== null ? inspections[editingIndex] : null}
                 onClose={closeEdit}
                 onSave={saveEdit}
-            /> */}
+            />
         </div>
     );
 };

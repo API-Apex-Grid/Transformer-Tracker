@@ -62,7 +62,17 @@ const InspectionsList = ({ inspections, onEdit, onDelete }: InspectionListProps)
                 {inspection.maintainanceDate}
               </td>
               <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-[45%] min-w-0">
-                {inspection.status}
+                <div className="mt-2">
+                  <span
+                    className={`inline-block px-2 py-1 text-xs font-semibold rounded ${inspection.status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
+                      inspection.status === 'In Progress' ? 'bg-green-100 text-green-800 border border-green-300' :
+                        inspection.status === 'Completed' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                          'bg-gray-100 text-gray-800 border border-gray-300'
+                      }`}
+                  >
+                    {inspection.status}
+                  </span>
+                </div>
               </td>
               {(onEdit || onDelete) && (
                 <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 text-right relative w-16">
