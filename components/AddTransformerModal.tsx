@@ -54,12 +54,30 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addTransformer({ region, transformerNumber, poleNumber, type, location });
+    addTransformer({
+      region,
+      transformerNumber,
+      poleNumber,
+      type,
+      location,
+      sunnyImage,
+      cloudyImage,
+      windyImage
+    });
     hideSetTransformer();
   };
 
   const handleSkip = () => {
-    addTransformer({ region, transformerNumber, poleNumber, type, location });
+    addTransformer({
+      region,
+      transformerNumber,
+      poleNumber,
+      type,
+      location,
+      sunnyImage: null,
+      cloudyImage: null,
+      windyImage: null
+    });
     hideSetTransformer();
   };
 
