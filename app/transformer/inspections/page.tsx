@@ -6,9 +6,10 @@ import { Inspection } from "@/types/inspection";
 import InspectionsList from "@/components/InspectionsList";
 import AddInspectionModal from "@/components/AddInspectionModal";
 import EditInspectionModal from "@/components/EditInspectionModal";
+import { useInspections } from "@/context/InspectionsContext";
 
 const InspectionsPage = () => {
-    const [inspections, setInspections] = useState<Inspection[]>([]);
+    const { inspections, addInspection, updateInspection, deleteInspection } = useInspections();
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
@@ -25,10 +26,6 @@ const InspectionsPage = () => {
         }
     }, [router]);
 
-    const addInspection = (inspection: Inspection) => {
-        setInspections([...inspections, inspection]);
-    };
-
     const openEdit = (index: number) => {
         setEditingIndex(index);
         setIsEditOpen(true);
@@ -41,11 +38,7 @@ const InspectionsPage = () => {
 
     const saveEdit = (updated: Inspection) => {
         if (editingIndex === null) return;
-        setInspections((prev) => prev.map((t, i) => (i === editingIndex ? updated : t)));
-    };
-
-    const deleteInspection = (index: number) => {
-        setInspections((prev) => prev.filter((_, i) => i !== index));
+        updateInspection(editingIndex, updated);
     };
 
     return (

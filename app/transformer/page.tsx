@@ -6,9 +6,10 @@ import AddTransformerModal from "@/components/AddTransformerModal";
 import TransformerList from "@/components/TransformerList";
 import EditTransformerModal from "@/components/EditTransformerModal";
 import { Transformer } from "@/types/transformer";
+import { useTransformers } from "@/context/TransformersContext";
 
 const TransformerPage = () => {
-  const [transformers, setTransformers] = useState<Transformer[]>([]);
+  const { transformers, addTransformer: addFromCtx, updateTransformer, deleteTransformer: deleteFromCtx } = useTransformers();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
@@ -26,7 +27,7 @@ const TransformerPage = () => {
   }, [router]);
 
   const addTransformer = (transformer: Transformer) => {
-    setTransformers([...transformers, transformer]);
+    addFromCtx(transformer);
   };
 
   const openEdit = (index: number) => {
@@ -41,11 +42,11 @@ const TransformerPage = () => {
 
   const saveEdit = (updated: Transformer) => {
     if (editingIndex === null) return;
-    setTransformers((prev) => prev.map((t, i) => (i === editingIndex ? updated : t)));
+  updateTransformer(editingIndex, updated);
   };
 
   const deleteTransformer = (index: number) => {
-    setTransformers((prev) => prev.filter((_, i) => i !== index));
+    deleteFromCtx(index);
   };
 
   return (
