@@ -7,6 +7,7 @@ import TransformerList from "@/components/TransformerList";
 import EditTransformerModal from "@/components/EditTransformerModal";
 import TransformerDetailsPanel from "@/components/TransformerDetailsPanel";
 import InspectionsList from "@/components/InspectionsList";
+import AddInspectionModal from "@/components/AddInspectionModal";
 import { Transformer } from "@/types/transformer";
 import { Inspection } from "@/types/inspection";
 import { useTransformers } from "@/context/TransformersContext";
@@ -14,7 +15,7 @@ import { useInspections } from "@/context/InspectionsContext";
 
 const TransformerPage = () => {
   const { transformers, addTransformer: addFromCtx, updateTransformer, deleteTransformer: deleteFromCtx } = useTransformers();
-  const { inspections } = useInspections();
+  const { inspections, addInspection: addInspectionCtx } = useInspections();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [viewingTransformer, setViewingTransformer] = useState<Transformer | null>(null);
@@ -67,6 +68,10 @@ const TransformerPage = () => {
     return inspections.filter(inspection => inspection.transformerNumber === transformerNumber);
   };
 
+  const addInspection = (inspection: Inspection) => {
+    addInspectionCtx(inspection);
+  };
+
   return (
     <div className="p-4 pb-24">
       <div className="flex items-center justify-between mb-4">
@@ -117,6 +122,10 @@ const TransformerPage = () => {
       {viewingTransformer ? (
         <>
           <h1 className="text-xl font-bold mb-4">Transformer Inspections</h1>
+          <AddInspectionModal
+            addInspection={addInspection}
+            prefilledTransformerNumber={viewingTransformer.transformerNumber}
+          />
           <InspectionsList
             inspections={getRelatedInspections(viewingTransformer.transformerNumber)}
             hideTransformerColumn={true}

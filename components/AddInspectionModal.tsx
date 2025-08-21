@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Inspection } from "@/types/inspection";
 
 interface AddInspectionModalProps {
   addInspection: (inspection: Inspection) => void;
+  prefilledTransformerNumber?: string;
 }
 
-const AddInspectionModal = ({ addInspection }: AddInspectionModalProps) => {
+const AddInspectionModal = ({ addInspection, prefilledTransformerNumber }: AddInspectionModalProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [transformerNumber, setTransformerNumber] = useState("");
+  const [transformerNumber, setTransformerNumber] = useState(prefilledTransformerNumber || "");
   const [maintainanceDate, setMaintainanceDate] = useState("");
   const [status, setStatus] = useState("Pending");
   const [branch, setBranch] = useState("");
@@ -55,6 +56,12 @@ const AddInspectionModal = ({ addInspection }: AddInspectionModalProps) => {
     });
     hideSetInspection();
   };
+
+  useEffect(() => {
+    if (prefilledTransformerNumber) {
+      setTransformerNumber(prefilledTransformerNumber);
+    }
+  }, [prefilledTransformerNumber]);
 
   return (
     <>
@@ -123,7 +130,9 @@ const AddInspectionModal = ({ addInspection }: AddInspectionModalProps) => {
                               onChange={(e) =>
                                 setTransformerNumber(e.target.value)
                               }
-                              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                              disabled={!!prefilledTransformerNumber}
+                              className={`shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white ${prefilledTransformerNumber ? 'bg-gray-100 cursor-not-allowed' : ''
+                                }`}
                             />
                             {errors.transformerNumber && (
                               <p className="mt-1 text-sm text-red-600">{errors.transformerNumber}</p>
