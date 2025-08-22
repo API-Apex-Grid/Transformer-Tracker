@@ -6,4 +6,6 @@ export interface Inspection {
     maintainanceDate: string;
     branch: string;
     status: string;
+    imageUrl?: string | null;
+    weather?: "sunny" | "cloudy" | "rainy" | null;
 }

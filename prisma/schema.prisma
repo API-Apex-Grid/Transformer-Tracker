@@ -1,8 +1,3 @@
-// Prisma schema for PostgreSQL
-// After setting DATABASE_URL env var, run:
-//   npx prisma migrate dev --name init
-//   npx prisma generate
-
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
@@ -34,4 +29,6 @@ model Inspection {
   maintainanceDate  String
   branch            String
   status            String
+  imageUrl          String?
+  weather           String?
 }

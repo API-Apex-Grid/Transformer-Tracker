@@ -9,6 +9,7 @@ type InspectionsContextValue = {
   addInspection: (i: Inspection) => void;
   updateInspection: (index: number, i: Inspection) => void;
   deleteInspection: (index: number) => void;
+  reload: () => Promise<void>;
 };
 
 const InspectionsContext = createContext<InspectionsContextValue | undefined>(undefined);
@@ -69,7 +70,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   };
 
   const value = useMemo(
-    () => ({ inspections, addInspection, updateInspection, deleteInspection }),
+    () => ({ inspections, addInspection, updateInspection, deleteInspection, reload: load }),
     [inspections]
   );
 

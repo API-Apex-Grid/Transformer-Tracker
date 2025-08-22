@@ -9,6 +9,7 @@ type TransformersContextValue = {
   addTransformer: (t: Transformer) => void;
   updateTransformer: (index: number, t: Transformer) => void;
   deleteTransformer: (index: number) => void;
+  reload: () => Promise<void>;
 };
 
 const TransformersContext = createContext<TransformersContextValue | undefined>(undefined);
@@ -73,7 +74,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   };
 
   const value = useMemo(
-    () => ({ transformers, addTransformer, updateTransformer, deleteTransformer }),
+    () => ({ transformers, addTransformer, updateTransformer, deleteTransformer, reload: load }),
     [transformers]
   );
 

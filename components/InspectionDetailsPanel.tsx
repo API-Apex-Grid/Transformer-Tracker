@@ -1,6 +1,10 @@
 "use client";
 
 import { Inspection } from "@/types/inspection";
+import ThermalImage from "@/components/ThermalImage";
+import { useTransformers } from "@/context/TransformersContext";
+import { useInspections } from "@/context/InspectionsContext";
+import { useState, useMemo } from "react";
 
 interface InspectionDetailsPanelProps {
     inspection: Inspection;
@@ -8,6 +12,56 @@ interface InspectionDetailsPanelProps {
 }
 
 const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelProps) => {
+    const { transformers, reload: reloadTransformers } = useTransformers();
+    const { reload } = useInspections();
+    const [selectedWeather, setSelectedWeather] = useState<string>(inspection.weather || "sunny");
+    const [uploadedUrl, setUploadedUrl] = useState<string | null>(inspection.imageUrl || null);
+
+    const transformer = useMemo(() => (
+        transformers.find(t => t.transformerNumber === inspection.transformerNumber)
+    ), [transformers, inspection.transformerNumber]);
+
+    const baselineForWeather = (weather?: string | null) => {
+        if (!transformer) return null;
+        switch (weather) {
+            case "sunny":
+                return transformer.sunnyImage || null;
+            case "cloudy":
+                return transformer.cloudyImage || null;
+            case "rainy":
+                // Map rainy to windy baseline if rainy is not modeled; adjust if needed
+                return transformer.windyImage || null;
+            default:
+                return transformer.sunnyImage || transformer.cloudyImage || transformer.windyImage || null;
+        }
+    };
+
+    const handleUpload = async (file: File, weather: string) => {
+        if (!inspection.id) return;
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("weather", weather);
+        const res = await fetch(`/api/inspections/${inspection.id}/upload`, {
+            method: "POST",
+            body: formData,
+        });
+        if (res.ok) {
+            const updated = await res.json();
+            setUploadedUrl(updated.imageUrl ?? null);
+            setSelectedWeather(updated.weather || selectedWeather);
+        }
+        await reload();
+    };
+
+    const uploadBaseline = async (file: File, weather: string) => {
+        if (!transformer?.id) return;
+        const form = new FormData();
+        form.append("file", file);
+        form.append("weather", weather);
+        await fetch(`/api/transformers/${transformer.id}/baseline`, { method: "POST", body: form });
+        await reloadTransformers();
+    };
+
     return (
         <div className="bg-white border border-gray-200 rounded-lg shadow-lg mb-6 p-6">
             <div className="flex justify-between items-start mb-4">
@@ -57,19 +111,52 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                 </div>
             </div>
 
-            {/* Dummy Component Section */}
+            {/* Thermal Image Upload & Comparison */}
             <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Inspection Analysis</h3>
-                <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <div className="text-gray-500">
-                        <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <p className="text-lg font-medium mb-2">Inspection Analysis Component</p>
-                        <p className="text-sm">This component will be designed and implemented later.</p>
-                        <p className="text-xs mt-2 text-gray-400">
-                            Placeholder for detailed inspection analysis, charts, and additional inspection data.
-                        </p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Thermal Image</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Uploader */}
+                    <ThermalImage
+                        onImageUpload={(file) => handleUpload(file, selectedWeather)}
+                        onWeatherChange={(w) => setSelectedWeather(w)}
+                        onAnalyze={() => {
+                            // re-run the progress sequence within ThermalImage by toggling reset
+                            // The component already simulates progress; this handler is a hook point for real AI later
+                        }}
+                    />
+
+                    {/* Side-by-side Comparison */}
+                    <div className="bg-gray-50 border rounded-lg p-4">
+                        <h4 className="font-semibold mb-2">Comparison</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-sm text-gray-600 mb-1">Baseline ({selectedWeather})</p>
+                                {baselineForWeather(selectedWeather) ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={baselineForWeather(selectedWeather) as string} alt="Baseline" className="w-full h-56 object-contain border rounded" />
+                                ) : (
+                                    <div className="w-full h-56 flex flex-col gap-2 items-center justify-center border rounded text-gray-400">
+                                        <span>No baseline</span>
+                                        <label className="px-3 py-1 text-sm bg-black text-white rounded cursor-pointer">
+                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                                const f = e.target.files?.[0];
+                                                if (f) uploadBaseline(f, selectedWeather);
+                                            }} />
+                                            Add baseline
+                                        </label>
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600 mb-1">Uploaded</p>
+                                {(uploadedUrl || inspection.imageUrl) ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={(uploadedUrl || inspection.imageUrl) as string} alt="Uploaded" className="w-full h-56 object-contain border rounded" />
+                                ) : (
+                                    <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">No image uploaded</div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
