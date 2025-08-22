@@ -25,6 +25,12 @@ const TransformerPage = () => {
   const [editingInspectionIndex, setEditingInspectionIndex] = useState<number | null>(null);
   const [viewingInspection, setViewingInspection] = useState<Inspection | null>(null);
 
+  // Filters for the main Transformers list view
+  const [tfNumberQuery, setTfNumberQuery] = useState("");
+  const [poleQuery, setPoleQuery] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+
   const router = useRouter();
 
   useEffect(() => {
@@ -130,6 +136,18 @@ const TransformerPage = () => {
     }
   };
 
+  // Build dropdown options from existing data
+  const regionOptions = Array.from(new Set(transformers.map(t => t.region))).sort();
+  const typeOptions = Array.from(new Set(transformers.map(t => t.type))).sort();
+
+  const filteredTransformers = transformers.filter(t => {
+    const matchesTf = tfNumberQuery.trim() === "" || t.transformerNumber.toLowerCase().includes(tfNumberQuery.toLowerCase());
+    const matchesPole = poleQuery.trim() === "" || t.poleNumber.toLowerCase().includes(poleQuery.toLowerCase());
+    const matchesRegion = regionFilter === "" || t.region === regionFilter;
+    const matchesType = typeFilter === "" || t.type === typeFilter;
+    return matchesTf && matchesPole && matchesRegion && matchesType;
+  });
+
   return (
     <div className="p-4 pb-24">
       <div className="flex items-center justify-between mb-4">
@@ -170,6 +188,50 @@ const TransformerPage = () => {
         </div>
       </div>
 
+      {/* Filters for Transformers main list */}
+      {!viewingTransformer && !viewingInspection && (
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+          <input
+            value={tfNumberQuery}
+            onChange={(e) => setTfNumberQuery(e.target.value)}
+            placeholder="Search transformer no."
+            className="px-3 py-2 border rounded-md"
+          />
+          <input
+            value={poleQuery}
+            onChange={(e) => setPoleQuery(e.target.value)}
+            placeholder="Search pole no."
+            className="px-3 py-2 border rounded-md"
+          />
+          <select
+            value={regionFilter}
+            onChange={(e) => setRegionFilter(e.target.value)}
+            className="px-3 py-2 border rounded-md"
+          >
+            <option value="">All regions</option>
+            {regionOptions.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-3 py-2 border rounded-md"
+          >
+            <option value="">All types</option>
+            {typeOptions.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => { setTfNumberQuery(""); setPoleQuery(""); setRegionFilter(""); setTypeFilter(""); }}
+            className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {!viewingTransformer && <AddTransformerModal addTransformer={addTransformer} />}
 
       {viewingTransformer && !viewingInspection && (
@@ -204,7 +266,7 @@ const TransformerPage = () => {
         </>
       ) : !viewingInspection ? (
         <TransformerList
-          transformers={transformers}
+          transformers={filteredTransformers}
           onEdit={openEdit}
           onDelete={deleteTransformer}
           onView={openView}

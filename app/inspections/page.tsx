@@ -15,6 +15,11 @@ const InspectionsPage = () => {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
+    // Filters
+    const [inspQuery, setInspQuery] = useState("");
+    const [tfQuery, setTfQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
+
     const router = useRouter();
 
     useEffect(() => {
@@ -59,6 +64,14 @@ const InspectionsPage = () => {
         deleteInspection(index);
     };
 
+    const statusOptions = Array.from(new Set(inspections.map(i => i.status))).filter(Boolean);
+    const filteredInspections = inspections.filter(i => {
+        const byInsp = inspQuery.trim() === "" || i.inspectionNumber.toLowerCase().includes(inspQuery.toLowerCase());
+        const byTf = tfQuery.trim() === "" || i.transformerNumber.toLowerCase().includes(tfQuery.toLowerCase());
+        const byStatus = statusFilter === "" || i.status === statusFilter;
+        return byInsp && byTf && byStatus;
+    });
+
     return (
         <div className="p-4 pb-24">
             <div className="flex items-center justify-between mb-4">
@@ -99,6 +112,40 @@ const InspectionsPage = () => {
 
             {!viewingInspection && <AddInspectionModal addInspection={addInspection} />}
 
+            {/* Filters */}
+            {!viewingInspection && (
+                <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <input
+                        value={inspQuery}
+                        onChange={(e) => setInspQuery(e.target.value)}
+                        placeholder="Search inspection no."
+                        className="px-3 py-2 border rounded-md"
+                    />
+                    <input
+                        value={tfQuery}
+                        onChange={(e) => setTfQuery(e.target.value)}
+                        placeholder="Search transformer no."
+                        className="px-3 py-2 border rounded-md"
+                    />
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="px-3 py-2 border rounded-md"
+                    >
+                        <option value="">All status</option>
+                        {statusOptions.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                        ))}
+                    </select>
+                    <button
+                        onClick={() => { setInspQuery(""); setTfQuery(""); setStatusFilter(""); }}
+                        className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
+                    >
+                        Clear
+                    </button>
+                </div>
+            )}
+
             {viewingInspection && (
                 <InspectionDetailsPanel
                     inspection={viewingInspection}
@@ -106,9 +153,9 @@ const InspectionsPage = () => {
                 />
             )}
 
-            {!viewingInspection && (
+        {!viewingInspection && (
                 <InspectionsList
-                    inspections={inspections}
+            inspections={filteredInspections}
                     onEdit={openEdit}
                     onDelete={deleteInspectionHandler}
                     onView={openView}

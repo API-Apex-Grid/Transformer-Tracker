@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTransformers } from "@/context/TransformersContext";
 import { Transformer } from "@/types/transformer";
 
 interface AddTransformerModalProps {
@@ -8,6 +9,7 @@ interface AddTransformerModalProps {
 }
 
 const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
+  const { transformers } = useTransformers();
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1); // Track current step
   const [region, setRegion] = useState("");
@@ -39,6 +41,12 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
 
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
 
+  const isDuplicateCombo = (tfNo: string, poleNo: string) => {
+    const a = tfNo.trim().toLowerCase();
+    const b = poleNo.trim().toLowerCase();
+    return transformers.some(t => t.transformerNumber.trim().toLowerCase() === a && t.poleNumber.trim().toLowerCase() === b);
+  };
+
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { [k: string]: string } = {};
@@ -46,6 +54,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     if (!transformerNumber) newErrors.transformerNumber = "Transformer number is required";
     if (!poleNumber) newErrors.poleNumber = "Pole number is required";
     if (!type) newErrors.type = "Type is required";
+    if (!newErrors.transformerNumber && !newErrors.poleNumber && isDuplicateCombo(transformerNumber, poleNumber)) {
+      newErrors.poleNumber = "A transformer with this transformer no. and pole no. already exists";
+    }
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
@@ -54,6 +65,11 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Double-check duplicates at submit time
+    if (isDuplicateCombo(transformerNumber, poleNumber)) {
+      setErrors(prev => ({ ...prev, poleNumber: "A transformer with this transformer no. and pole no. already exists" }));
+      return;
+    }
     addTransformer({
       region,
       transformerNumber,
@@ -68,6 +84,11 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
   };
 
   const handleSkip = () => {
+    // Double-check duplicates even when skipping images
+    if (isDuplicateCombo(transformerNumber, poleNumber)) {
+      setErrors(prev => ({ ...prev, poleNumber: "A transformer with this transformer no. and pole no. already exists" }));
+      return;
+    }
     addTransformer({
       region,
       transformerNumber,
