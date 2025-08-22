@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Transformer } from "@/types/transformer";
 
 type TransformersContextValue = {
@@ -14,15 +15,27 @@ const TransformersContext = createContext<TransformersContextValue | undefined>(
 
 export function TransformersProvider({ children }: { children: React.ReactNode }) {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
+  const pathname = usePathname();
 
   // load from API
+  const load = async () => {
+    const res = await fetch("/api/transformers", { cache: "no-store" });
+    const data = await res.json();
+    setTransformers(data);
+  };
+
+  // Initial load
   useEffect(() => {
-    (async () => {
-      const res = await fetch("/api/transformers", { cache: "no-store" });
-      const data = await res.json();
-      setTransformers(data);
-    })();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Refetch on route change (e.g., switching between /transformer and /inspections)
+  useEffect(() => {
+    if (!pathname) return;
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const addTransformer = async (t: Transformer) => {
     const res = await fetch("/api/transformers", {
@@ -32,6 +45,8 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     });
     const created = await res.json();
     setTransformers((prev) => [...prev, created]);
+  // Ensure state matches DB in case of server-side defaults/hooks
+  void load();
   };
 
   const updateTransformer = async (index: number, t: Transformer) => {
@@ -44,6 +59,8 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     });
     const updated = await res.json();
     setTransformers((prev) => prev.map((it, i) => (i === index ? updated : it)));
+  // Keep in sync with DB
+  void load();
   };
 
   const deleteTransformer = async (index: number) => {
@@ -51,6 +68,8 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     if (!id) return;
     await fetch(`/api/transformers/${id}`, { method: "DELETE" });
     setTransformers((prev) => prev.filter((_, i) => i !== index));
+  // Cascade deletes may affect related data; refresh to reflect truth from DB
+  void load();
   };
 
   const value = useMemo(

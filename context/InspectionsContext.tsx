@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Inspection } from "@/types/inspection";
 
 type InspectionsContextValue = {
@@ -14,14 +15,26 @@ const InspectionsContext = createContext<InspectionsContextValue | undefined>(un
 
 export function InspectionsProvider({ children }: { children: React.ReactNode }) {
   const [inspections, setInspections] = useState<Inspection[]>([]);
+  const pathname = usePathname();
 
+  const load = async () => {
+    const res = await fetch("/api/inspections", { cache: "no-store" });
+    const data = await res.json();
+    setInspections(data);
+  };
+
+  // Initial load
   useEffect(() => {
-    (async () => {
-      const res = await fetch("/api/inspections", { cache: "no-store" });
-      const data = await res.json();
-      setInspections(data);
-    })();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Refetch on route change
+  useEffect(() => {
+    if (!pathname) return;
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const addInspection = async (i: Inspection) => {
     const res = await fetch("/api/inspections", {
@@ -31,6 +44,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     });
     const created = await res.json();
     setInspections((prev) => [...prev, created]);
+  void load();
   };
 
   const updateInspection = async (index: number, i: Inspection) => {
@@ -43,6 +57,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     });
     const updated = await res.json();
     setInspections((prev) => prev.map((it, idx) => (idx === index ? updated : it)));
+  void load();
   };
 
   const deleteInspection = async (index: number) => {
@@ -50,6 +65,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     if (!id) return;
     await fetch(`/api/inspections/${id}`, { method: "DELETE" });
     setInspections((prev) => prev.filter((_, idx) => idx !== index));
+  void load();
   };
 
   const value = useMemo(
