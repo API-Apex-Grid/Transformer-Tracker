@@ -8,4 +8,8 @@ export interface Transformer {
   sunnyImage?: string | null;
   cloudyImage?: string | null;
   windyImage?: string | null;
+  uploadedBy?: string | null;
+  sunnyImageUploadedBy?: string | null;
+  cloudyImageUploadedBy?: string | null;
+  windyImageUploadedBy?: string | null;
 }

@@ -44,6 +44,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         const res = await fetch(`/api/inspections/${inspection.id}/upload`, {
             method: "POST",
             body: formData,
+            headers: {
+                'x-username': (typeof window !== 'undefined' ? (localStorage.getItem('username') || '') : '')
+            }
         });
         if (res.ok) {
             const updated = await res.json();
@@ -58,7 +61,13 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         const form = new FormData();
         form.append("file", file);
         form.append("weather", weather);
-        await fetch(`/api/transformers/${transformer.id}/baseline`, { method: "POST", body: form });
+        await fetch(`/api/transformers/${transformer.id}/baseline`, {
+            method: "POST",
+            body: form,
+            headers: {
+                'x-username': (typeof window !== 'undefined' ? (localStorage.getItem('username') || '') : '')
+            }
+        });
         await reloadTransformers();
     };
 
@@ -109,6 +118,12 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                         {inspection.status}
                     </span>
                 </div>
+                                {inspection.uploadedBy && (
+                                    <div className="col-span-2">
+                                        <label className="block text-sm font-bold text-gray-700">Uploaded by</label>
+                                        <p className="mt-1 text-sm text-gray-900">{inspection.uploadedBy}</p>
+                                    </div>
+                                )}
             </div>
 
             {/* Thermal Image Upload & Comparison */}
@@ -149,12 +164,15 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             </div>
                             <div>
                                 <p className="text-sm text-gray-600 mb-1">Uploaded</p>
-                                {(uploadedUrl || inspection.imageUrl) ? (
+                                                                {(uploadedUrl || inspection.imageUrl) ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={(uploadedUrl || inspection.imageUrl) as string} alt="Uploaded" className="w-full h-56 object-contain border rounded" />
                                 ) : (
                                     <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">No image uploaded</div>
                                 )}
+                                                                {inspection.imageUploadedBy && (
+                                                                    <p className="mt-1 text-xs text-gray-500">by {inspection.imageUploadedBy}</p>
+                                                                )}
                             </div>
                         </div>
                     </div>

@@ -39,10 +39,19 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   }, [pathname]);
 
   const addTransformer = async (t: Transformer) => {
+    let username: string | null = null;
+    try { username = typeof window !== 'undefined' ? localStorage.getItem('username') : null; } catch {}
+    const body = {
+      ...t,
+      uploadedBy: username,
+      sunnyImageUploadedBy: t.sunnyImage ? username : undefined,
+      cloudyImageUploadedBy: t.cloudyImage ? username : undefined,
+      windyImageUploadedBy: t.windyImage ? username : undefined,
+    };
     const res = await fetch("/api/transformers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(t),
+      body: JSON.stringify(body),
     });
     const created = await res.json();
     setTransformers((prev) => [...prev, created]);

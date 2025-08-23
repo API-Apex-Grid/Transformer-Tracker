@@ -26,7 +26,8 @@ Next.js App Router project using SQLite via Prisma. Data lives in `prisma/dev.db
 - Start dev server: `pnpm run dev` (or `npm run dev`)
 - Open <http://localhost:3000>
 
-Login for local dev: username `admin`, password `admin`.
+Login: use `user1`..`user5` with the same value as password (e.g., `user3`/`user3`).
+On first login with one of these, the user record is auto-created in the DB.
 
 ## Project structure (high-level)
 

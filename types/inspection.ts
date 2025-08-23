@@ -8,4 +8,6 @@ export interface Inspection {
     status: string;
     imageUrl?: string | null;
     weather?: "sunny" | "cloudy" | "rainy" | null;
+    uploadedBy?: string | null;
+    imageUploadedBy?: string | null;
 }

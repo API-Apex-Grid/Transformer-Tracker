@@ -16,9 +16,7 @@ const Sidebar = ({ children }: Props) => {
   const checkLoginStatus = () => {
     try {
       const loggedIn = false;
-        // typeof window !== "undefined" &&
-        // localStorage.getItem("isLoggedIn") === "true";
-        // temporarily set to false permanently
+        // typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
       setIsLoggedIn(loggedIn);
     } catch {
       setIsLoggedIn(false);
