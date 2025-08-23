@@ -9,15 +9,28 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === "admin" && password === "admin") {
+    setError("");
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Invalid credentials");
+        return;
+      }
+      // Mark logged-in for simple client gating; also store username
       try {
         localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("username", username);
       } catch {}
       router.push("/transformer");
-    } else {
-      setError("Invalid credentials");
+    } catch (err) {
+      setError("Login failed");
     }
   };
 

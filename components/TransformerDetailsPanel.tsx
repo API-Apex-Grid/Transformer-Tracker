@@ -85,6 +85,12 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                     <label className="block text-sm font-bold text-gray-700">Location</label>
                     <p className="mt-1 text-sm text-gray-900">{transformer.location}</p>
                 </div>
+                                {transformer.uploadedBy && (
+                                    <div className="col-span-2">
+                                        <label className="block text-sm font-bold text-gray-700">Uploaded by</label>
+                                        <p className="mt-1 text-sm text-gray-900">{transformer.uploadedBy}</p>
+                                    </div>
+                                )}
             </div>
 
             {/* Baseline Images Section */}
@@ -103,7 +109,7 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                 </span>
                             </div>
 
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
                                 {baselineImages[weather as keyof typeof baselineImages] && (
                                     <button
                                         onClick={() => handleViewImage(weather)}
@@ -123,6 +129,15 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                 >
                                     {baselineImages[weather as keyof typeof baselineImages] ? 'Update' : 'Add'}
                                 </button>
+                                                                {weather === 'sunny' && transformer.sunnyImageUploadedBy && (
+                                                                    <span className="text-xs text-gray-500">by {transformer.sunnyImageUploadedBy}</span>
+                                                                )}
+                                                                {weather === 'cloudy' && transformer.cloudyImageUploadedBy && (
+                                                                    <span className="text-xs text-gray-500">by {transformer.cloudyImageUploadedBy}</span>
+                                                                )}
+                                                                {weather === 'windy' && transformer.windyImageUploadedBy && (
+                                                                    <span className="text-xs text-gray-500">by {transformer.windyImageUploadedBy}</span>
+                                                                )}
                             </div>
 
                             {editingWeather === weather && (

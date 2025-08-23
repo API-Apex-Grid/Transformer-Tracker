@@ -16,14 +16,29 @@ import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 
 const TransformerPage = () => {
-  const { transformers, addTransformer: addFromCtx, updateTransformer, deleteTransformer: deleteFromCtx } = useTransformers();
-  const { inspections, addInspection: addInspectionCtx, updateInspection, deleteInspection } = useInspections();
+  const {
+    transformers,
+    addTransformer: addFromCtx,
+    updateTransformer,
+    deleteTransformer: deleteFromCtx,
+  } = useTransformers();
+  const {
+    inspections,
+    addInspection: addInspectionCtx,
+    updateInspection,
+    deleteInspection,
+  } = useInspections();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [viewingTransformer, setViewingTransformer] = useState<Transformer | null>(null);
+  const [viewingTransformer, setViewingTransformer] =
+    useState<Transformer | null>(null);
   const [isEditInspectionOpen, setIsEditInspectionOpen] = useState(false);
-  const [editingInspectionIndex, setEditingInspectionIndex] = useState<number | null>(null);
-  const [viewingInspection, setViewingInspection] = useState<Inspection | null>(null);
+  const [editingInspectionIndex, setEditingInspectionIndex] = useState<
+    number | null
+  >(null);
+  const [viewingInspection, setViewingInspection] = useState<Inspection | null>(
+    null
+  );
 
   // Filters for the main Transformers list view
   const [tfNumberQuery, setTfNumberQuery] = useState("");
@@ -35,7 +50,9 @@ const TransformerPage = () => {
 
   useEffect(() => {
     try {
-      const loggedIn = typeof window !== 'undefined' && localStorage.getItem("isLoggedIn") === "true";
+      const loggedIn =
+        typeof window !== "undefined" &&
+        localStorage.getItem("isLoggedIn") === "true";
       if (!loggedIn) {
         router.replace("/");
       }
@@ -76,7 +93,9 @@ const TransformerPage = () => {
   };
 
   const getRelatedInspections = (transformerNumber: string) => {
-    return inspections.filter(inspection => inspection.transformerNumber === transformerNumber);
+    return inspections.filter(
+      (inspection) => inspection.transformerNumber === transformerNumber
+    );
   };
 
   const addInspection = (inspection: Inspection) => {
@@ -95,9 +114,13 @@ const TransformerPage = () => {
 
   const saveEditInspection = (updated: Inspection) => {
     if (editingInspectionIndex === null) return;
-    const relatedInspections = getRelatedInspections(viewingTransformer!.transformerNumber);
-    const originalIndex = inspections.findIndex(inspection =>
-      inspection.inspectionNumber === relatedInspections[editingInspectionIndex].inspectionNumber
+    const relatedInspections = getRelatedInspections(
+      viewingTransformer!.transformerNumber
+    );
+    const originalIndex = inspections.findIndex(
+      (inspection) =>
+        inspection.inspectionNumber ===
+        relatedInspections[editingInspectionIndex].inspectionNumber
     );
     if (originalIndex !== -1) {
       updateInspection(originalIndex, updated);
@@ -106,9 +129,13 @@ const TransformerPage = () => {
 
   const deleteInspectionHandler = (index: number) => {
     if (!viewingTransformer) return;
-    const relatedInspections = getRelatedInspections(viewingTransformer.transformerNumber);
-    const originalIndex = inspections.findIndex(inspection =>
-      inspection.inspectionNumber === relatedInspections[index].inspectionNumber
+    const relatedInspections = getRelatedInspections(
+      viewingTransformer.transformerNumber
+    );
+    const originalIndex = inspections.findIndex(
+      (inspection) =>
+        inspection.inspectionNumber ===
+        relatedInspections[index].inspectionNumber
     );
     if (originalIndex !== -1) {
       deleteInspection(originalIndex);
@@ -117,7 +144,9 @@ const TransformerPage = () => {
 
   const openViewInspection = (index: number) => {
     if (!viewingTransformer) return;
-    const relatedInspections = getRelatedInspections(viewingTransformer.transformerNumber);
+    const relatedInspections = getRelatedInspections(
+      viewingTransformer.transformerNumber
+    );
     setViewingInspection(relatedInspections[index]);
   };
 
@@ -127,7 +156,9 @@ const TransformerPage = () => {
 
   const updateViewingTransformer = (updatedTransformer: Transformer) => {
     // Find the index of the transformer being viewed
-    const index = transformers.findIndex(t => t.transformerNumber === updatedTransformer.transformerNumber);
+    const index = transformers.findIndex(
+      (t) => t.transformerNumber === updatedTransformer.transformerNumber
+    );
     if (index !== -1) {
       // Update the transformer in the context
       updateTransformer(index, updatedTransformer);
@@ -137,12 +168,20 @@ const TransformerPage = () => {
   };
 
   // Build dropdown options from existing data
-  const regionOptions = Array.from(new Set(transformers.map(t => t.region))).sort();
-  const typeOptions = Array.from(new Set(transformers.map(t => t.type))).sort();
+  const regionOptions = Array.from(
+    new Set(transformers.map((t) => t.region))
+  ).sort();
+  const typeOptions = Array.from(
+    new Set(transformers.map((t) => t.type))
+  ).sort();
 
-  const filteredTransformers = transformers.filter(t => {
-    const matchesTf = tfNumberQuery.trim() === "" || t.transformerNumber.toLowerCase().includes(tfNumberQuery.toLowerCase());
-    const matchesPole = poleQuery.trim() === "" || t.poleNumber.toLowerCase().includes(poleQuery.toLowerCase());
+  const filteredTransformers = transformers.filter((t) => {
+    const matchesTf =
+      tfNumberQuery.trim() === "" ||
+      t.transformerNumber.toLowerCase().includes(tfNumberQuery.toLowerCase());
+    const matchesPole =
+      poleQuery.trim() === "" ||
+      t.poleNumber.toLowerCase().includes(poleQuery.toLowerCase());
     const matchesRegion = regionFilter === "" || t.region === regionFilter;
     const matchesType = typeFilter === "" || t.type === typeFilter;
     return matchesTf && matchesPole && matchesRegion && matchesType;
@@ -152,9 +191,13 @@ const TransformerPage = () => {
     <div className="p-4 pb-24">
       <div className="flex items-center justify-between mb-4">
         {viewingInspection ? (
-          <h1 className="text-2xl font-bold">Inspection {viewingInspection.inspectionNumber}</h1>
+          <h1 className="text-2xl font-bold">
+            Inspection {viewingInspection.inspectionNumber}
+          </h1>
         ) : viewingTransformer ? (
-          <h1 className="text-2xl font-bold">Transformer {viewingTransformer.transformerNumber}</h1>
+          <h1 className="text-2xl font-bold">
+            Transformer {viewingTransformer.transformerNumber}
+          </h1>
         ) : (
           <h1 className="text-2xl font-bold">All Transformers</h1>
         )}
@@ -163,7 +206,8 @@ const TransformerPage = () => {
             onClick={() => {
               try {
                 localStorage.removeItem("isLoggedIn");
-              } catch { }
+                localStorage.removeItem("username");
+              } catch {}
               router.replace("/");
             }}
             className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white hover:bg-black/80"
@@ -172,9 +216,7 @@ const TransformerPage = () => {
           </button>
           {!viewingTransformer && !viewingInspection && (
             <div className="flex bg-gray-200 rounded-lg p-1">
-              <button
-                className="px-4 py-2 rounded-md bg-black text-white font-medium"
-              >
+              <button className="px-4 py-2 rounded-md bg-black text-white font-medium">
                 Transformers
               </button>
               <button
@@ -187,6 +229,10 @@ const TransformerPage = () => {
           )}
         </div>
       </div>
+
+      {!viewingTransformer && (
+        <AddTransformerModal addTransformer={addTransformer} />
+      )}
 
       {/* Filters for Transformers main list */}
       {!viewingTransformer && !viewingInspection && (
@@ -209,8 +255,10 @@ const TransformerPage = () => {
             className="px-3 py-2 border rounded-md"
           >
             <option value="">All regions</option>
-            {regionOptions.map(r => (
-              <option key={r} value={r}>{r}</option>
+            {regionOptions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
           <select
@@ -219,20 +267,25 @@ const TransformerPage = () => {
             className="px-3 py-2 border rounded-md"
           >
             <option value="">All types</option>
-            {typeOptions.map(t => (
-              <option key={t} value={t}>{t}</option>
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
           <button
-            onClick={() => { setTfNumberQuery(""); setPoleQuery(""); setRegionFilter(""); setTypeFilter(""); }}
+            onClick={() => {
+              setTfNumberQuery("");
+              setPoleQuery("");
+              setRegionFilter("");
+              setTypeFilter("");
+            }}
             className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
           >
             Clear
           </button>
         </div>
       )}
-
-      {!viewingTransformer && <AddTransformerModal addTransformer={addTransformer} />}
 
       {viewingTransformer && !viewingInspection && (
         <TransformerDetailsPanel
@@ -257,7 +310,9 @@ const TransformerPage = () => {
             prefilledTransformerNumber={viewingTransformer.transformerNumber}
           />
           <InspectionsList
-            inspections={getRelatedInspections(viewingTransformer.transformerNumber)}
+            inspections={getRelatedInspections(
+              viewingTransformer.transformerNumber
+            )}
             hideTransformerColumn={true}
             onEdit={openEditInspection}
             onDelete={deleteInspectionHandler}
@@ -281,8 +336,13 @@ const TransformerPage = () => {
       />
       <EditInspectionModal
         isOpen={isEditInspectionOpen}
-        initial={editingInspectionIndex !== null && viewingTransformer ?
-          getRelatedInspections(viewingTransformer.transformerNumber)[editingInspectionIndex] : null}
+        initial={
+          editingInspectionIndex !== null && viewingTransformer
+            ? getRelatedInspections(viewingTransformer.transformerNumber)[
+                editingInspectionIndex
+              ]
+            : null
+        }
         onClose={closeEditInspection}
         onSave={saveEditInspection}
       />

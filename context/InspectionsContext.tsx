@@ -38,10 +38,12 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   }, [pathname]);
 
   const addInspection = async (i: Inspection) => {
+    let username: string | null = null;
+    try { username = typeof window !== 'undefined' ? localStorage.getItem('username') : null; } catch {}
     const res = await fetch("/api/inspections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(i),
+      body: JSON.stringify({ ...i, uploadedBy: username }),
     });
     const created = await res.json();
     setInspections((prev) => [...prev, created]);

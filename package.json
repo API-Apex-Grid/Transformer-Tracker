@@ -5,16 +5,18 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-  "start": "next start",
-  "lint": "next lint",
-  "db:setup": "prisma generate && prisma migrate dev --name init",
-  "prisma:generate": "prisma generate",
-  "prisma:migrate": "prisma migrate dev --name init",
-  "prisma:studio": "prisma studio",
-  "db:reset": "prisma migrate reset -f"
+    "start": "next start",
+    "lint": "next lint",
+    "db:setup": "prisma generate && prisma migrate dev --name init",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:studio": "prisma studio",
+    "db:reset": "prisma migrate reset -f"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.2",
     "next": "^15.4.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

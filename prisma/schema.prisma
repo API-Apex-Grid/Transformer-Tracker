@@ -7,6 +7,13 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
 model Transformer {
   id                 String   @id @default(cuid())
   region             String
@@ -17,6 +24,10 @@ model Transformer {
   sunnyImage         String?
   cloudyImage        String?
   windyImage         String?
+  uploadedBy         String?
+  sunnyImageUploadedBy  String?
+  cloudyImageUploadedBy String?
+  windyImageUploadedBy  String?
 
   @@unique([transformerNumber, poleNumber])
 }
@@ -31,4 +42,6 @@ model Inspection {
   status            String
   imageUrl          String?
   weather           String?
+  uploadedBy        String?
+  imageUploadedBy   String?
 }

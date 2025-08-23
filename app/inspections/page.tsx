@@ -85,6 +85,7 @@ const InspectionsPage = () => {
                         onClick={() => {
                             try {
                                 localStorage.removeItem("isLoggedIn");
+                                localStorage.removeItem("username");
                             } catch { }
                             router.replace("/");
                         }}
