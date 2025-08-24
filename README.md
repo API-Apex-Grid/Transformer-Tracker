@@ -40,3 +40,15 @@ Auth:
 - `components/` — UI components (including sidebar and modals)
 - `lib/prisma.ts` — Prisma client singleton
 - `prisma/` — Prisma schema, migrations, and the SQLite DB file
+
+## Project Description
+
+- The project has 2 main pages: transformers and inspections.
+- The transformers page allows users to create, read, update, and delete (CRUD) transformer records.
+![Screenshot of transformer page](transformer_page.png)
+- The inspections page allows users to view and manage inspection records.
+![Screenshot of inspections page](inspection_page.png)
+- Details pertaining to a particular transformer can be viewed in a user friendly interface.
+![Screenshot of transformer detail](transformer_detail.png)
+- An AI model can be used to analyze and generate insights from the thermal images of transformers.
+![Screenshot of AI inference page](ai_inference.png)
