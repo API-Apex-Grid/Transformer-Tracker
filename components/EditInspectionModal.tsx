@@ -18,6 +18,10 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
   const [dateOfInspection, setDateOfInspection] = useState("");
   const [time, setTime] = useState("");
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
+  const [submitting, setSubmitting] = useState(false);
+  const todayLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .split("T")[0];
 
   useEffect(() => {
     if (initial) {
@@ -31,7 +35,7 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
     }
   }, [initial, isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { [k: string]: string } = {};
     if (!branch) newErrors.branch = "Branch is required";
@@ -42,17 +46,44 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
+    setSubmitting(true);
+
+    // Ensure transformer exists before saving
+    try {
+      const res = await fetch(`/api/transformers?tf=${encodeURIComponent(transformerNumber)}`, { cache: "no-store" });
+      let exists = false;
+      if (res.ok) {
+        const list: Array<{ transformerNumber?: string }> = await res.json();
+        if (Array.isArray(list)) {
+          exists = list.some((t) => t.transformerNumber === transformerNumber);
+        }
+      }
+      if (!exists) {
+        setErrors(prev => ({ ...prev, transformerNumber: "Transformer does not exist" }));
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      setErrors(prev => ({ ...prev, transformerNumber: "Could not verify transformer. Try again." }));
+      setSubmitting(false);
+      return;
+    }
+
     const combinedInspectedDate = `${dateOfInspection} ${time}`;
 
-    onSave({
-      inspectionNumber: initial?.inspectionNumber || "",
-      transformerNumber,
-      inspectedDate: combinedInspectedDate,
-      maintainanceDate: status === 'Completed' ? maintainanceDate : "",
-      status,
-      branch,
-    });
-    onClose();
+    try {
+      await onSave({
+        inspectionNumber: initial?.inspectionNumber || "",
+        transformerNumber,
+        inspectedDate: combinedInspectedDate,
+        maintainanceDate: status === 'Completed' ? maintainanceDate : "",
+        status,
+        branch,
+      });
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (!isOpen || !initial) return null;
@@ -93,8 +124,9 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           type="text"
                           id="transformerNumber"
                           value={transformerNumber}
-                          onChange={(e) => setTransformerNumber(e.target.value)}
-                          className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                          disabled={true}
+                          // onChange={(e) => setTransformerNumber(e.target.value)}
+                          className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white cursor-not-allowed"
                         />
                         {errors.transformerNumber && (
                           <p className="mt-1 text-sm text-red-600">{errors.transformerNumber}</p>
@@ -112,6 +144,7 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           id="dateOfInspection"
                           value={dateOfInspection}
                           onChange={(e) => setDateOfInspection(e.target.value)}
+                          min={todayLocal}
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
                         {errors.dateOfInspection && (
@@ -142,6 +175,7 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           type="date"
                           id="maintainanceDate"
                           value={maintainanceDate}
+                          min={todayLocal}
                           onChange={(e) => setMaintainanceDate(e.target.value)}
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
@@ -186,9 +220,10 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
               <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="submit"
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
+                  disabled={submitting}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
                 >
-                  Save
+                  {submitting ? "Saving..." : "Save"}
                 </button>
                 <button
                   onClick={onClose}
