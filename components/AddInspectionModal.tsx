@@ -16,6 +16,11 @@ const AddInspectionModal = ({ addInspection, prefilledTransformerNumber }: AddIn
   const [branch, setBranch] = useState("");
   const [dateOfInspection, setDateOfInspection] = useState("");
   const [time, setTime] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  // Local timezone-correct YYYY-MM-DD for min date
+  const todayLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .split("T")[0];
 
   const showSetInspection = () => setIsOpen(true);
   const hideSetInspection = () => {
@@ -30,7 +35,7 @@ const AddInspectionModal = ({ addInspection, prefilledTransformerNumber }: AddIn
 
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { [k: string]: string } = {};
     if (!branch) newErrors.branch = "Branch is required";
@@ -40,21 +45,52 @@ const AddInspectionModal = ({ addInspection, prefilledTransformerNumber }: AddIn
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
+    setSubmitting(true);
+
+    // Check that transformer exists before proceeding
+    try {
+      const res = await fetch(`/api/transformers?tf=${encodeURIComponent(transformerNumber)}`, { cache: "no-store" });
+      let exists = false;
+      if (res.ok) {
+        const list: Array<{ transformerNumber?: string }> = await res.json();
+        if (Array.isArray(list)) {
+          exists = list.some((t) => t.transformerNumber === transformerNumber);
+        }
+      }
+      if (!exists) {
+        setErrors(prev => ({ ...prev, transformerNumber: "Transformer does not exist" }));
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      // If the check fails due to network, still block to be safe
+      setErrors(prev => ({ ...prev, transformerNumber: "Could not verify transformer. Try again." }));
+      setSubmitting(false);
+      return;
+    }
+
     // Auto-generate inspection number
     const autoInspectionNumber = `INS-${Date.now()}`;
 
     // Concatenate date and time for inspectedDate
     const combinedInspectedDate = `${dateOfInspection} ${time}`;
 
-    addInspection({
-      inspectionNumber: autoInspectionNumber,
-      inspectedDate: combinedInspectedDate,
-      maintainanceDate,
-      status,
-      transformerNumber,
-      branch
-    });
-    hideSetInspection();
+    try {
+      await addInspection({
+        inspectionNumber: autoInspectionNumber,
+        inspectedDate: combinedInspectedDate,
+        maintainanceDate,
+        status,
+        transformerNumber,
+        branch
+      });
+      hideSetInspection();
+    } catch (err) {
+      const msg = err && typeof (err as { message?: string }).message === 'string' ? (err as { message: string }).message : 'Failed to add inspection';
+      setErrors(prev => ({ ...prev, transformerNumber: msg }));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -151,6 +187,7 @@ const AddInspectionModal = ({ addInspection, prefilledTransformerNumber }: AddIn
                                 id="dateOfInspection"
                                 value={dateOfInspection}
                                 onChange={(e) => setDateOfInspection(e.target.value)}
+                                min={todayLocal}
                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                               />
                               {errors.dateOfInspection && (
@@ -183,9 +220,10 @@ const AddInspectionModal = ({ addInspection, prefilledTransformerNumber }: AddIn
                   <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                     <button
                       type="submit"
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
+                      disabled={submitting}
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
                     >
-                      Confirm
+                      {submitting ? "Saving..." : "Confirm"}
                     </button>
                     <button
                       onClick={hideSetInspection}

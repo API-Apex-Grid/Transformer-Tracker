@@ -45,6 +45,10 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...i, uploadedBy: username }),
     });
+    if (!res.ok) {
+      const message = await res.json().catch(() => ({}));
+      throw new Error(message?.error || "Failed to add inspection");
+    }
     const created = await res.json();
     setInspections((prev) => [...prev, created]);
   void load();

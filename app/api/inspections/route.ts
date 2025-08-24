@@ -12,6 +12,16 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const data = await req.json();
+  // Ensure the referenced transformer exists
+  const tfNumber: string | undefined = data?.transformerNumber;
+  if (!tfNumber) {
+    return NextResponse.json({ error: "transformerNumber is required" }, { status: 400 });
+  }
+  const transformer = await prisma.transformer.findFirst({ where: { transformerNumber: tfNumber } });
+  if (!transformer) {
+    return NextResponse.json({ error: "Transformer not found for the given transformerNumber" }, { status: 400 });
+  }
+
   const created = await prisma.inspection.create({ data });
   return NextResponse.json(created, { status: 201, headers: { "Cache-Control": "no-store" } });
 }

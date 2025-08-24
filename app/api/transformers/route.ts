@@ -5,8 +5,11 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
-  const items = await prisma.transformer.findMany({ orderBy: { transformerNumber: "asc" } });
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const tf = searchParams.get("tf");
+  const where = tf ? { transformerNumber: tf } : undefined;
+  const items = await prisma.transformer.findMany({ where, orderBy: { transformerNumber: "asc" } });
   return NextResponse.json(items, { headers: { "Cache-Control": "no-store" } });
 }
 

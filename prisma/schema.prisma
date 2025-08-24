@@ -15,27 +15,30 @@ model User {
 }
 
 model Transformer {
-  id                 String   @id @default(cuid())
-  region             String
-  transformerNumber  String
-  poleNumber         String
-  type               String
-  location           String
-  sunnyImage         String?
-  cloudyImage        String?
-  windyImage         String?
-  uploadedBy         String?
+  id                    String  @id @default(cuid())
+  region                String
+  transformerNumber     String  @unique
+  poleNumber            String
+  type                  String
+  location              String
+  sunnyImage            String?
+  cloudyImage           String?
+  windyImage            String?
+  uploadedBy            String?
   sunnyImageUploadedBy  String?
   cloudyImageUploadedBy String?
   windyImageUploadedBy  String?
+
+  inspections Inspection[]
 
   @@unique([transformerNumber, poleNumber])
 }
 
 model Inspection {
-  id                String   @id @default(cuid())
+  id                String      @id @default(cuid())
   transformerNumber String
-  inspectionNumber  String   @unique
+  transformer       Transformer @relation(fields: [transformerNumber], references: [transformerNumber])
+  inspectionNumber  String      @unique
   inspectedDate     String
   maintainanceDate  String
   branch            String

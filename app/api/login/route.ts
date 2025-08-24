@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let user = await prisma.user.findUnique({ where: { username } });
+  const user = await prisma.user.findUnique({ where: { username } });
 
     if (!user) {
       return NextResponse.json(
