@@ -28,14 +28,12 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   // Initial load
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refetch on route change (e.g., switching between /transformer and /inspections)
   useEffect(() => {
     if (!pathname) return;
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const addTransformer = async (t: Transformer) => {
@@ -55,7 +53,6 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     });
     const created = await res.json();
     setTransformers((prev) => [...prev, created]);
-  // Ensure state matches DB in case of server-side defaults/hooks
   void load();
   };
 
@@ -69,7 +66,6 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     });
     const updated = await res.json();
     setTransformers((prev) => prev.map((it, i) => (i === index ? updated : it)));
-  // Keep in sync with DB
   void load();
   };
 
@@ -78,7 +74,6 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     if (!id) return;
     await fetch(`/api/transformers/${id}`, { method: "DELETE" });
     setTransformers((prev) => prev.filter((_, i) => i !== index));
-  // Cascade deletes may affect related data; refresh to reflect truth from DB
   void load();
   };
 

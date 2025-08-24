@@ -27,14 +27,12 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   // Initial load
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refetch on route change
   useEffect(() => {
     if (!pathname) return;
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const addInspection = async (i: Inspection) => {
