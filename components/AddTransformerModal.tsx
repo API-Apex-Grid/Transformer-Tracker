@@ -20,6 +20,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
   const [sunnyImage, setSunnyImage] = useState<string | null>(null);
   const [cloudyImage, setCloudyImage] = useState<string | null>(null);
   const [windyImage, setWindyImage] = useState<string | null>(null);
+  const hasAnyImage = !!(sunnyImage || cloudyImage || windyImage);
 
   const showSetTransformer = () => {
     setIsOpen(true);
@@ -329,6 +330,15 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 {sunnyImage && (
                                   <div className="mt-2">
                                     <img src={sunnyImage} alt="Sunny weather preview" className="w-20 h-20 object-cover rounded border" />
+                                    <div className="mt-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSunnyImage(null)}
+                                        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -346,6 +356,15 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 {cloudyImage && (
                                   <div className="mt-2">
                                     <img src={cloudyImage} alt="Cloudy weather preview" className="w-20 h-20 object-cover rounded border" />
+                                    <div className="mt-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setCloudyImage(null)}
+                                        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -363,6 +382,15 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 {windyImage && (
                                   <div className="mt-2">
                                     <img src={windyImage} alt="Windy weather preview" className="w-20 h-20 object-cover rounded border" />
+                                    <div className="mt-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setWindyImage(null)}
+                                        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -394,14 +422,16 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                       <>
                         <button
                           type="submit"
-                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
+                          disabled={!hasAnyImage}
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Confirm
                         </button>
                         <button
                           onClick={handleSkip}
                           type="button"
-                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                          disabled={hasAnyImage}
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Skip for now
                         </button>

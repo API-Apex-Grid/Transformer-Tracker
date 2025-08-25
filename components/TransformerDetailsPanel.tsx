@@ -27,6 +27,19 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
         setEditingWeather(weather);
     };
 
+        const handleRemoveImage = (weather: string) => {
+            // Clear the selected baseline image and its uploader
+            const updated: any = {
+                ...transformer,
+                [`${weather}Image`]: null,
+            };
+            const key = `${weather}ImageUploadedBy` as 'sunnyImageUploadedBy' | 'cloudyImageUploadedBy' | 'windyImageUploadedBy';
+            updated[key] = null;
+            if (onUpdateTransformer) {
+                onUpdateTransformer(updated);
+            }
+        };
+
     const handleFileChange = (weather: string, file: File | null) => {
         if (file) {
             const reader = new FileReader();
@@ -137,6 +150,14 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                 >
                                     {baselineImages[weather as keyof typeof baselineImages] ? 'Update' : 'Add'}
                                 </button>
+                                                            {baselineImages[weather as keyof typeof baselineImages] && (
+                                                                <button
+                                                                    onClick={() => handleRemoveImage(weather)}
+                                                                    className="px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200"
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            )}
                                                                 {weather === 'sunny' && transformer.sunnyImageUploadedBy && (
                                                                     <span className="text-xs text-gray-500">by {transformer.sunnyImageUploadedBy}</span>
                                                                 )}
