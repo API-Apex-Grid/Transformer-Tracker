@@ -45,6 +45,7 @@ const TransformerPage = () => {
   const [poleQuery, setPoleQuery] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [favOnly, setFavOnly] = useState(false);
 
   const router = useRouter();
 
@@ -184,7 +185,8 @@ const TransformerPage = () => {
       t.poleNumber.toLowerCase().includes(poleQuery.toLowerCase());
     const matchesRegion = regionFilter === "" || t.region === regionFilter;
     const matchesType = typeFilter === "" || t.type === typeFilter;
-    return matchesTf && matchesPole && matchesRegion && matchesType;
+    const matchesFav = !favOnly || !!t.favourite;
+    return matchesTf && matchesPole && matchesRegion && matchesType && matchesFav;
   });
 
   return (
@@ -236,7 +238,7 @@ const TransformerPage = () => {
 
       {/* Filters for Transformers main list */}
       {!viewingTransformer && !viewingInspection && (
-        <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+  <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
           <input
             value={tfNumberQuery}
             onChange={(e) => setTfNumberQuery(e.target.value)}
@@ -273,12 +275,17 @@ const TransformerPage = () => {
               </option>
             ))}
           </select>
+          <label className="inline-flex items-center gap-2 text-sm text-black px-3 py-2">
+            <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} />
+            Favourites
+          </label>
           <button
             onClick={() => {
               setTfNumberQuery("");
               setPoleQuery("");
               setRegionFilter("");
               setTypeFilter("");
+              setFavOnly(false);
             }}
             className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
           >

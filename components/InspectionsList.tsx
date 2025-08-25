@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useInspections } from "@/context/InspectionsContext";
 import { Inspection } from "@/types/inspection";
 
 interface InspectionListProps {
@@ -13,6 +14,13 @@ interface InspectionListProps {
 
 const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransformerColumn = false }: InspectionListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const { updateInspection } = useInspections();
+
+  const toggleFavourite = (index: number) => {
+    const i = inspections[index];
+    if (!i) return;
+    updateInspection(index, { ...i, favourite: !i.favourite });
+  };
 
   const toggleMenu = (index: number) => {
     setOpenMenu((prev) => (prev === index ? null : index));
@@ -23,8 +31,9 @@ const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransforme
   return (
     <div className="overflow-x-auto pb-24">
       <table className="min-w-full bg-white text-black table-fixed">
-        <thead>
+    <thead>
           <tr>
+      <th className="px-3 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-10"></th>
             {!hideTransformerColumn && (
               <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
                 Transformer No.
@@ -34,7 +43,7 @@ const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransforme
               Inspection No.
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-36">
-              Inspected Date
+              Inspected Date Time
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
               Maintainance Date
@@ -55,6 +64,24 @@ const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransforme
         <tbody>
           {inspections.map((inspection, index) => (
             <tr key={index}>
+              <td className="px-3 py-4 align-top border-b border-gray-200 w-10">
+                <button
+                  aria-label={inspection.favourite ? "Unfavourite" : "Favourite"}
+                  onClick={() => toggleFavourite(index)}
+                  className="text-yellow-500 hover:text-yellow-600"
+                  title={inspection.favourite ? "Remove from favourites" : "Add to favourites"}
+                >
+                  {inspection.favourite ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                      <path d="M12 .587l3.668 7.431 8.2 1.193-5.934 5.787 1.401 8.168L12 18.896l-7.335 3.87 1.401-8.168L.132 9.211l8.2-1.193L12 .587z" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.77 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z" />
+                    </svg>
+                  )}
+                </button>
+              </td>
               {!hideTransformerColumn && (
                 <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
                   {inspection.transformerNumber}

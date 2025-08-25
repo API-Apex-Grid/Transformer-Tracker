@@ -5,8 +5,12 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
-  const items = await prisma.inspection.findMany({ orderBy: { inspectedDate: "desc" } });
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const fav = searchParams.get("fav");
+  const where: any = {};
+  if (fav === "true") where.favourite = true;
+  const items = await prisma.inspection.findMany({ where: Object.keys(where).length ? where : undefined, orderBy: { inspectedDate: "desc" } });
   return NextResponse.json(items, { headers: { "Cache-Control": "no-store" } });
 }
 

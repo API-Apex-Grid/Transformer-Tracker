@@ -47,13 +47,30 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     return transformers.some(t => t.transformerNumber.trim().toLowerCase() === a && t.poleNumber.trim().toLowerCase() === b);
   };
 
-  const handleNext = (e: React.FormEvent) => {
+  const checkTfUniqueInDb = async (tfNo: string): Promise<boolean> => {
+    if (!tfNo.trim()) return false;
+    try {
+      const res = await fetch(`/api/transformers?tf=${encodeURIComponent(tfNo)}`, { cache: 'no-store' });
+      if (!res.ok) return true; // if API failed, do not block
+      const data = await res.json();
+      // Unique if no records found
+      return !(Array.isArray(data) && data.length > 0);
+    } catch {
+      return true; // fail-open
+    }
+  };
+
+  const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { [k: string]: string } = {};
     if (!region) newErrors.region = "Region is required";
     if (!transformerNumber) newErrors.transformerNumber = "Transformer number is required";
     if (!poleNumber) newErrors.poleNumber = "Pole number is required";
     if (!type) newErrors.type = "Type is required";
+    if (!newErrors.transformerNumber) {
+      const unique = await checkTfUniqueInDb(transformerNumber);
+      if (!unique) newErrors.transformerNumber = "This transformer number already exists";
+    }
     if (!newErrors.transformerNumber && !newErrors.poleNumber && isDuplicateCombo(transformerNumber, poleNumber)) {
       newErrors.poleNumber = "A transformer with this transformer no. and pole no. already exists";
     }
@@ -63,8 +80,14 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     setStep(2);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // DB-backed uniqueness check for transformer number
+    const unique = await checkTfUniqueInDb(transformerNumber);
+    if (!unique) {
+      setErrors(prev => ({ ...prev, transformerNumber: "This transformer number already exists" }));
+      return;
+    }
     // Double-check duplicates at submit time
     if (isDuplicateCombo(transformerNumber, poleNumber)) {
       setErrors(prev => ({ ...prev, poleNumber: "A transformer with this transformer no. and pole no. already exists" }));
@@ -83,7 +106,13 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     hideSetTransformer();
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    // Check uniqueness as well when skipping images
+    const unique = await checkTfUniqueInDb(transformerNumber);
+    if (!unique) {
+      setErrors(prev => ({ ...prev, transformerNumber: "This transformer number already exists" }));
+      return;
+    }
     // Double-check duplicates even when skipping images
     if (isDuplicateCombo(transformerNumber, poleNumber)) {
       setErrors(prev => ({ ...prev, poleNumber: "A transformer with this transformer no. and pole no. already exists" }));
