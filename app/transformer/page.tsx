@@ -39,6 +39,7 @@ const TransformerPage = () => {
   const [viewingInspection, setViewingInspection] = useState<Inspection | null>(
     null
   );
+  const [username, setUsername] = useState<string | null>(null);
 
   // Filters for the main Transformers list view
   const [tfNumberQuery, setTfNumberQuery] = useState("");
@@ -56,6 +57,9 @@ const TransformerPage = () => {
         localStorage.getItem("isLoggedIn") === "true";
       if (!loggedIn) {
         router.replace("/");
+      }
+      if (typeof window !== "undefined") {
+        setUsername(localStorage.getItem("username"));
       }
     } catch {
       router.replace("/");
@@ -204,18 +208,23 @@ const TransformerPage = () => {
           <h1 className="text-2xl font-bold">All Transformers</h1>
         )}
         <div className="flex flex-col items-end gap-2">
-          <button
-            onClick={() => {
-              try {
-                localStorage.removeItem("isLoggedIn");
-                localStorage.removeItem("username");
-              } catch {}
-              router.replace("/");
-            }}
-            className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white hover:bg-black/80"
-          >
-            Log out
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-700">
+              Logged in as: <span className="font-medium">{username || "unknown"}</span>
+            </span>
+            <button
+              onClick={() => {
+                try {
+                  localStorage.removeItem("isLoggedIn");
+                  localStorage.removeItem("username");
+                } catch {}
+                router.replace("/");
+              }}
+              className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white hover:bg-black/80"
+            >
+              Log out
+            </button>
+          </div>
           {!viewingTransformer && !viewingInspection && (
             <div className="flex bg-gray-200 rounded-lg p-1">
               <button className="px-4 py-2 rounded-md bg-black text-white font-medium">
