@@ -34,10 +34,18 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                 const base64 = e.target?.result as string;
 
                 // Update the transformer with the new image
-                const updatedTransformer = {
+                const updatedTransformer: any = {
                     ...transformer,
-                    [`${weather}Image`]: base64
+                    [`${weather}Image`]: base64,
                 };
+                // set uploader field
+                const key = `${weather}ImageUploadedBy` as 'sunnyImageUploadedBy' | 'cloudyImageUploadedBy' | 'windyImageUploadedBy';
+                try {
+                    const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
+                    updatedTransformer[key] = username || null;
+                } catch {
+                    // ignore
+                }
 
                 if (onUpdateTransformer) {
                     onUpdateTransformer(updatedTransformer);

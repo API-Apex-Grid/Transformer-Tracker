@@ -10,4 +10,5 @@ export interface Inspection {
     weather?: "sunny" | "cloudy" | "rainy" | null;
     uploadedBy?: string | null;
     imageUploadedBy?: string | null;
+    favourite?: boolean;
 }

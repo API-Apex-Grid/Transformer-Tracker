@@ -59,10 +59,31 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   const updateTransformer = async (index: number, t: Transformer) => {
     const id = transformers[index]?.id;
     if (!id) return;
+    // Attribute image uploader when images are added/updated/removed
+    let username: string | null = null;
+    try { username = typeof window !== 'undefined' ? localStorage.getItem('username') : null; } catch {}
+    const current = transformers[index];
+    const body: any = { ...t };
+    if (Object.prototype.hasOwnProperty.call(t, 'sunnyImage') && current) {
+      if (t.sunnyImage !== current.sunnyImage) {
+        body.sunnyImageUploadedBy = t.sunnyImage ? username : null;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(t, 'cloudyImage') && current) {
+      if (t.cloudyImage !== current.cloudyImage) {
+        body.cloudyImageUploadedBy = t.cloudyImage ? username : null;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(t, 'windyImage') && current) {
+      if (t.windyImage !== current.windyImage) {
+        body.windyImageUploadedBy = t.windyImage ? username : null;
+      }
+    }
+
     const res = await fetch(`/api/transformers/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(t),
+      body: JSON.stringify(body),
     });
     const updated = await res.json();
     setTransformers((prev) => prev.map((it, i) => (i === index ? updated : it)));

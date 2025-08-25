@@ -19,6 +19,7 @@ const InspectionsPage = () => {
     const [inspQuery, setInspQuery] = useState("");
     const [tfQuery, setTfQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
+    const [favOnly, setFavOnly] = useState(false);
 
     const router = useRouter();
 
@@ -69,7 +70,8 @@ const InspectionsPage = () => {
         const byInsp = inspQuery.trim() === "" || i.inspectionNumber.toLowerCase().includes(inspQuery.toLowerCase());
         const byTf = tfQuery.trim() === "" || i.transformerNumber.toLowerCase().includes(tfQuery.toLowerCase());
         const byStatus = statusFilter === "" || i.status === statusFilter;
-        return byInsp && byTf && byStatus;
+        const byFav = !favOnly || !!i.favourite;
+        return byInsp && byTf && byStatus && byFav;
     });
 
     return (
@@ -115,7 +117,7 @@ const InspectionsPage = () => {
 
             {/* Filters */}
             {!viewingInspection && (
-                <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
                     <input
                         value={inspQuery}
                         onChange={(e) => setInspQuery(e.target.value)}
@@ -138,8 +140,12 @@ const InspectionsPage = () => {
                             <option key={s} value={s}>{s}</option>
                         ))}
                     </select>
+                    <label className="inline-flex items-center gap-2 text-sm text-black px-3 py-2">
+                        <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} />
+                        Favourites
+                    </label>
                     <button
-                        onClick={() => { setInspQuery(""); setTfQuery(""); setStatusFilter(""); }}
+                        onClick={() => { setInspQuery(""); setTfQuery(""); setStatusFilter(""); setFavOnly(false); }}
                         className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
                     >
                         Clear

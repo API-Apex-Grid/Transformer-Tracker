@@ -8,8 +8,11 @@ export const revalidate = 0;
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const tf = searchParams.get("tf");
-  const where = tf ? { transformerNumber: tf } : undefined;
-  const items = await prisma.transformer.findMany({ where, orderBy: { transformerNumber: "asc" } });
+  const fav = searchParams.get("fav");
+  const where: any = {};
+  if (tf) where.transformerNumber = tf;
+  if (fav === "true") where.favourite = true;
+  const items = await prisma.transformer.findMany({ where: Object.keys(where).length ? where : undefined, orderBy: { transformerNumber: "asc" } });
   return NextResponse.json(items, { headers: { "Cache-Control": "no-store" } });
 }
 
