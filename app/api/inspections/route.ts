@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 // Always serve fresh data
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export const revalidate = 0;
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const fav = searchParams.get("fav");
-  const where: any = {};
+  const where: Prisma.InspectionWhereInput = {};
   if (fav === "true") where.favourite = true;
   const items = await prisma.inspection.findMany({ where: Object.keys(where).length ? where : undefined, orderBy: { inspectedDate: "desc" } });
   return NextResponse.json(items, { headers: { "Cache-Control": "no-store" } });

@@ -29,7 +29,7 @@ export default function Home() {
         localStorage.setItem("username", username);
       } catch {}
       router.push("/transformer");
-    } catch (err) {
+  } catch {
       setError("Login failed");
     }
   };

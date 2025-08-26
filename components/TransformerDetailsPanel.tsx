@@ -29,14 +29,14 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
 
         const handleRemoveImage = (weather: string) => {
             // Clear the selected baseline image and its uploader
-            const updated: any = {
-                ...transformer,
-                [`${weather}Image`]: null,
-            };
-            const key = `${weather}ImageUploadedBy` as 'sunnyImageUploadedBy' | 'cloudyImageUploadedBy' | 'windyImageUploadedBy';
-            updated[key] = null;
+            const imageKey = `${weather}Image` as keyof Transformer;
+            const uploaderKey = `${weather}ImageUploadedBy` as keyof Transformer;
+            const patch: Partial<Transformer> = {
+                [imageKey]: null,
+                [uploaderKey]: null,
+            } as Partial<Transformer>;
             if (onUpdateTransformer) {
-                onUpdateTransformer(updated);
+                onUpdateTransformer({ ...transformer, ...patch });
             }
         };
 
@@ -47,21 +47,18 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                 const base64 = e.target?.result as string;
 
                 // Update the transformer with the new image
-                const updatedTransformer: any = {
-                    ...transformer,
-                    [`${weather}Image`]: base64,
-                };
-                // set uploader field
-                const key = `${weather}ImageUploadedBy` as 'sunnyImageUploadedBy' | 'cloudyImageUploadedBy' | 'windyImageUploadedBy';
+                const imageKey = `${weather}Image` as keyof Transformer;
+                const uploaderKey = `${weather}ImageUploadedBy` as keyof Transformer;
+                const patch: Partial<Transformer> = { [imageKey]: base64 } as Partial<Transformer>;
                 try {
                     const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
-                    updatedTransformer[key] = username || null;
+                    (patch as Record<string, unknown>)[uploaderKey as string] = username || null;
                 } catch {
                     // ignore
                 }
 
                 if (onUpdateTransformer) {
-                    onUpdateTransformer(updatedTransformer);
+                    onUpdateTransformer({ ...transformer, ...patch });
                 }
 
                 console.log(`Updated ${weather} image for transformer ${transformer.transformerNumber}`);
