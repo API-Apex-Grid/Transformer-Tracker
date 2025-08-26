@@ -52,6 +52,18 @@ Next.js App Router app with Prisma + SQLite. Data is stored locally in `prisma/d
 - `prisma/` — Prisma schema, migrations, and the SQLite DB file
 - `types/` — shared TypeScript types
 
+## Project Description
+
+- The project has 2 main pages: transformers and inspections.
+- The transformers page allows users to create, read, update, and delete (CRUD) transformer records.
+![Screenshot of transformer page](transformer_page.png)
+- The inspections page allows users to view and manage inspection records.
+![Screenshot of inspections page](inspection_page.png)
+- Details pertaining to a particular transformer can be viewed in a user friendly interface.
+![Screenshot of transformer detail](transformer_detail.png)
+- An AI model can be used to analyze and generate insights from the thermal images of transformers.
+![Screenshot of AI inference page](ai_inference.png)
+
 ## Troubleshooting
 
 - prisma generate/migrate errors: try `pnpm run db:reset` (destructive), or delete `prisma/dev.db` and re-run `pnpm run db:setup`.
