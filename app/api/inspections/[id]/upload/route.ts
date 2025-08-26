@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const updated = await prisma.inspection.update({
       where: { id },
-      data: { imageUrl, weather, imageUploadedBy: uploader },
+      data: { imageUrl, weather, imageUploadedBy: uploader, imageUploadedAt: new Date() },
     });
 
     return NextResponse.json(updated, { headers: { "Cache-Control": "no-store" } });

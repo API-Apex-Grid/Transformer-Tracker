@@ -12,5 +12,8 @@ export interface Transformer {
   sunnyImageUploadedBy?: string | null;
   cloudyImageUploadedBy?: string | null;
   windyImageUploadedBy?: string | null;
+  sunnyImageUploadedAt?: string | null;
+  cloudyImageUploadedAt?: string | null;
+  windyImageUploadedAt?: string | null;
   favourite?: boolean;
 }

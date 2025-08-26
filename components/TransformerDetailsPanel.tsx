@@ -31,9 +31,11 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
             // Clear the selected baseline image and its uploader
             const imageKey = `${weather}Image` as keyof Transformer;
             const uploaderKey = `${weather}ImageUploadedBy` as keyof Transformer;
+            const uploadedAtKey = `${weather}ImageUploadedAt` as keyof Transformer;
             const patch: Partial<Transformer> = {
                 [imageKey]: null,
                 [uploaderKey]: null,
+                [uploadedAtKey]: null,
             } as Partial<Transformer>;
             if (onUpdateTransformer) {
                 onUpdateTransformer({ ...transformer, ...patch });
@@ -49,10 +51,12 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                 // Update the transformer with the new image
                 const imageKey = `${weather}Image` as keyof Transformer;
                 const uploaderKey = `${weather}ImageUploadedBy` as keyof Transformer;
+                const uploadedAtKey = `${weather}ImageUploadedAt` as keyof Transformer;
                 const patch: Partial<Transformer> = { [imageKey]: base64 } as Partial<Transformer>;
                 try {
                     const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
                     (patch as Record<string, unknown>)[uploaderKey as string] = username || null;
+                    (patch as Record<string, unknown>)[uploadedAtKey as string] = new Date().toISOString();
                 } catch {
                     // ignore
                 }
@@ -127,7 +131,7 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                 </span>
                             </div>
 
-                            <div className="flex gap-2 items-center">
+                            <div className="flex gap-2 items-center flex-wrap">
                                 {baselineImages[weather as keyof typeof baselineImages] && (
                                     <button
                                         onClick={() => handleViewImage(weather)}
@@ -155,14 +159,23 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                                                     Remove
                                                                 </button>
                                                             )}
-                                                                {weather === 'sunny' && transformer.sunnyImageUploadedBy && (
-                                                                    <span className="text-xs text-gray-500">by {transformer.sunnyImageUploadedBy}</span>
+                                                                {weather === 'sunny' && (transformer.sunnyImageUploadedBy || transformer.sunnyImageUploadedAt) && (
+                                                                    <span className="text-xs text-gray-500">
+                                                                        by {transformer.sunnyImageUploadedBy || 'unknown'}
+                                                                        {transformer.sunnyImageUploadedAt ? ` on ${new Date(transformer.sunnyImageUploadedAt).toLocaleString()}` : ''}
+                                                                    </span>
                                                                 )}
-                                                                {weather === 'cloudy' && transformer.cloudyImageUploadedBy && (
-                                                                    <span className="text-xs text-gray-500">by {transformer.cloudyImageUploadedBy}</span>
+                                                                {weather === 'cloudy' && (transformer.cloudyImageUploadedBy || transformer.cloudyImageUploadedAt) && (
+                                                                    <span className="text-xs text-gray-500">
+                                                                        by {transformer.cloudyImageUploadedBy || 'unknown'}
+                                                                        {transformer.cloudyImageUploadedAt ? ` on ${new Date(transformer.cloudyImageUploadedAt).toLocaleString()}` : ''}
+                                                                    </span>
                                                                 )}
-                                                                {weather === 'windy' && transformer.windyImageUploadedBy && (
-                                                                    <span className="text-xs text-gray-500">by {transformer.windyImageUploadedBy}</span>
+                                                                {weather === 'windy' && (transformer.windyImageUploadedBy || transformer.windyImageUploadedAt) && (
+                                                                    <span className="text-xs text-gray-500">
+                                                                        by {transformer.windyImageUploadedBy || 'unknown'}
+                                                                        {transformer.windyImageUploadedAt ? ` on ${new Date(transformer.windyImageUploadedAt).toLocaleString()}` : ''}
+                                                                    </span>
                                                                 )}
                             </div>
 
@@ -204,7 +217,7 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                 </svg>
                             </button>
                         </div>
-                        <div className="flex justify-center">
+                        <div className="flex flex-col items-center justify-center">
                             {baselineImages[viewingImage as keyof typeof baselineImages] ? (
                                 <img
                                     src={baselineImages[viewingImage as keyof typeof baselineImages] as string}
@@ -216,6 +229,17 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                     <p className="text-gray-500">No image available</p>
                                 </div>
                             )}
+                            <div className="mt-2 text-xs text-gray-500">
+                                {viewingImage === 'sunny' && (transformer.sunnyImageUploadedBy || transformer.sunnyImageUploadedAt) && (
+                                    <span>by {transformer.sunnyImageUploadedBy || 'unknown'}{transformer.sunnyImageUploadedAt ? ` on ${new Date(transformer.sunnyImageUploadedAt).toLocaleString()}` : ''}</span>
+                                )}
+                                {viewingImage === 'cloudy' && (transformer.cloudyImageUploadedBy || transformer.cloudyImageUploadedAt) && (
+                                    <span>by {transformer.cloudyImageUploadedBy || 'unknown'}{transformer.cloudyImageUploadedAt ? ` on ${new Date(transformer.cloudyImageUploadedAt).toLocaleString()}` : ''}</span>
+                                )}
+                                {viewingImage === 'windy' && (transformer.windyImageUploadedBy || transformer.windyImageUploadedAt) && (
+                                    <span>by {transformer.windyImageUploadedBy || 'unknown'}{transformer.windyImageUploadedAt ? ` on ${new Date(transformer.windyImageUploadedAt).toLocaleString()}` : ''}</span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

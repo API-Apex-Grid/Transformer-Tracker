@@ -30,10 +30,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const imageUrl = `data:${mime};base64,${base64}`;
 
     // Map weather to column
-  const data: Record<string, string | null> = {};
-  if (weather === "sunny") { data.sunnyImage = imageUrl; data.sunnyImageUploadedBy = uploader; }
-  else if (weather === "cloudy") { data.cloudyImage = imageUrl; data.cloudyImageUploadedBy = uploader; }
-  else if (weather === "rainy") { data.windyImage = imageUrl; data.windyImageUploadedBy = uploader; }
+  const now = new Date();
+  const data: Record<string, string | Date | null> = {};
+  if (weather === "sunny") {
+    data.sunnyImage = imageUrl;
+    data.sunnyImageUploadedBy = uploader;
+    data.sunnyImageUploadedAt = now;
+  } else if (weather === "cloudy") {
+    data.cloudyImage = imageUrl;
+    data.cloudyImageUploadedBy = uploader;
+    data.cloudyImageUploadedAt = now;
+  } else if (weather === "rainy") {
+    data.windyImage = imageUrl;
+    data.windyImageUploadedBy = uploader;
+    data.windyImageUploadedAt = now;
+  }
 
   const updated = await prisma.transformer.update({ where: { id }, data });
     return NextResponse.json(updated, { headers: { "Cache-Control": "no-store" } });

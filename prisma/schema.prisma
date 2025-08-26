@@ -28,6 +28,9 @@ model Transformer {
   sunnyImageUploadedBy  String?
   cloudyImageUploadedBy String?
   windyImageUploadedBy  String?
+  sunnyImageUploadedAt  DateTime?
+  cloudyImageUploadedAt DateTime?
+  windyImageUploadedAt  DateTime?
   favourite             Boolean @default(false)
 
   inspections Inspection[]
@@ -48,5 +51,6 @@ model Inspection {
   weather           String?
   uploadedBy        String?
   imageUploadedBy   String?
+  imageUploadedAt   DateTime?
   favourite         Boolean @default(false)
 }

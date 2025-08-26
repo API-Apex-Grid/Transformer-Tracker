@@ -16,6 +16,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const { reload } = useInspections();
     const [selectedWeather, setSelectedWeather] = useState<string>(inspection.weather || "sunny");
     const [uploadedUrl, setUploadedUrl] = useState<string | null>(inspection.imageUrl || null);
+    const [uploadedAt, setUploadedAt] = useState<string | null>(inspection.imageUploadedAt || null);
+    const [uploadedBy, setUploadedBy] = useState<string | null>(inspection.imageUploadedBy || null);
 
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
@@ -52,6 +54,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
             const updated = await res.json();
             setUploadedUrl(updated.imageUrl ?? null);
             setSelectedWeather(updated.weather || selectedWeather);
+            setUploadedAt(updated.imageUploadedAt || null);
+            setUploadedBy(updated.imageUploadedBy || uploadedBy);
         }
         await reload();
     };
@@ -170,8 +174,11 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 ) : (
                                     <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">No image uploaded</div>
                                 )}
-                                                                {inspection.imageUploadedBy && (
-                                                                    <p className="mt-1 text-xs text-gray-500">by {inspection.imageUploadedBy}</p>
+                                                {(uploadedBy || uploadedAt || inspection.imageUploadedBy || inspection.imageUploadedAt) && (
+                                                                    <p className="mt-1 text-xs text-gray-500">
+                                                    by {(uploadedBy || inspection.imageUploadedBy) || 'unknown'}
+                                                    {(uploadedAt || inspection.imageUploadedAt) ? ` on ${new Date(uploadedAt || inspection.imageUploadedAt as string).toLocaleString()}` : ''}
+                                                                    </p>
                                                                 )}
                             </div>
                         </div>
