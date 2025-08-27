@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTransformers } from "@/context/TransformersContext";
 import { Transformer } from "@/types/transformer";
+import { apiUrl } from "@/lib/api";
 
 interface AddTransformerModalProps {
   addTransformer: (transformer: Transformer) => void;
@@ -51,7 +52,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
   const checkTfUniqueInDb = async (tfNo: string): Promise<boolean> => {
     if (!tfNo.trim()) return false;
     try {
-      const res = await fetch(`/api/transformers?tf=${encodeURIComponent(tfNo)}`, { cache: 'no-store' });
+  const res = await fetch(apiUrl(`/api/transformers?tf=${encodeURIComponent(tfNo)}`), { cache: 'no-store' });
       if (!res.ok) return true; // if API failed, do not block
       const data = await res.json();
       // Unique if no records found

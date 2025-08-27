@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Inspection } from "@/types/inspection";
+import { apiUrl } from "@/lib/api";
 
 interface EditInspectionModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
 
     // Ensure transformer exists before saving
     try {
-      const res = await fetch(`/api/transformers?tf=${encodeURIComponent(transformerNumber)}`, { cache: "no-store" });
+  const res = await fetch(apiUrl(`/api/transformers?tf=${encodeURIComponent(transformerNumber)}`), { cache: "no-store" });
       let exists = false;
       if (res.ok) {
         const list: Array<{ transformerNumber?: string }> = await res.json();

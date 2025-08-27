@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Transformer } from "@/types/transformer";
+import { apiUrl } from "@/lib/api";
 
 type TransformersContextValue = {
   transformers: Transformer[];
@@ -20,7 +21,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
 
   // load from API
   const load = async () => {
-    const res = await fetch("/api/transformers", { cache: "no-store" });
+    const res = await fetch(apiUrl("/api/transformers"), { cache: "no-store" });
     const data = await res.json();
     setTransformers(data);
   };
@@ -50,7 +51,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
       cloudyImageUploadedAt: t.cloudyImage ? now : undefined,
       windyImageUploadedAt: t.windyImage ? now : undefined,
     };
-    const res = await fetch("/api/transformers", {
+  const res = await fetch(apiUrl("/api/transformers"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -88,7 +89,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
       }
     }
 
-    const res = await fetch(`/api/transformers/${id}`, {
+  const res = await fetch(apiUrl(`/api/transformers/${id}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -101,7 +102,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   const deleteTransformer = async (index: number) => {
     const id = transformers[index]?.id;
     if (!id) return;
-    await fetch(`/api/transformers/${id}`, { method: "DELETE" });
+  await fetch(apiUrl(`/api/transformers/${id}`), { method: "DELETE" });
     setTransformers((prev) => prev.filter((_, i) => i !== index));
   void load();
   };

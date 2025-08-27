@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Inspection } from "@/types/inspection";
+import { apiUrl } from "@/lib/api";
 
 type InspectionsContextValue = {
   inspections: Inspection[];
@@ -19,7 +20,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   const pathname = usePathname();
 
   const load = async () => {
-    const res = await fetch("/api/inspections", { cache: "no-store" });
+    const res = await fetch(apiUrl("/api/inspections"), { cache: "no-store" });
     const data = await res.json();
     setInspections(data);
   };
@@ -38,10 +39,19 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   const addInspection = async (i: Inspection) => {
     let username: string | null = null;
     try { username = typeof window !== 'undefined' ? localStorage.getItem('username') : null; } catch {}
-    const res = await fetch("/api/inspections", {
+    const res = await fetch(apiUrl("/api/inspections"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...i, uploadedBy: username }),
+      // Spring expects the transformer relation; map transformerNumber into a nested object
+      body: JSON.stringify({
+        inspectionNumber: i.inspectionNumber,
+        inspectedDate: i.inspectedDate,
+        maintainanceDate: i.maintainanceDate,
+        branch: i.branch,
+        status: i.status,
+        uploadedBy: username,
+        transformer: { transformerNumber: i.transformerNumber },
+      }),
     });
     if (!res.ok) {
       const message = await res.json().catch(() => ({}));
@@ -55,10 +65,17 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   const updateInspection = async (index: number, i: Inspection) => {
     const id = inspections[index]?.id;
     if (!id) return;
-    const res = await fetch(`/api/inspections/${id}`, {
+    const res = await fetch(apiUrl(`/api/inspections/${id}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(i),
+      body: JSON.stringify({
+        inspectionNumber: i.inspectionNumber,
+        inspectedDate: i.inspectedDate,
+        maintainanceDate: i.maintainanceDate,
+        branch: i.branch,
+        status: i.status,
+        transformer: { transformerNumber: i.transformerNumber },
+      }),
     });
     const updated = await res.json();
     setInspections((prev) => prev.map((it, idx) => (idx === index ? updated : it)));
@@ -68,7 +85,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   const deleteInspection = async (index: number) => {
     const id = inspections[index]?.id;
     if (!id) return;
-    await fetch(`/api/inspections/${id}`, { method: "DELETE" });
+  await fetch(apiUrl(`/api/inspections/${id}`), { method: "DELETE" });
     setInspections((prev) => prev.filter((_, idx) => idx !== index));
   void load();
   };

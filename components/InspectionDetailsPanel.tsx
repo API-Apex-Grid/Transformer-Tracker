@@ -5,6 +5,7 @@ import ThermalImage from "@/components/ThermalImage";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 import { useState, useMemo } from "react";
+import { apiUrl } from "@/lib/api";
 
 interface InspectionDetailsPanelProps {
     inspection: Inspection;
@@ -43,7 +44,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         const formData = new FormData();
         formData.append("file", file);
         formData.append("weather", weather);
-        const res = await fetch(`/api/inspections/${inspection.id}/upload`, {
+    const res = await fetch(apiUrl(`/api/inspections/${inspection.id}/upload`), {
             method: "POST",
             body: formData,
             headers: {
@@ -65,7 +66,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         const form = new FormData();
         form.append("file", file);
         form.append("weather", weather);
-        await fetch(`/api/transformers/${transformer.id}/baseline`, {
+    await fetch(apiUrl(`/api/transformers/${transformer.id}/baseline`), {
             method: "POST",
             body: form,
             headers: {
