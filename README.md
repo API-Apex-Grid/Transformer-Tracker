@@ -33,6 +33,7 @@ mvn spring-boot:run
 
 ```powershell
 # in a new terminal, from the project root
+cd frontend
 pnpm install
 
 # point the UI to the Spring backend (optional if using the default)
