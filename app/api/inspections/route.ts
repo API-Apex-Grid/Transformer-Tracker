@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { apiUrl } from "@/lib/api";
 
 // Always serve fresh data
 export const dynamic = "force-dynamic";
@@ -9,24 +8,49 @@ export const revalidate = 0;
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const fav = searchParams.get("fav");
-  const where: Prisma.InspectionWhereInput = {};
-  if (fav === "true") where.favourite = true;
-  const items = await prisma.inspection.findMany({ where: Object.keys(where).length ? where : undefined, orderBy: { inspectedDate: "desc" } });
-  return NextResponse.json(items, { headers: { "Cache-Control": "no-store" } });
+
+  const url = new URL(apiUrl("/api/inspections"));
+  if (fav) url.searchParams.set("fav", fav);
+
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: {
+      ...(req.headers.get("authorization")
+        ? { authorization: req.headers.get("authorization") as string }
+        : {}),
+      "content-type": "application/json",
+    },
+  });
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: "Upstream error", status: res.status },
+      { status: res.status }
+    );
+  }
+  const data = await res.json();
+  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
-  const data = await req.json();
-  // Ensure the referenced transformer exists
-  const tfNumber: string | undefined = data?.transformerNumber;
-  if (!tfNumber) {
-    return NextResponse.json({ error: "transformerNumber is required" }, { status: 400 });
+  const body = await req.json();
+  const res = await fetch(apiUrl("/api/inspections"), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(req.headers.get("authorization")
+        ? { authorization: req.headers.get("authorization") as string }
+        : {}),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return NextResponse.json(
+      { error: "Upstream error", details: text || undefined },
+      { status: res.status }
+    );
   }
-  const transformer = await prisma.transformer.findFirst({ where: { transformerNumber: tfNumber } });
-  if (!transformer) {
-    return NextResponse.json({ error: "Transformer not found for the given transformerNumber" }, { status: 400 });
-  }
-
-  const created = await prisma.inspection.create({ data });
-  return NextResponse.json(created, { status: 201, headers: { "Cache-Control": "no-store" } });
+  const data = await res.json();
+  return NextResponse.json(data, { status: 201, headers: { "Cache-Control": "no-store" } });
 }

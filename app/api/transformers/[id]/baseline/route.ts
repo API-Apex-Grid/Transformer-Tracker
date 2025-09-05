@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-// No filesystem writes; store image as base64 in DB
+import { apiUrl } from "@/lib/api";
+// Proxy multipart baseline image upload to Spring backend
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,41 +13,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Expected multipart/form-data" }, { status: 400 });
     }
 
-  const form = await req.formData();
-    const file = form.get("file");
-    const weather = (form.get("weather") as string) || "sunny";
-  const uploader = req.headers.get('x-username') || null;
+    const { id } = await params;
+    const res = await fetch(apiUrl(`/api/transformers/${id}/baseline`), {
+      method: "POST",
+      headers: {
+        "content-type": contentType,
+        ...(req.headers.get("authorization")
+          ? { authorization: req.headers.get("authorization") as string }
+          : {}),
+        ...(req.headers.get("x-username")
+          ? { "x-username": req.headers.get("x-username") as string }
+          : {}),
+      },
+      body: req.body,
+      cache: "no-store",
+    });
 
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return NextResponse.json({ error: "Upload failed", details: text || undefined }, { status: res.status });
     }
 
-  const { id } = await params;
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const mime = (file as File).type || "application/octet-stream";
-  const base64 = buffer.toString("base64");
-  const imageUrl = `data:${mime};base64,${base64}`;
-
-    // Map weather to column
-  const now = new Date();
-  const data: Record<string, string | Date | null> = {};
-  if (weather === "sunny") {
-    data.sunnyImage = imageUrl;
-    data.sunnyImageUploadedBy = uploader;
-    data.sunnyImageUploadedAt = now;
-  } else if (weather === "cloudy") {
-    data.cloudyImage = imageUrl;
-    data.cloudyImageUploadedBy = uploader;
-    data.cloudyImageUploadedAt = now;
-  } else if (weather === "rainy") {
-    data.windyImage = imageUrl;
-    data.windyImageUploadedBy = uploader;
-    data.windyImageUploadedAt = now;
-  }
-
-  const updated = await prisma.transformer.update({ where: { id }, data });
-    return NextResponse.json(updated, { headers: { "Cache-Control": "no-store" } });
+    const data = await res.json();
+    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });

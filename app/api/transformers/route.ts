@@ -1,24 +1,77 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
 
-// Always serve fresh data from the DB
+// Always serve fresh data (no caching)
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function getBackendBaseUrl() {
+  return (
+    process.env.BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    "http://localhost:8080"
+  ).replace(/\/$/, "");
+}
+
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const tf = searchParams.get("tf");
-  const fav = searchParams.get("fav");
-  const where: Prisma.TransformerWhereInput = {};
-  if (tf) where.transformerNumber = tf;
-  if (fav === "true") where.favourite = true;
-  const items = await prisma.transformer.findMany({ where: Object.keys(where).length ? where : undefined, orderBy: { transformerNumber: "asc" } });
-  return NextResponse.json(items, { headers: { "Cache-Control": "no-store" } });
+  const incomingUrl = new URL(req.url);
+  const tf = incomingUrl.searchParams.get("tf");
+  const fav = incomingUrl.searchParams.get("fav");
+
+  const base = getBackendBaseUrl();
+  const url = new URL(`${base}/api/transformers`);
+  if (tf) url.searchParams.set("tf", tf);
+  if (fav) url.searchParams.set("fav", fav);
+
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    // Forward auth header if present (supports JWT/Bearer flows)
+    headers: {
+      ...(req.headers.get("authorization")
+        ? { authorization: req.headers.get("authorization") as string }
+        : {}),
+      "content-type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: `Upstream error`, status: res.status },
+      { status: res.status, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const data = await res.json();
+  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
-  const data = await req.json();
-  const created = await prisma.transformer.create({ data });
-  return NextResponse.json(created, { status: 201, headers: { "Cache-Control": "no-store" } });
+  const base = getBackendBaseUrl();
+  const url = `${base}/api/transformers`;
+  const body = await req.json();
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(req.headers.get("authorization")
+        ? { authorization: req.headers.get("authorization") as string }
+        : {}),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return NextResponse.json(
+      { error: `Upstream error`, details: text || undefined, status: res.status },
+      { status: res.status, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const data = await res.json();
+  return NextResponse.json(data, {
+    status: 201,
+    headers: { "Cache-Control": "no-store" },
+  });
 }

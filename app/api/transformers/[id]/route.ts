@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { apiUrl } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -7,23 +7,45 @@ export const revalidate = 0;
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const body = await req.json();
   const { id } = await params;
-  const updated = await prisma.transformer.update({ where: { id }, data: body });
-  return NextResponse.json(updated, { headers: { "Cache-Control": "no-store" } });
+  const res = await fetch(apiUrl(`/api/transformers/${id}`), {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+      ...(req.headers.get("authorization")
+        ? { authorization: req.headers.get("authorization") as string }
+        : {}),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return NextResponse.json(
+      { error: "Upstream error", details: text || undefined },
+      { status: res.status }
+    );
+  }
+  const data = await res.json();
+  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 
-// Delete transformer and cascade delete related inspections by transformerNumber
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  // Find transformer to get its transformerNumber
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const transformer = await prisma.transformer.findUnique({ where: { id } });
-  if (!transformer) {
-    return NextResponse.json({ error: "Transformer not found" }, { status: 404 });
+  const res = await fetch(apiUrl(`/api/transformers/${id}`), {
+    method: "DELETE",
+    headers: {
+      ...(req.headers.get("authorization")
+        ? { authorization: req.headers.get("authorization") as string }
+        : {}),
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return NextResponse.json(
+      { error: "Upstream error", details: text || undefined },
+      { status: res.status }
+    );
   }
-
-  await prisma.$transaction([
-    prisma.inspection.deleteMany({ where: { transformerNumber: transformer.transformerNumber } }),
-    prisma.transformer.delete({ where: { id } }),
-  ]);
-
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

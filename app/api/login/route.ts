@@ -1,44 +1,27 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { apiUrl } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function POST(req: Request) {
   try {
-    const { username, password } = (await req.json()) as {
-      username?: string;
-      password?: string;
-    };
+    const body = await req.json();
+    const res = await fetch(apiUrl("/api/auth/login"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
 
-    if (!username || !password) {
-      return NextResponse.json(
-        { error: "Missing credentials" },
-        { status: 400 }
-      );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return NextResponse.json({ error: "Invalid credentials", details: text || undefined }, { status: res.status });
     }
 
-    const user = await prisma.user.findUnique({ where: { username } });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
-    }
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      { username },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    const data = await res.json();
+    // Expecting backend to return at least { token, username }
+    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Login failed" }, { status: 500 });

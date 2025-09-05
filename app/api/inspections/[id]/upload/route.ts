@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-// No filesystem writes; store image as base64 in DB
+import { apiUrl } from "@/lib/api";
+// Proxy multipart upload to Spring backend
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,28 +13,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Expected multipart/form-data" }, { status: 400 });
     }
 
-  const form = await req.formData();
-    const file = form.get("file");
-    const weather = (form.get("weather") as string) || null;
-  const uploader = req.headers.get('x-username') || null;
-
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-    }
-
-  const { id } = await params;
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const mime = (file as File).type || "application/octet-stream";
-  const base64 = buffer.toString("base64");
-  const imageUrl = `data:${mime};base64,${base64}`;
-
-    const updated = await prisma.inspection.update({
-      where: { id },
-      data: { imageUrl, weather, imageUploadedBy: uploader, imageUploadedAt: new Date() },
+    const { id } = await params;
+    // Forward the original body stream to the backend without buffering the file in memory
+    const res = await fetch(apiUrl(`/api/inspections/${id}/upload`), {
+      method: "POST",
+      headers: {
+        // Preserve multipart boundary
+        "content-type": contentType,
+        ...(req.headers.get("authorization")
+          ? { authorization: req.headers.get("authorization") as string }
+          : {}),
+        ...(req.headers.get("x-username")
+          ? { "x-username": req.headers.get("x-username") as string }
+          : {}),
+      },
+      body: req.body,
+      cache: "no-store",
     });
 
-    return NextResponse.json(updated, { headers: { "Cache-Control": "no-store" } });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return NextResponse.json({ error: "Upload failed", details: text || undefined }, { status: res.status });
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
