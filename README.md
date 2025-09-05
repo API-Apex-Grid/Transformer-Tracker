@@ -96,22 +96,6 @@ Since env files are ignored by Git, create them locally as needed.
 
 - When using the Spring backend, data is stored in `backend/db/transformerdb.mv.db` (H2 file DB).
 - Data survives backend restarts. Remove the file if you want a clean slate.
-- The legacy Prisma SQLite DB (`prisma/dev.db`) is only used in the alternative mode below.
-
-## Alternative: Legacy local API (Next.js + Prisma/SQLite)
-
-You can still run the legacy API routes in Next.js backed by Prisma + SQLite.
-
-1) Initialize the database: `pnpm run db:setup`
-2) Start the dev server: `pnpm run dev`
-3) Open <http://localhost:3000>
-
-Details
-
-- Schema: `prisma/schema.prisma`, DB file at `prisma/dev.db`
-- Useful:
-  - `pnpm run prisma:studio` — Prisma Studio
-  - `pnpm run db:reset` — reset migrations (destructive)
 
 ## Auth
 
@@ -134,13 +118,13 @@ Details
 
 ## Project structure (high level)
 
-- `app/` — App Router pages
-  - `app/api/*` — Legacy API (optional for Prisma mode)
-- `components/` — UI components and modals
-- `lib/api.ts` — centralized `NEXT_PUBLIC_BACKEND_URL` base and helper
-- `lib/prisma.ts` — Prisma client singleton
-- `prisma/` — Prisma schema, migrations, and the SQLite DB file
-- `types/` — shared TypeScript types
+- `frontend/` — Next.js frontend
+  - `app/` — App Router pages
+  - `components/` — UI components and modals
+  - `lib/api.ts` — centralized `NEXT_PUBLIC_BACKEND_URL` base and helper
+  - `lib/prisma.ts` — Prisma client singleton
+  - `prisma/` — Prisma schema, migrations, and the SQLite DB file
+  - `types/` — shared TypeScript types
 - `backend/` — Spring Boot app (controllers, entities, repos, config)
 
 ## Project Description
@@ -157,8 +141,6 @@ Details
 
 ## Troubleshooting
 
-- prisma generate/migrate errors: try `pnpm run db:reset` (destructive), or delete `prisma/dev.db` and re-run `pnpm run db:setup`.
-- If the dev server fails on first run, stop it, run `pnpm run db:setup` once, then `pnpm run dev`.
 - Windows PowerShell: to start with a custom backend URL temporarily, run
 
   `$env:NEXT_PUBLIC_BACKEND_URL = "http://localhost:8080"; pnpm dev`
