@@ -22,7 +22,15 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   const load = async () => {
     const res = await fetch(apiUrl("/api/inspections"), { cache: "no-store" });
     const data = await res.json();
-    setInspections(data);
+    // Normalize backend shape -> ensure transformerNumber exists at top level for UI
+    const normalized: Inspection[] = (Array.isArray(data) ? data : []).map((it: any) => {
+      const transformerNumber = it?.transformerNumber ?? it?.transformer?.transformerNumber ?? "";
+      return {
+        ...it,
+        transformerNumber,
+      } as Inspection;
+    });
+    setInspections(normalized);
   };
 
   // Initial load
@@ -57,9 +65,8 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
       const message = await res.json().catch(() => ({}));
       throw new Error(message?.error || "Failed to add inspection");
     }
-    const created = await res.json();
-    setInspections((prev) => [...prev, created]);
-  void load();
+  // Reload to pick up server-sourced fields and apply normalization
+  await load();
   };
 
   const updateInspection = async (index: number, i: Inspection) => {
@@ -77,17 +84,16 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
         transformer: { transformerNumber: i.transformerNumber },
       }),
     });
-    const updated = await res.json();
-    setInspections((prev) => prev.map((it, idx) => (idx === index ? updated : it)));
-  void load();
+  // Reload to pick up server-sourced fields and apply normalization
+  await load();
   };
 
   const deleteInspection = async (index: number) => {
     const id = inspections[index]?.id;
     if (!id) return;
   await fetch(apiUrl(`/api/inspections/${id}`), { method: "DELETE" });
-    setInspections((prev) => prev.filter((_, idx) => idx !== index));
-  void load();
+  // Reload to reflect deletion and keep list in sync
+  await load();
   };
 
   const value = useMemo(
