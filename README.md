@@ -1,32 +1,106 @@
 # Apex Grid
 
-Next.js App Router app with Prisma + SQLite. Data is stored locally in `prisma/dev.db`. Images are saved as base64 strings in the database. Inspections relate to Transformers and are cascade-deleted when a Transformer is removed.
+Next.js App Router frontend with a Spring Boot backend (preferred). Legacy Next.js API + Prisma/SQLite remains available for local only.
+
+- Frontend: Next.js (App Router), React, Tailwind
+- Backend: Spring Boot (Web, Data JPA, Security), H2 (in-memory/file) or your DB
+- Images are saved as base64 strings in the database
+- Inspections relate to Transformers and are cascade-deleted when a Transformer is removed
 
 ## Prerequisites
 
-- Node.js 18+ (20+ recommended)
-- pnpm (preferred)
-  - If needed (one-time): `npm i -g pnpm`
+- Frontend
+  - Node.js 18+ (20+ recommended)
+  - pnpm (preferred). One-time install: `npm i -g pnpm`
+- Backend (Spring Boot)
+  - Java 21
+  - Maven 3.9+
 
-## Quick start
+## Quick start (Spring backend + Next.js frontend)
 
-1) Install dependencies: `pnpm install`
-2) Initialize the database: `pnpm run db:setup`
-3) Start the dev server: `pnpm run dev`
-4) Open <http://localhost:3000>
+1. Start the backend (port 8080)
 
-## Database (SQLite + Prisma)
+```powershell
+# from the project root
+cd backend
+mvn spring-boot:run
+```
 
-- Schema: `prisma/schema.prisma`, DB file at `prisma/dev.db` (no `.env` needed locally)
-- First-time setup: `pnpm run db:setup` (runs `prisma generate` + `prisma migrate dev`)
-- Useful:
-  - `pnpm run prisma:studio` — open Prisma Studio
-  - `pnpm run db:reset` — reset and re-apply migrations (destructive)
+- API base: <http://localhost:8080>
+- Database: file-based H2 located at `backend/db/transformerdb.mv.db`
+
+1. Start the frontend (port 3000)
+
+```powershell
+# in a new terminal, from the project root
+cd frontend
+pnpm install
+
+# point the UI to the Spring backend (optional if using the default)
+# create .env.local with this line (no quotes):
+# NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+
+pnpm run dev
+```
+
+1. Open the app at <http://localhost:3000>
+
+Notes
+
+- All frontend API calls go to `${NEXT_PUBLIC_BACKEND_URL}/api/...` via `lib/api.ts`.
+- If you change backend port/host, update `NEXT_PUBLIC_BACKEND_URL` in `.env.local` and restart `pnpm dev`.
+
+## Environment variables
+
+Since env files are ignored by Git, create them locally as needed.
+
+- Frontend (.env.local at project root)
+
+  Create a file named `.env.local` next to `package.json` with:
+
+  ```env
+  NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+  ```
+
+  Windows PowerShell (temporary for the current shell only):
+
+  ```powershell
+  $env:NEXT_PUBLIC_BACKEND_URL = "http://localhost:8080"
+  pnpm run dev
+  ```
+
+- Backend (Spring) optional overrides
+
+  Defaults are in `backend/src/main/resources/application.yml`. You can override via environment variables (restart backend after changes):
+
+  ```powershell
+  # Change server port
+  $env:SERVER_PORT = "8080"
+
+  # Point to a different DB (example keeps the project default)
+  $env:SPRING_DATASOURCE_URL = "jdbc:h2:file:./db/transformerdb;MODE=PostgreSQL"
+
+  # Set a stronger JWT secret
+  $env:APP_JWT_SECRET = "replace-with-a-long-random-secret"
+
+  # Run the backend
+  cd backend
+  mvn spring-boot:run
+  ```
+
+  Notes:
+  - Spring maps `app.jwt.secret` -> `APP_JWT_SECRET`, `server.port` -> `SERVER_PORT`, etc.
+  - Ensure the backend can read the env vars (set them in the same shell where you start Maven, or use your system’s env settings).
+
+## Data and persistence
+
+- When using the Spring backend, data is stored in `backend/db/transformerdb.mv.db` (H2 file DB).
+- Data survives backend restarts. Remove the file if you want a clean slate.
 
 ## Auth
 
 - Log in with `user1`..`user5` using the same value as the password (e.g., `user3`/`user3`).
-- On first successful login, the user record is auto-created in the DB via `/api/login` with a hashed password.
+- Backend handles user creation/verification on first successful login at `/api/login`.
 - The UI shows “Logged in as username” and records `uploadedBy` for created/updated entities and images.
 
 ## Features
@@ -44,13 +118,14 @@ Next.js App Router app with Prisma + SQLite. Data is stored locally in `prisma/d
 
 ## Project structure (high level)
 
-- `app/` — App Router pages and API handlers
-  - `app/api/transformers` and `app/api/inspections` — CRUD endpoints (Prisma)
-  - `app/api/login` — DB-backed login
-- `components/` — UI components and modals
-- `lib/prisma.ts` — Prisma client singleton
-- `prisma/` — Prisma schema, migrations, and the SQLite DB file
-- `types/` — shared TypeScript types
+- `frontend/` — Next.js frontend
+  - `app/` — App Router pages
+  - `components/` — UI components and modals
+  - `lib/api.ts` — centralized `NEXT_PUBLIC_BACKEND_URL` base and helper
+  - `lib/prisma.ts` — Prisma client singleton
+  - `prisma/` — Prisma schema, migrations, and the SQLite DB file
+  - `types/` — shared TypeScript types
+- `backend/` — Spring Boot app (controllers, entities, repos, config)
 
 ## Project Description
 
@@ -66,11 +141,17 @@ Next.js App Router app with Prisma + SQLite. Data is stored locally in `prisma/d
 
 ## Troubleshooting
 
-- prisma generate/migrate errors: try `pnpm run db:reset` (destructive), or delete `prisma/dev.db` and re-run `pnpm run db:setup`.
-- If the dev server fails on first run, stop it, run `pnpm run db:setup` once, then `pnpm run dev`.
-- Windows: no extra setup is required; Prisma downloads engines automatically.
+- Windows PowerShell: to start with a custom backend URL temporarily, run
+
+  `$env:NEXT_PUBLIC_BACKEND_URL = "http://localhost:8080"; pnpm dev`
+
+  Or put the value in `.env.local` to make it persistent.
+
+- Backend port in use (8080): stop the process using the port, or temporarily change `server.port` in `backend/src/main/resources/application.yml`.
+- H2 console won’t connect: verify JDBC URL is `jdbc:h2:file:./db/transformerdb`, user `sa`, and empty password.
+- DB file not created: ensure the backend is running and you’ve performed at least one API action (the file appears on first write).
 
 ## Notes
 
 - Package manager: pnpm-first. Running `pnpm install` in the project root installs all dependencies. No extra global tools are required beyond pnpm and Node.
-- No environment variables are required for local development.
+- Frontend reads `NEXT_PUBLIC_BACKEND_URL` (default `http://localhost:8080`).
