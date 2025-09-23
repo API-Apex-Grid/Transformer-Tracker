@@ -27,6 +27,12 @@ app:
     secret: change-me-in-prod-32-bytes-minimum-secret
     expiry-seconds: 86400
 
+  ai:
+    # Path to Python interpreter (e.g., python, python3, or full path)
+    python: python
+    # Relative to backend working dir; default points to repo AI/analyze.py
+    script: ../AI/analyze.py
+
 # Allow simple local integration
 cors:
   allowed-origins: "http://localhost:3000"

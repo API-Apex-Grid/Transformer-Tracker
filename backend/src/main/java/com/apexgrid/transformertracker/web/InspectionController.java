@@ -4,24 +4,32 @@ import com.apexgrid.transformertracker.model.Inspection;
 import com.apexgrid.transformertracker.model.Transformer;
 import com.apexgrid.transformertracker.repo.InspectionRepo;
 import com.apexgrid.transformertracker.repo.TransformerRepo;
+import com.apexgrid.transformertracker.ai.PythonAnalyzerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
-import java.util.Base64;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.util.List;
+import java.util.Base64;
 import java.util.Map;
+import javax.imageio.ImageIO;
 
 @RestController
 @RequestMapping("/api/inspections")
 public class InspectionController {
     private final InspectionRepo repo;
     private final TransformerRepo transformerRepo;
+    private final PythonAnalyzerService pythonAnalyzerService;
 
-    public InspectionController(InspectionRepo repo, TransformerRepo transformerRepo) {
+    public InspectionController(InspectionRepo repo, TransformerRepo transformerRepo, PythonAnalyzerService pythonAnalyzerService) {
         this.repo = repo;
         this.transformerRepo = transformerRepo;
+        this.pythonAnalyzerService = pythonAnalyzerService;
     }
 
     @GetMapping
@@ -90,5 +98,77 @@ public class InspectionController {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Upload failed"));
             }
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/analyze")
+    public ResponseEntity<?> analyze(@PathVariable String id,
+                                     @RequestParam("file") MultipartFile file,
+                                     @RequestParam("weather") String weather) {
+        return repo.findById(id).map(i -> {
+            try {
+                // Find baseline image from transformer based on weather
+                Transformer t = i.getTransformer();
+                if (t == null) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Inspection not linked to a transformer"));
+                }
+                String baselineDataUrl = switch (weather == null ? "" : weather) {
+                    case "sunny" -> t.getSunnyImage();
+                    case "cloudy" -> t.getCloudyImage();
+                    case "rainy" -> t.getWindyImage();
+                    default -> {
+                        String any = t.getSunnyImage();
+                        if (any == null || any.isBlank()) any = t.getCloudyImage();
+                        if (any == null || any.isBlank()) any = t.getWindyImage();
+                        yield any;
+                    }
+                };
+                if (baselineDataUrl == null || baselineDataUrl.isBlank()) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "No baseline image available for selected weather"));
+                }
+
+                BufferedImage baseline = readDataUrlToImage(baselineDataUrl);
+                BufferedImage candidate = ImageIO.read(new ByteArrayInputStream(file.getBytes()));
+                if (baseline == null || candidate == null) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Invalid images for analysis"));
+                }
+
+                // Resize baseline to candidate size for comparison
+                int W = candidate.getWidth();
+                int H = candidate.getHeight();
+                BufferedImage baseResized = resize(baseline, W, H);
+
+                var result = pythonAnalyzerService.analyze(baseResized, candidate);
+
+                // Pass through fields as-is from Python
+                return ResponseEntity.ok(Map.of(
+                        "prob", result.path("prob").asDouble(0.0),
+                        "histDistance", result.path("histDistance").asDouble(0.0),
+                        "dv95", result.path("dv95").asDouble(0.0),
+                        "warmFraction", result.path("warmFraction").asDouble(0.0),
+                        "boxes", result.path("boxes"),
+                        "annotated", result.path("annotated").asText("")
+                ));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Analysis failed"));
+            }
+        }).orElse(ResponseEntity.notFound().build());
+    }
+    private static BufferedImage resize(BufferedImage src, int W, int H) {
+        if (src.getWidth() == W && src.getHeight() == H) return src;
+        BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = out.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(src, 0, 0, W, H, null);
+        g.dispose();
+        return out;
+    }
+
+    private static BufferedImage readDataUrlToImage(String dataUrl) throws Exception {
+        // format: data:<mime>;base64,<data>
+        int comma = dataUrl.indexOf(',');
+        if (comma < 0) return null;
+        String base64 = dataUrl.substring(comma + 1);
+        byte[] bytes = Base64.getDecoder().decode(base64);
+        return ImageIO.read(new ByteArrayInputStream(bytes));
     }
 }
