@@ -4,6 +4,7 @@ com\apexgrid\transformertracker\web\AuthController.class
 com\apexgrid\transformertracker\BackendApplication.class
 com\apexgrid\transformertracker\model\User.class
 com\apexgrid\transformertracker\repo\UserRepo.class
+com\apexgrid\transformertracker\ai\PythonAnalyzerService.class
 com\apexgrid\transformertracker\repo\TransformerRepo.class
 com\apexgrid\transformertracker\web\TransformerController.class
 com\apexgrid\transformertracker\web\InspectionController.class

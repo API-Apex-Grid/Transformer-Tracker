@@ -19,6 +19,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const [uploadedUrl, setUploadedUrl] = useState<string | null>(inspection.imageUrl || null);
     const [uploadedAt, setUploadedAt] = useState<string | null>(inspection.imageUploadedAt || null);
     const [uploadedBy, setUploadedBy] = useState<string | null>(inspection.imageUploadedBy || null);
+    const [aiAnnotated, setAiAnnotated] = useState<string | null>(null);
+    const [aiStats, setAiStats] = useState<{ prob?: number; histDistance?: number; dv95?: number; warmFraction?: number; boxes?: number[][] | number[] } | null>(null);
 
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
@@ -139,9 +141,17 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                     <ThermalImage
                         onImageUpload={(file) => handleUpload(file, selectedWeather)}
                         onWeatherChange={(w) => setSelectedWeather(w)}
-                        onAnalyze={() => {
-                            // re-run the progress sequence within ThermalImage by toggling reset
-                            // The component already simulates progress; this handler is a hook point for real AI later
+                        onAnalyze={() => { /* handled inside component */ }}
+                        inspectionId={inspection.id as string}
+                        onAnalysisResult={(res) => {
+                            setAiAnnotated(res.annotated || null);
+                            setAiStats({
+                                prob: res.prob,
+                                histDistance: res.histDistance,
+                                dv95: res.dv95,
+                                warmFraction: res.warmFraction,
+                                boxes: res.boxes as number[][] | number[]
+                            });
                         }}
                     />
 
@@ -182,6 +192,28 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                                                     </p>
                                                                 )}
                             </div>
+                        </div>
+                        {/* Annotated output below */}
+                        <div className="mt-4">
+                            <p className="text-sm text-gray-600 mb-1">AI Annotated</p>
+                            {aiAnnotated ? (
+                                <>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={aiAnnotated} alt="Annotated" className="w-full h-56 object-contain border rounded" />
+                                    {aiStats && (
+                                        <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                                            {typeof aiStats.prob === 'number' && <span>p={aiStats.prob.toFixed(2)}</span>}
+                                            {typeof aiStats.warmFraction === 'number' && <span>warm={aiStats.warmFraction.toFixed(3)}</span>}
+                                            {typeof aiStats.dv95 === 'number' && <span>dv95={aiStats.dv95.toFixed(3)}</span>}
+                                            {typeof aiStats.histDistance === 'number' && <span>histD={aiStats.histDistance.toFixed(3)}</span>}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">
+                                    Run analysis to see annotated image
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

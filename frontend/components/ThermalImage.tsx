@@ -11,6 +11,16 @@ interface ThermalImageProps {
   onImageUpload?: (file: File) => void;
   onWeatherChange?: (weather: string) => void;
   onAnalyze?: (weather: string) => void;
+  // New props to trigger backend analysis and bubble result up
+  inspectionId: string;
+  onAnalysisResult?: (result: {
+    annotated: string;
+    prob: number;
+    boxes: number[][] | number[];
+    histDistance?: number;
+    dv95?: number;
+    warmFraction?: number;
+  }) => void;
 }
 
 const ProgressStep: React.FC<ProgressStepProps> = ({ title, status }) => {
@@ -58,10 +68,13 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
   onImageUpload,
   onWeatherChange,
   onAnalyze,
+  inspectionId,
+  onAnalysisResult,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [weather, setWeather] = useState<string>('sunny');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const uploadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const analysisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -122,15 +135,49 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
       setUploadStatus('completed');
       setAnalysisStatus('in-progress');
 
-      analysisTimerRef.current = setTimeout(() => {
-        setAnalysisStatus('completed');
-        setReviewStatus('in-progress');
-
-        reviewTimerRef.current = setTimeout(() => {
-          setReviewStatus('completed');
-        }, 2000);
-      }, 3000);
+      // Kick off real backend analysis
+      void analyzeWithBackend();
     }, 1500);
+  };
+
+  const analyzeWithBackend = async () => {
+    if (!selectedFile) return;
+    try {
+      setIsAnalyzing(true);
+      // We use the Next public env base to call Spring backend
+      const { apiUrl } = await import("@/lib/api");
+      const form = new FormData();
+      form.append('file', selectedFile);
+      form.append('weather', weather);
+      const res = await fetch(apiUrl(`/api/inspections/${inspectionId}/analyze`), {
+        method: 'POST',
+        body: form
+      });
+      const ok = res.ok;
+      const data = ok ? await res.json() : null;
+      setAnalysisStatus('completed');
+      setReviewStatus('in-progress');
+      if (!ok || !data?.annotated) {
+        // finish review quickly on failure
+        reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 500);
+        return;
+      }
+      // bubble up
+      onAnalysisResult?.({
+        annotated: data.annotated,
+        prob: Number(data.prob ?? 0),
+        boxes: data.boxes ?? [],
+        histDistance: data.histDistance,
+        dv95: data.dv95,
+        warmFraction: data.warmFraction,
+      });
+      reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 1000);
+    } catch (e) {
+      setAnalysisStatus('completed');
+      reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 500);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   // Cleanup timers and object URLs on unmount
@@ -175,10 +222,10 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
               runAnalysis();
             }}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            disabled={!selectedFile && !previewUrl}
+            disabled={!selectedFile || isAnalyzing}
             title="Run analysis"
           >
-            Analyze
+            {isAnalyzing ? 'Analyzing…' : 'Analyze'}
           </button>
           {selectedFile && (
             <button
