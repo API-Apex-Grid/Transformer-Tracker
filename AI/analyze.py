@@ -126,28 +126,127 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image):
             if area >= min_area:
                 boxes.append([minX, minY, maxX-minX+1, maxY-minY+1])
 
-    # Filter contained boxes
-    def contains(outer, inner):
-        ox, oy, ow, oh = outer
-        ix, iy, iw, ih = inner
-        return ix >= ox and iy >= oy and (ix+iw) <= (ox+ow) and (iy+ih) <= (oy+oh)
+    # First, classify potential faults BEFORE filtering (per user request order)
+    # This gives us an overall faultType derived from the raw candidate boxes.
+    def classify_fault(img_w, img_h, boxes_list):
+        if not boxes_list:
+            return "none", []
+        # Define middle area as central third of the image
+        center_x0, center_y0 = int(img_w * 0.33), int(img_h * 0.33)
+        center_x1, center_y1 = int(img_w * 0.67), int(img_h * 0.67)
+        total_area = float(img_w * img_h)
 
-    filtered = []
+        info = []
+        has_large_central = False
+        has_rectangular = False
+        max_area_frac = 0.0
+
+        for (x, y, w, h) in boxes_list:
+            area = float(w * h)
+            area_frac = area / total_area if total_area > 0 else 0.0
+            short_side = max(1.0, float(min(w, h)))
+            long_side = float(max(w, h))
+            aspect = long_side / short_side
+
+            # central overlap check
+            bx0, by0, bx1, by1 = x, y, x + w, y + h
+            ox0, oy0 = max(bx0, center_x0), max(by0, center_y0)
+            ox1, oy1 = min(bx1, center_x1), min(by1, center_y1)
+            overlap = max(0, ox1 - ox0) * max(0, oy1 - oy0)
+            overlap_frac = (overlap / area) if area > 0 else 0.0
+
+            # Track maxima and shapes
+            max_area_frac = max(max_area_frac, area_frac)
+            if aspect >= 2.0:
+                has_rectangular = True
+
+            # Per-box label for annotation
+            if area_frac >= 0.10:
+                box_label = 'Loose joint'
+            elif aspect >= 2.0:
+                box_label = 'Wire overload'
+            else:
+                box_label = 'Point overload'
+
+            # Large central if box covers >=30% and overlaps center meaningfully
+            if area_frac >= 0.30 and overlap_frac >= 0.4:
+                has_large_central = True
+
+            info.append({
+                'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h),
+                'areaFrac': float(area_frac), 'aspect': float(aspect),
+                'overlapCenterFrac': float(overlap_frac), 'label': box_label
+            })
+
+        # Decide fault in specified order
+        if has_large_central:
+            return "loose joint", info
+        if max_area_frac < 0.30:
+            return "point overload", info
+        if has_rectangular:
+            return "wire overload", info
+        return "none", info
+
+    # Classify on raw boxes first
+    fault_type_raw, _ = classify_fault(W, H, boxes)
+
+    # Filter nested boxes if 80% of a box area overlaps another (remove the inner)
+    def overlap_area(a, b):
+        ax, ay, aw, ah = a
+        bx, by, bw, bh = b
+        ax1, ay1, bx1, by1 = ax + aw, ay + ah, bx + bw, by + bh
+        ix0, iy0 = max(ax, bx), max(ay, by)
+        ix1, iy1 = min(ax1, bx1), min(ay1, by1)
+        w = max(0, ix1 - ix0)
+        h = max(0, iy1 - iy0)
+        return w * h
+
+    keep = [True] * len(boxes)
+    areas = [w * h for (x, y, w, h) in boxes]
     for i in range(len(boxes)):
-        a = boxes[i]
-        if not any(i != j and contains(boxes[j], a) for j in range(len(boxes))):
-            filtered.append(a)
+        if not keep[i]:
+            continue
+        for j in range(len(boxes)):
+            if i == j or not keep[j]:
+                continue
+            inter = overlap_area(boxes[i], boxes[j])
+            if areas[i] > 0 and inter / areas[i] >= 0.8:
+                # i is 80% inside j
+                keep[i] = False
+                break
+    filtered = [b for b, k in zip(boxes, keep) if k]
 
     # Score and prob
     score = (hist_dist/0.5) + dv95 + (warm_frac*2.0)
     prob = 1.0 / (1.0 + pow(2.718281828, -score))
 
+    # Now label each remaining (filtered) box and return their info
+    _, box_info = classify_fault(W, H, filtered)
+    fault_type = fault_type_raw
+
     # Annotate candidate
     annotated = cand_img.convert('RGB').copy()
     dr = ImageDraw.Draw(annotated)
+    # Build a lookup for labels per box to annotate next to rectangles
+    label_lut = {}
+    for bi in box_info:
+        label_lut[(bi['x'], bi['y'], bi['w'], bi['h'])] = bi.get('label', 'hotspot')
+
     for b in filtered:
         x, y, w, h = b
         dr.rectangle([x, y, x+w, y+h], outline=(255,0,0), width=2)
+        txt = label_lut.get((x, y, w, h), 'hotspot')
+        # Place a red filled rectangle at the top-right of the box with white text
+        try:
+            bg_w = 8*len(txt) + 8
+            bg_h = 14
+            tx = max(x, x + w - bg_w - 4)
+            ty = y + 2
+            dr.rectangle([tx, ty, tx + bg_w, ty + bg_h], fill=(255,0,0))
+            dr.text((tx + 4, ty + 2), txt, fill=(255,255,255))
+        except Exception:
+            # Fallback: simple text without background
+            dr.text((x + w - 2 - 8*len(txt), y + 2), txt, fill=(255,0,0))
 
     buf = io.BytesIO()
     annotated.save(buf, format='PNG')
@@ -160,6 +259,8 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image):
         'dv95': float(dv95),
         'warmFraction': float(warm_frac),
         'boxes': filtered,
+        'boxInfo': box_info,
+        'faultType': fault_type,
         'annotated': data_url,
     }
 
