@@ -11,17 +11,20 @@ interface ThermalImageProps {
   onImageUpload?: (file: File) => void;
   onWeatherChange?: (weather: string) => void;
   onAnalyze?: (weather: string) => void;
+  onResetAnalysis?: () => void;
   // New props to trigger backend analysis and bubble result up
   inspectionId: string;
   onAnalysisResult?: (result: {
-    annotated: string;
+    annotated?: string;
     prob: number;
     boxes: number[][] | number[];
     histDistance?: number;
     dv95?: number;
     warmFraction?: number;
     faultType?: string;
-    boxInfo?: any[];
+    boxInfo?: Array<{ x: number; y: number; w: number; h: number; label?: string; areaFrac?: number; aspect?: number; overlapCenterFrac?: number; boxFault?: string }>;
+    imageWidth?: number;
+    imageHeight?: number;
   }) => void;
 }
 
@@ -70,6 +73,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
   onImageUpload,
   onWeatherChange,
   onAnalyze,
+  onResetAnalysis,
   inspectionId,
   onAnalysisResult,
 }) => {
@@ -123,6 +127,8 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
     uploadTimerRef.current = null;
     analysisTimerRef.current = null;
     reviewTimerRef.current = null;
+    // notify parent to clear overlays/analysis
+    onResetAnalysis?.();
   };
 
   // Start the simulated analysis flow only when Analyze is clicked
@@ -159,7 +165,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
       const data = ok ? await res.json() : null;
       setAnalysisStatus('completed');
       setReviewStatus('in-progress');
-      if (!ok || !data?.annotated) {
+      if (!ok) {
         // finish review quickly on failure
         reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 500);
         return;
@@ -174,6 +180,8 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
         warmFraction: data.warmFraction,
         faultType: data.faultType,
         boxInfo: data.boxInfo,
+        imageWidth: data.imageWidth,
+        imageHeight: data.imageHeight,
       });
       reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 1000);
     } catch (e) {

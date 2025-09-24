@@ -224,44 +224,37 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image):
     _, box_info = classify_fault(W, H, filtered)
     fault_type = fault_type_raw
 
-    # Annotate candidate
-    annotated = cand_img.convert('RGB').copy()
-    dr = ImageDraw.Draw(annotated)
-    # Build a lookup for labels per box to annotate next to rectangles
-    label_lut = {}
+    # Provide UI with geometry and labels; frontend will draw overlays
+    # Map each box to a high-level fault type for filtering in UI
+    enriched = []
     for bi in box_info:
-        label_lut[(bi['x'], bi['y'], bi['w'], bi['h'])] = bi.get('label', 'hotspot')
-
-    for b in filtered:
-        x, y, w, h = b
-        dr.rectangle([x, y, x+w, y+h], outline=(255,0,0), width=2)
-        txt = label_lut.get((x, y, w, h), 'hotspot')
-        # Place a red filled rectangle at the top-right of the box with white text
-        try:
-            bg_w = 8*len(txt) + 8
-            bg_h = 14
-            tx = max(x, x + w - bg_w - 4)
-            ty = y + 2
-            dr.rectangle([tx, ty, tx + bg_w, ty + bg_h], fill=(255,0,0))
-            dr.text((tx + 4, ty + 2), txt, fill=(255,255,255))
-        except Exception:
-            # Fallback: simple text without background
-            dr.text((x + w - 2 - 8*len(txt), y + 2), txt, fill=(255,0,0))
-
-    buf = io.BytesIO()
-    annotated.save(buf, format='PNG')
-    b64 = base64.b64encode(buf.getvalue()).decode('ascii')
-    data_url = f"data:image/png;base64,{b64}"
+        area_frac = bi['areaFrac']
+        aspect = bi['aspect']
+        overlap_center = bi['overlapCenterFrac']
+        if area_frac >= 0.30 and overlap_center >= 0.4:
+            box_fault = 'loose joint'
+        elif area_frac < 0.30:
+            box_fault = 'point overload'
+        elif aspect >= 2.0:
+            box_fault = 'wire overload'
+        else:
+            box_fault = 'none'
+        bi2 = dict(bi)
+        bi2['boxFault'] = box_fault
+        enriched.append(bi2)
 
     return {
         'prob': float(prob),
         'histDistance': float(hist_dist),
         'dv95': float(dv95),
         'warmFraction': float(warm_frac),
+        'imageWidth': int(W),
+        'imageHeight': int(H),
         'boxes': filtered,
-        'boxInfo': box_info,
+        'boxInfo': enriched,
         'faultType': fault_type,
-        'annotated': data_url,
+        # annotated is now empty; UI will render overlays
+        'annotated': '',
     }
 
 

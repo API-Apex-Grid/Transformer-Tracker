@@ -26,6 +26,9 @@ public class Inspection {
     private String imageUrl;
     private String weather;
 
+    // Stores the last weather condition used when analysis was executed
+    private String lastAnalysisWeather;
+
     private String uploadedBy;
     private String imageUploadedBy;
     private Instant imageUploadedAt;
@@ -58,6 +61,9 @@ public class Inspection {
 
     public String getWeather() { return weather; }
     public void setWeather(String weather) { this.weather = weather; }
+
+    public String getLastAnalysisWeather() { return lastAnalysisWeather; }
+    public void setLastAnalysisWeather(String lastAnalysisWeather) { this.lastAnalysisWeather = lastAnalysisWeather; }
 
     public String getUploadedBy() { return uploadedBy; }
     public void setUploadedBy(String uploadedBy) { this.uploadedBy = uploadedBy; }

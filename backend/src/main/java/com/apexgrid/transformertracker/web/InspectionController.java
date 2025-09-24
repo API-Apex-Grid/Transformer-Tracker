@@ -137,14 +137,20 @@ public class InspectionController {
                 int H = candidate.getHeight();
                 BufferedImage baseResized = resize(baseline, W, H);
 
-                var result = pythonAnalyzerService.analyze(baseResized, candidate);
+        var result = pythonAnalyzerService.analyze(baseResized, candidate);
+
+        // Persist last analysis weather on the inspection
+        i.setLastAnalysisWeather(weather);
+        repo.save(i);
 
         // Pass through fields as-is from Python, including fault classification
-                return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok(Map.of(
                         "prob", result.path("prob").asDouble(0.0),
                         "histDistance", result.path("histDistance").asDouble(0.0),
                         "dv95", result.path("dv95").asDouble(0.0),
                         "warmFraction", result.path("warmFraction").asDouble(0.0),
+            "imageWidth", result.path("imageWidth").asInt(0),
+            "imageHeight", result.path("imageHeight").asInt(0),
                         "boxes", result.path("boxes"),
             "boxInfo", result.path("boxInfo"),
             "faultType", result.path("faultType").asText("none"),

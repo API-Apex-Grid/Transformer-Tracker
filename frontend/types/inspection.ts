@@ -11,5 +11,6 @@ export interface Inspection {
     uploadedBy?: string | null;
     imageUploadedBy?: string | null;
     imageUploadedAt?: string | null;
+    lastAnalysisWeather?: "sunny" | "cloudy" | "rainy" | string | null;
     favourite?: boolean;
 }

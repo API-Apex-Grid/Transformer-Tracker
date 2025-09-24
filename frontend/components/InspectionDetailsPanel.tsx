@@ -2,6 +2,7 @@
 
 import { Inspection } from "@/types/inspection";
 import ThermalImage from "@/components/ThermalImage";
+import OverlayedThermal, { OverlayToggles } from "@/components/OverlayedThermal";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 import { useState, useMemo } from "react";
@@ -20,7 +21,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const [uploadedAt, setUploadedAt] = useState<string | null>(inspection.imageUploadedAt || null);
     const [uploadedBy, setUploadedBy] = useState<string | null>(inspection.imageUploadedBy || null);
     const [aiAnnotated, setAiAnnotated] = useState<string | null>(null);
-    const [aiStats, setAiStats] = useState<{ prob?: number; histDistance?: number; dv95?: number; warmFraction?: number; boxes?: number[][] | number[]; faultType?: string } | null>(null);
+    const [aiStats, setAiStats] = useState<{ prob?: number; histDistance?: number; dv95?: number; warmFraction?: number; boxes?: number[][] | number[]; faultType?: string; boxInfo?: any[]; imageWidth?: number; imageHeight?: number } | null>(null);
+    const [overlayToggles, setOverlayToggles] = useState<OverlayToggles>({ looseJoint: true, pointOverload: true, wireOverload: true });
 
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
@@ -59,6 +61,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
             setSelectedWeather(updated.weather || selectedWeather);
             setUploadedAt(updated.imageUploadedAt || null);
             setUploadedBy(updated.imageUploadedBy || uploadedBy);
+            // Clear any previous analysis overlays for new image
+            setAiAnnotated(null);
+            setAiStats(null);
         }
         await reload();
     };
@@ -142,6 +147,10 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                         onImageUpload={(file) => handleUpload(file, selectedWeather)}
                         onWeatherChange={(w) => setSelectedWeather(w)}
                         onAnalyze={() => { /* handled inside component */ }}
+                        onResetAnalysis={() => {
+                            setAiAnnotated(null);
+                            setAiStats(null);
+                        }}
                         inspectionId={inspection.id as string}
                         onAnalysisResult={(res) => {
                             setAiAnnotated(res.annotated || null);
@@ -152,6 +161,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 warmFraction: res.warmFraction,
                                 boxes: res.boxes as number[][] | number[],
                                 faultType: res.faultType || undefined,
+                                boxInfo: res.boxInfo || [],
+                                imageWidth: res.imageWidth,
+                                imageHeight: res.imageHeight,
                             });
                         }}
                     />
@@ -194,25 +206,52 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                                                 )}
                             </div>
                         </div>
-                        {/* Annotated output below */}
+                        {/* Overlay output with toggles */}
                         <div className="mt-4">
-                            <p className="text-sm text-gray-600 mb-1">AI Annotated</p>
-                            {aiAnnotated ? (
-                                <>
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={aiAnnotated} alt="Annotated" className="w-full h-56 object-contain border rounded" />
-                                    {aiStats && (
-                                        <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
-                                            {typeof aiStats.prob === 'number' && <span>p={aiStats.prob.toFixed(2)}</span>}
-                                            {typeof aiStats.warmFraction === 'number' && <span>warm={aiStats.warmFraction.toFixed(3)}</span>}
-                                            {typeof aiStats.dv95 === 'number' && <span>dv95={aiStats.dv95.toFixed(3)}</span>}
-                                            {typeof aiStats.histDistance === 'number' && <span>histD={aiStats.histDistance.toFixed(3)}</span>}
-                                        </div>
-                                    )}
-                                </>
+                                                        <div className="flex items-center gap-4 mb-2">
+                                                                <button
+                                                                    className="px-2 py-1 text-xs border rounded"
+                                                                    onClick={() => {
+                                                                        const allOn = overlayToggles.looseJoint && overlayToggles.pointOverload && overlayToggles.wireOverload;
+                                                                        setOverlayToggles({ looseJoint: !allOn, pointOverload: !allOn, wireOverload: !allOn });
+                                                                    }}
+                                                                >
+                                                                    {overlayToggles.looseJoint && overlayToggles.pointOverload && overlayToggles.wireOverload ? 'Show none' : 'Show all'}
+                                                                </button>
+                                <label className="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" checked={overlayToggles.looseJoint} onChange={(e) => setOverlayToggles(t => ({...t, looseJoint: e.target.checked}))} />
+                                    Loose joint
+                                </label>
+                                <label className="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" checked={overlayToggles.pointOverload} onChange={(e) => setOverlayToggles(t => ({...t, pointOverload: e.target.checked}))} />
+                                    Point overload
+                                </label>
+                                <label className="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" checked={overlayToggles.wireOverload} onChange={(e) => setOverlayToggles(t => ({...t, wireOverload: e.target.checked}))} />
+                                    Wire overload
+                                </label>
+                            </div>
+                            {(uploadedUrl || inspection.imageUrl) && aiStats?.boxes ? (
+                                <OverlayedThermal
+                                    imageUrl={(uploadedUrl || inspection.imageUrl) as string}
+                                    naturalWidth={aiStats.imageWidth}
+                                    naturalHeight={aiStats.imageHeight}
+                                    boxes={aiStats.boxes as number[][]}
+                                    boxInfo={aiStats.boxInfo as any[]}
+                                    toggles={overlayToggles}
+                                    containerClassName="w-full border rounded overflow-hidden"
+                                />
                             ) : (
                                 <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">
-                                    Run analysis to see annotated image
+                                    Run analysis to see overlay
+                                </div>
+                            )}
+                            {aiStats && (
+                                <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                                    {typeof aiStats.prob === 'number' && <span>p={aiStats.prob.toFixed(2)}</span>}
+                                    {typeof aiStats.warmFraction === 'number' && <span>warm={aiStats.warmFraction.toFixed(3)}</span>}
+                                    {typeof aiStats.dv95 === 'number' && <span>dv95={aiStats.dv95.toFixed(3)}</span>}
+                                    {typeof aiStats.histDistance === 'number' && <span>histD={aiStats.histDistance.toFixed(3)}</span>}
                                 </div>
                             )}
                         </div>
