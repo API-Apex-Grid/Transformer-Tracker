@@ -139,13 +139,15 @@ public class InspectionController {
 
                 var result = pythonAnalyzerService.analyze(baseResized, candidate);
 
-                // Pass through fields as-is from Python
+        // Pass through fields as-is from Python, including fault classification
                 return ResponseEntity.ok(Map.of(
                         "prob", result.path("prob").asDouble(0.0),
                         "histDistance", result.path("histDistance").asDouble(0.0),
                         "dv95", result.path("dv95").asDouble(0.0),
                         "warmFraction", result.path("warmFraction").asDouble(0.0),
                         "boxes", result.path("boxes"),
+            "boxInfo", result.path("boxInfo"),
+            "faultType", result.path("faultType").asText("none"),
                         "annotated", result.path("annotated").asText("")
                 ));
             } catch (Exception e) {

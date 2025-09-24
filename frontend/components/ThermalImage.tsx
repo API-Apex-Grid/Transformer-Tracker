@@ -20,6 +20,8 @@ interface ThermalImageProps {
     histDistance?: number;
     dv95?: number;
     warmFraction?: number;
+    faultType?: string;
+    boxInfo?: any[];
   }) => void;
 }
 
@@ -170,6 +172,8 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
         histDistance: data.histDistance,
         dv95: data.dv95,
         warmFraction: data.warmFraction,
+        faultType: data.faultType,
+        boxInfo: data.boxInfo,
       });
       reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 1000);
     } catch (e) {

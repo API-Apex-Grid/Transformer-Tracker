@@ -20,7 +20,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const [uploadedAt, setUploadedAt] = useState<string | null>(inspection.imageUploadedAt || null);
     const [uploadedBy, setUploadedBy] = useState<string | null>(inspection.imageUploadedBy || null);
     const [aiAnnotated, setAiAnnotated] = useState<string | null>(null);
-    const [aiStats, setAiStats] = useState<{ prob?: number; histDistance?: number; dv95?: number; warmFraction?: number; boxes?: number[][] | number[] } | null>(null);
+    const [aiStats, setAiStats] = useState<{ prob?: number; histDistance?: number; dv95?: number; warmFraction?: number; boxes?: number[][] | number[]; faultType?: string } | null>(null);
 
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
@@ -150,7 +150,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 histDistance: res.histDistance,
                                 dv95: res.dv95,
                                 warmFraction: res.warmFraction,
-                                boxes: res.boxes as number[][] | number[]
+                                boxes: res.boxes as number[][] | number[],
+                                faultType: res.faultType || undefined,
                             });
                         }}
                     />
