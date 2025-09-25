@@ -24,7 +24,7 @@ interface OverlayedThermalProps {
   containerClassName?: string;
 }
 
-function is2DArray(a: any): a is number[][] {
+function is2DArray(a: unknown): a is number[][] {
   return Array.isArray(a) && (a.length === 0 || Array.isArray(a[0]));
 }
 
@@ -38,14 +38,14 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   containerClassName,
 }) => {
   const list = useMemo(() => {
-    const rawBoxes: Array<{x:number;y:number;w:number;h:number}> = [];
+  const rawBoxes: Array<{x:number;y:number;w:number;h:number}> = [];
     if (is2DArray(boxes)) {
       for (const b of boxes as number[][]) {
         if (b.length >= 4) rawBoxes.push({ x: b[0], y: b[1], w: b[2], h: b[3] });
       }
     }
     const infosByKey = new Map<string, OverlayBoxInfo>();
-    (boxInfo ?? []).forEach(bi => {
+    (boxInfo ?? []).forEach((bi) => {
       const key = `${bi.x},${bi.y},${bi.w},${bi.h}`;
       infosByKey.set(key, bi);
     });

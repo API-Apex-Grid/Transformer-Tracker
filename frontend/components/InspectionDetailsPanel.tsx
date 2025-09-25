@@ -2,7 +2,7 @@
 
 import { Inspection } from "@/types/inspection";
 import ThermalImage from "@/components/ThermalImage";
-import OverlayedThermal, { OverlayToggles } from "@/components/OverlayedThermal";
+import OverlayedThermal, { OverlayToggles, OverlayBoxInfo } from "@/components/OverlayedThermal";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 import { useState, useMemo } from "react";
@@ -20,8 +20,17 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const [uploadedUrl, setUploadedUrl] = useState<string | null>(inspection.imageUrl || null);
     const [uploadedAt, setUploadedAt] = useState<string | null>(inspection.imageUploadedAt || null);
     const [uploadedBy, setUploadedBy] = useState<string | null>(inspection.imageUploadedBy || null);
-    const [aiAnnotated, setAiAnnotated] = useState<string | null>(null);
-    const [aiStats, setAiStats] = useState<{ prob?: number; histDistance?: number; dv95?: number; warmFraction?: number; boxes?: number[][] | number[]; faultType?: string; boxInfo?: any[]; imageWidth?: number; imageHeight?: number } | null>(null);
+    const [aiStats, setAiStats] = useState<{
+        prob?: number;
+        histDistance?: number;
+        dv95?: number;
+        warmFraction?: number;
+        boxes?: number[][] | number[];
+        faultType?: string;
+        boxInfo?: OverlayBoxInfo[];
+        imageWidth?: number;
+        imageHeight?: number;
+    } | null>(null);
     const [overlayToggles, setOverlayToggles] = useState<OverlayToggles>({ looseJoint: true, pointOverload: true, wireOverload: true });
 
     const transformer = useMemo(() => (
@@ -62,7 +71,6 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
             setUploadedAt(updated.imageUploadedAt || null);
             setUploadedBy(updated.imageUploadedBy || uploadedBy);
             // Clear any previous analysis overlays for new image
-            setAiAnnotated(null);
             setAiStats(null);
         }
         await reload();
@@ -148,12 +156,10 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                         onWeatherChange={(w) => setSelectedWeather(w)}
                         onAnalyze={() => { /* handled inside component */ }}
                         onResetAnalysis={() => {
-                            setAiAnnotated(null);
                             setAiStats(null);
                         }}
                         inspectionId={inspection.id as string}
                         onAnalysisResult={(res) => {
-                            setAiAnnotated(res.annotated || null);
                             setAiStats({
                                 prob: res.prob,
                                 histDistance: res.histDistance,
@@ -237,7 +243,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     naturalWidth={aiStats.imageWidth}
                                     naturalHeight={aiStats.imageHeight}
                                     boxes={aiStats.boxes as number[][]}
-                                    boxInfo={aiStats.boxInfo as any[]}
+                                    boxInfo={aiStats.boxInfo}
                                     toggles={overlayToggles}
                                     containerClassName="w-full border rounded overflow-hidden"
                                 />

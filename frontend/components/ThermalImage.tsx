@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 
 interface ProgressStepProps {
   title: string;
@@ -184,7 +185,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
         imageHeight: data.imageHeight,
       });
       reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 1000);
-    } catch (e) {
+  } catch {
       setAnalysisStatus('completed');
       reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 500);
     } finally {
@@ -251,11 +252,12 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
         
         {/* Image Preview */}
         {previewUrl && (
-          <div className="mt-4">
-            <img
+          <div className="mt-4 relative w-full h-48 border rounded-lg bg-white">
+            <Image
               src={previewUrl}
               alt="Thermal image preview"
-              className="max-w-full h-48 object-contain border rounded-lg"
+              fill
+              className="object-contain p-1"
             />
           </div>
         )}

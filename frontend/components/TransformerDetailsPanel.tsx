@@ -219,6 +219,7 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                         </div>
                         <div className="flex flex-col items-center justify-center">
                             {baselineImages[viewingImage as keyof typeof baselineImages] ? (
+                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                     src={baselineImages[viewingImage as keyof typeof baselineImages] as string}
                                     alt={`${viewingImage} weather baseline`}

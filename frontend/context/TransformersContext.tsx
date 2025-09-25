@@ -68,24 +68,24 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     let username: string | null = null;
     try { username = typeof window !== 'undefined' ? localStorage.getItem('username') : null; } catch {}
     const current = transformers[index];
-    const body: Partial<Transformer & { [k: string]: unknown }> = { ...t } as any;
+  const body: Partial<Transformer & { [k: string]: unknown }> = { ...t };
     const nowIso = new Date().toISOString();
   if (Object.prototype.hasOwnProperty.call(t, 'sunnyImage') && current) {
       if (t.sunnyImage !== current.sunnyImage) {
-    (body as any).sunnyImageUploadedBy = t.sunnyImage ? username : null;
-    (body as any).sunnyImageUploadedAt = t.sunnyImage ? nowIso : null;
+  (body as Record<string, unknown>).sunnyImageUploadedBy = t.sunnyImage ? username : null;
+  (body as Record<string, unknown>).sunnyImageUploadedAt = t.sunnyImage ? nowIso : null;
       }
     }
   if (Object.prototype.hasOwnProperty.call(t, 'cloudyImage') && current) {
       if (t.cloudyImage !== current.cloudyImage) {
-    (body as any).cloudyImageUploadedBy = t.cloudyImage ? username : null;
-    (body as any).cloudyImageUploadedAt = t.cloudyImage ? nowIso : null;
+  (body as Record<string, unknown>).cloudyImageUploadedBy = t.cloudyImage ? username : null;
+  (body as Record<string, unknown>).cloudyImageUploadedAt = t.cloudyImage ? nowIso : null;
       }
     }
   if (Object.prototype.hasOwnProperty.call(t, 'windyImage') && current) {
       if (t.windyImage !== current.windyImage) {
-    (body as any).windyImageUploadedBy = t.windyImage ? username : null;
-    (body as any).windyImageUploadedAt = t.windyImage ? nowIso : null;
+  (body as Record<string, unknown>).windyImageUploadedBy = t.windyImage ? username : null;
+  (body as Record<string, unknown>).windyImageUploadedAt = t.windyImage ? nowIso : null;
       }
     }
 

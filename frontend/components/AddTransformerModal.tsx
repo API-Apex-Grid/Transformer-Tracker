@@ -330,6 +330,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 />
                                 {sunnyImage && (
                                   <div className="mt-2">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={sunnyImage} alt="Sunny weather preview" className="w-20 h-20 object-cover rounded border" />
                                     <div className="mt-2">
                                       <button
@@ -356,6 +357,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 />
                                 {cloudyImage && (
                                   <div className="mt-2">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={cloudyImage} alt="Cloudy weather preview" className="w-20 h-20 object-cover rounded border" />
                                     <div className="mt-2">
                                       <button
@@ -382,6 +384,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 />
                                 {windyImage && (
                                   <div className="mt-2">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={windyImage} alt="Windy weather preview" className="w-20 h-20 object-cover rounded border" />
                                     <div className="mt-2">
                                       <button

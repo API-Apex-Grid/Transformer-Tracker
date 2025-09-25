@@ -23,12 +23,23 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     const res = await fetch(apiUrl("/api/inspections"), { cache: "no-store" });
     const data = await res.json();
     // Normalize backend shape -> ensure transformerNumber exists at top level for UI
-    const normalized: Inspection[] = (Array.isArray(data) ? data : []).map((it: any) => {
-      const transformerNumber = it?.transformerNumber ?? it?.transformer?.transformerNumber ?? "";
+    const normalized: Inspection[] = (Array.isArray(data) ? data : []).map((raw: unknown) => {
+      if (typeof raw === 'object' && raw !== null) {
+        const obj = raw as Record<string, unknown> & { transformer?: { transformerNumber?: string } };
+        const transformerNumber = (obj.transformerNumber as string) ?? obj.transformer?.transformerNumber ?? "";
+        return {
+          ...(obj as object),
+          transformerNumber,
+        } as Inspection;
+      }
       return {
-        ...it,
-        transformerNumber,
-      } as Inspection;
+        transformerNumber: "",
+        inspectionNumber: "",
+        inspectedDate: "",
+        maintainanceDate: "",
+        branch: "",
+        status: "",
+      } as Inspection; // fallback (should not happen for valid API responses)
     });
     setInspections(normalized);
   };
