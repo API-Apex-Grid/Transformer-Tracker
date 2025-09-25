@@ -52,4 +52,10 @@ Thumbs.db
 *.mv.db
 *.h2.db
 
+# Scripts
+scripts/
+
+# Env & secrets
+.env
+
 # End of .gitignore

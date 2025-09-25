@@ -23,11 +23,12 @@ public class Transformer {
     @Column(length = 2048)
     private String location;
 
-    @Lob
+    // Store base64 data URLs as text instead of LOB to prevent streaming issues in Postgres
+    @Column(columnDefinition = "text")
     private String sunnyImage;
-    @Lob
+    @Column(columnDefinition = "text")
     private String cloudyImage;
-    @Lob
+    @Column(columnDefinition = "text")
     private String windyImage;
 
     private String uploadedBy;

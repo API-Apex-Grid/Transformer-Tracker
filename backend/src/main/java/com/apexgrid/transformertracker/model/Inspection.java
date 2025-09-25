@@ -22,7 +22,8 @@ public class Inspection {
     private String branch;
     private String status;
 
-    @Lob
+    // Store full data URL (base64) as plain text to avoid LOB stream issues
+    @Column(columnDefinition = "text")
     private String imageUrl;
     private String weather;
 
