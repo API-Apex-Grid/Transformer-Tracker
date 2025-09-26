@@ -11,37 +11,46 @@ type InspectionsContextValue = {
   updateInspection: (index: number, i: Inspection) => void;
   deleteInspection: (index: number) => void;
   reload: () => Promise<void>;
+  lastError: string | null;
 };
 
 const InspectionsContext = createContext<InspectionsContextValue | undefined>(undefined);
 
 export function InspectionsProvider({ children }: { children: React.ReactNode }) {
   const [inspections, setInspections] = useState<Inspection[]>([]);
+  const [lastError, setLastError] = useState<string | null>(null);
   const pathname = usePathname();
 
   const load = async () => {
-    const res = await fetch(apiUrl("/api/inspections"), { cache: "no-store" });
-    const data = await res.json();
-    // Normalize backend shape -> ensure transformerNumber exists at top level for UI
-    const normalized: Inspection[] = (Array.isArray(data) ? data : []).map((raw: unknown) => {
-      if (typeof raw === 'object' && raw !== null) {
-        const obj = raw as Record<string, unknown> & { transformer?: { transformerNumber?: string } };
-        const transformerNumber = (obj.transformerNumber as string) ?? obj.transformer?.transformerNumber ?? "";
-        return {
-          ...(obj as object),
-          transformerNumber,
-        } as Inspection;
+    try {
+      setLastError(null);
+      const res = await fetch(apiUrl("/api/inspections"), { cache: "no-store" });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
       }
-      return {
-        transformerNumber: "",
-        inspectionNumber: "",
-        inspectedDate: "",
-        maintainanceDate: "",
-        branch: "",
-        status: "",
-      } as Inspection; // fallback (should not happen for valid API responses)
-    });
-    setInspections(normalized);
+      const data = await res.json();
+      const normalized: Inspection[] = (Array.isArray(data) ? data : []).map((raw: unknown) => {
+        if (typeof raw === 'object' && raw !== null) {
+          const obj = raw as Record<string, unknown> & { transformer?: { transformerNumber?: string } };
+          const transformerNumber = (obj.transformerNumber as string) ?? obj.transformer?.transformerNumber ?? "";
+          return { ...(obj as object), transformerNumber } as Inspection;
+        }
+        return {
+          transformerNumber: "",
+          inspectionNumber: "",
+          inspectedDate: "",
+          maintainanceDate: "",
+          branch: "",
+          status: "",
+        } as Inspection;
+      });
+      setInspections(normalized);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error fetching inspections';
+      console.error('[InspectionsContext] load failed:', err);
+      setLastError(msg);
+    }
   };
 
   // Initial load
@@ -108,8 +117,8 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   };
 
   const value = useMemo(
-    () => ({ inspections, addInspection, updateInspection, deleteInspection, reload: load }),
-    [inspections]
+    () => ({ inspections, addInspection, updateInspection, deleteInspection, reload: load, lastError }),
+    [inspections, lastError]
   );
 
   return <InspectionsContext.Provider value={value}>{children}</InspectionsContext.Provider>;

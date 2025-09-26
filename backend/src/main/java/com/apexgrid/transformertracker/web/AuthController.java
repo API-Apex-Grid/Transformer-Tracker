@@ -25,14 +25,6 @@ public class AuthController {
         String password = body.getOrDefault("password", "");
         var userOpt = userRepo.findByUsername(username);
         if (userOpt.isEmpty()) {
-            // auto-create user1..5 on first login behavior (dev)
-            if (username.matches("user[1-5]") && password.equals(username)) {
-                User u = new User();
-                u.setUsername(username);
-                u.setPasswordHash(encoder.encode(password));
-                userRepo.save(u);
-                return ResponseEntity.ok(Map.of("token", "dev-token"));
-            }
             return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
         }
         var user = userOpt.get();

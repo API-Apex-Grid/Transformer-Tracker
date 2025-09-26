@@ -11,19 +11,32 @@ type TransformersContextValue = {
   updateTransformer: (index: number, t: Transformer) => void;
   deleteTransformer: (index: number) => void;
   reload: () => Promise<void>;
+  lastError: string | null;
 };
 
 const TransformersContext = createContext<TransformersContextValue | undefined>(undefined);
 
 export function TransformersProvider({ children }: { children: React.ReactNode }) {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
+  const [lastError, setLastError] = useState<string | null>(null);
   const pathname = usePathname();
 
   // load from API
   const load = async () => {
-    const res = await fetch(apiUrl("/api/transformers"), { cache: "no-store" });
-    const data = await res.json();
-    setTransformers(data);
+    try {
+      setLastError(null);
+      const res = await fetch(apiUrl("/api/transformers"), { cache: "no-store" });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
+      }
+      const data = await res.json();
+      setTransformers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error fetching transformers';
+      console.error('[TransformersContext] load failed:', err);
+      setLastError(msg);
+    }
   };
 
   // Initial load
@@ -108,8 +121,8 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   };
 
   const value = useMemo(
-    () => ({ transformers, addTransformer, updateTransformer, deleteTransformer, reload: load }),
-    [transformers]
+    () => ({ transformers, addTransformer, updateTransformer, deleteTransformer, reload: load, lastError }),
+    [transformers, lastError]
   );
 
   return <TransformersContext.Provider value={value}>{children}</TransformersContext.Provider>;

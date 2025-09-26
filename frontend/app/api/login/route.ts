@@ -7,7 +7,7 @@ export const revalidate = 0;
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const res = await fetch(apiUrl("/api/auth/login"), {
+    const res = await fetch(apiUrl("/api/login"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
