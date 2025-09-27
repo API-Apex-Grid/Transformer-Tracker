@@ -18,7 +18,7 @@ app:
     expiry-seconds: 86400
   ai:
     python: python
-    script: ../AI/analyze.py
+    script: /AI/analyze.py
 
 cors:
   allowed-origins: "http://localhost:3000,https://apex-grid-transformer-tracker.vercel.app"

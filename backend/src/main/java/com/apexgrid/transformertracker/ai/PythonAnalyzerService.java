@@ -19,7 +19,7 @@ public class PythonAnalyzerService {
     @Value("${app.ai.python:python}")
     private String pythonCommand;
 
-    @Value("${app.ai.script:../AI/analyze.py}")
+    @Value("${app.ai.script:/AI/analyze.py}")
     private String scriptPath;
 
     public JsonNode analyze(BufferedImage baseline, BufferedImage candidate) throws Exception {
