@@ -74,7 +74,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       {/* Overlay layer */}
       <div style={{ position: "absolute", inset: 0 }}>
         {list.map((b, idx) => {
-          const show = (
+          const allOn = toggles.looseJoint && toggles.pointOverload && toggles.wireOverload;
+          const show = allOn || (
             (b.boxFault === "loose joint" && toggles.looseJoint) ||
             (b.boxFault === "point overload" && toggles.pointOverload) ||
             (b.boxFault === "wire overload" && toggles.wireOverload)
