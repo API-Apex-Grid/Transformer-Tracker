@@ -13,12 +13,10 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
 
-    // Map to existing column name in Postgres (no underscore)
-    @Column(name = "passwordhash", nullable = false)
+    @Column(nullable = false)
     private String passwordHash;
 
-    // Map to existing column name in Postgres (no underscore)
-    @Column(name = "createdat", nullable = false)
+    @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
     public String getId() { return id; }

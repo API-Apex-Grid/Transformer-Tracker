@@ -5,9 +5,7 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
-      naming:
-        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: true
@@ -21,4 +19,4 @@ app:
     script: /AI/analyze.py
 
 cors:
-  allowed-origins: "http://localhost:3000,https://apex-grid-transformer-tracker.vercel.app"
+  allowed-origins: "http://localhost:3000"
