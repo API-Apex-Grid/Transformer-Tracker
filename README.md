@@ -1,5 +1,12 @@
 # Apex Grid
 
+## Live app
+
+- Production (deployed): <https://apex-grid-transformer-tracker.vercel.app/>
+- Want to run everything locally? Use the "local" branch which is set up for a fully local workflow (Spring Boot + H2 + Next.js). From your repo:
+  - `git checkout local`
+  - Follow the local instructions below (they also exist in the local branch README).
+
 Next.js App Router frontend with a Spring Boot backend (preferred). Legacy Next.js API + Prisma/SQLite remains available for local only.
 
 - Frontend: Next.js (App Router), React, Tailwind
@@ -16,7 +23,7 @@ Next.js App Router frontend with a Spring Boot backend (preferred). Legacy Next.
   - Java 21
   - Maven 3.9+
 
-## Quick start (Spring backend + Next.js frontend)
+## Run locally (Spring backend + Next.js frontend)
 
 1. Start the backend (port 8080)
 
