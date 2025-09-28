@@ -231,14 +231,14 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image):
         area_frac = bi['areaFrac']
         aspect = bi['aspect']
         overlap_center = bi['overlapCenterFrac']
-        if area_frac >= 0.30 and overlap_center >= 0.4:
+        
+        # This logic seems more aligned with user intent.
+        if area_frac >= 0.10 and (overlap_center >= 0.4 or area_frac >= 0.30):
             box_fault = 'loose joint'
-        elif area_frac < 0.30:
-            box_fault = 'point overload'
         elif aspect >= 2.0:
             box_fault = 'wire overload'
-        else:
-            box_fault = 'none'
+        else: # Default to point overload for other warm regions
+            box_fault = 'point overload'
         bi2 = dict(bi)
         bi2['boxFault'] = box_fault
         enriched.append(bi2)

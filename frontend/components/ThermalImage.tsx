@@ -15,8 +15,8 @@ interface ThermalImageProps {
   onResetAnalysis?: () => void;
   // New props to trigger backend analysis and bubble result up
   inspectionId: string;
+  onPreviewUrl?: (url: string | null) => void;
   onAnalysisResult?: (result: {
-    annotated?: string;
     prob: number;
     boxes: number[][] | number[];
     histDistance?: number;
@@ -76,6 +76,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
   onAnalyze,
   onResetAnalysis,
   inspectionId,
+  onPreviewUrl,
   onAnalysisResult,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -99,6 +100,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
       // Create preview URL
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
+      onPreviewUrl?.(url);
 
   onImageUpload?.(file);
     }
@@ -119,6 +121,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
       URL.revokeObjectURL(previewUrl);
     }
     setPreviewUrl(null);
+  onPreviewUrl?.(null);
     if (inputRef.current) {
       inputRef.current.value = '';
     }
@@ -173,7 +176,6 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
       }
       // bubble up
       onAnalysisResult?.({
-        annotated: data.annotated,
         prob: Number(data.prob ?? 0),
         boxes: data.boxes ?? [],
         histDistance: data.histDistance,

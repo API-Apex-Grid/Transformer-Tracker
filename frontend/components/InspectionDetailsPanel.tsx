@@ -20,6 +20,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const [uploadedUrl, setUploadedUrl] = useState<string | null>(inspection.imageUrl || null);
     const [uploadedAt, setUploadedAt] = useState<string | null>(inspection.imageUploadedAt || null);
     const [uploadedBy, setUploadedBy] = useState<string | null>(inspection.imageUploadedBy || null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [aiStats, setAiStats] = useState<{
         prob?: number;
         histDistance?: number;
@@ -159,6 +160,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             setAiStats(null);
                         }}
                         inspectionId={inspection.id as string}
+                        onPreviewUrl={(u) => setPreviewUrl(u)}
                         onAnalysisResult={(res) => {
                             setAiStats({
                                 prob: res.prob,
@@ -237,12 +239,12 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     Wire overload
                                 </label>
                             </div>
-                            {(uploadedUrl || inspection.imageUrl) && aiStats?.boxes ? (
+                            {(previewUrl || uploadedUrl || inspection.imageUrl) && aiStats ? (
                                 <OverlayedThermal
-                                    imageUrl={(uploadedUrl || inspection.imageUrl) as string}
+                                    imageUrl={(previewUrl || uploadedUrl || inspection.imageUrl) as string}
                                     naturalWidth={aiStats.imageWidth}
                                     naturalHeight={aiStats.imageHeight}
-                                    boxes={aiStats.boxes as number[][]}
+                                    boxes={(aiStats.boxes as number[][]) ?? []}
                                     boxInfo={aiStats.boxInfo}
                                     toggles={overlayToggles}
                                     containerClassName="w-full border rounded overflow-hidden"

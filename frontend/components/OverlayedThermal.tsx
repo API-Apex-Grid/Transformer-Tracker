@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 
 export type OverlayBoxInfo = {
   x: number; y: number; w: number; h: number;
@@ -37,6 +37,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   toggles,
   containerClassName,
 }) => {
+
   const list = useMemo(() => {
   const rawBoxes: Array<{x:number;y:number;w:number;h:number}> = [];
     if (is2DArray(boxes)) {
@@ -52,34 +53,119 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     return rawBoxes.map(b => {
       const key = `${b.x},${b.y},${b.w},${b.h}`;
       const info = infosByKey.get(key);
-      return { ...b, boxFault: info?.boxFault ?? "none", label: info?.label };
+      const boxFault = info?.boxFault ?? "none";
+      const label = info?.label ?? boxFault;
+      return { ...b, boxFault, label };
     });
   }, [boxes, boxInfo]);
 
-  const containerStyle: React.CSSProperties = {
-    position: "relative",
-    width: "100%",
+  // Zoom/Pan state
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const isPanningRef = useRef(false);
+  const lastPosRef = useRef<{x:number;y:number}|null>(null);
+  const containerRef = useRef<HTMLDivElement|null>(null);
+
+  const onWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
+    e.preventDefault();
+    const delta = -e.deltaY;
+    const zoomFactor = Math.exp(delta * 0.0015); // smooth zoom
+    const newScale = Math.min(8, Math.max(0.25, scale * zoomFactor));
+
+    // Zoom relative to cursor position
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const sx = cx - (cx - offset.x) * (newScale / scale);
+      const sy = cy - (cy - offset.y) * (newScale / scale);
+      setOffset({ x: sx, y: sy });
+    }
+    setScale(newScale);
   };
 
-  const imgStyle: React.CSSProperties = {
-    width: "100%",
-    height: "auto",
-    display: "block",
+  const onMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    isPanningRef.current = true;
+    lastPosRef.current = { x: e.clientX, y: e.clientY };
   };
+  const onMouseUp: React.MouseEventHandler<HTMLDivElement> = () => {
+    isPanningRef.current = false;
+    lastPosRef.current = null;
+  };
+  const onMouseLeave: React.MouseEventHandler<HTMLDivElement> = onMouseUp;
+  const onMouseMove: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (!isPanningRef.current || !lastPosRef.current) return;
+    const dx = e.clientX - lastPosRef.current.x;
+    const dy = e.clientY - lastPosRef.current.y;
+    lastPosRef.current = { x: e.clientX, y: e.clientY };
+    setOffset((o) => ({ x: o.x + dx, y: o.y + dy }));
+  };
+
+  useEffect(() => {
+    // Reset zoom/pan when imageUrl changes
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  }, [imageUrl]);
 
   return (
-    <div className={containerClassName} style={containerStyle}>
+    <div
+      ref={containerRef}
+      className={containerClassName}
+      style={{ position: "relative", width: "100%", height: "28rem", overflow: "hidden", cursor: isPanningRef.current ? "grabbing" : "grab" }}
+      onWheel={onWheel}
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseLeave}
+      onMouseMove={onMouseMove}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt="Thermal" style={imgStyle} />
+      <img
+        src={imageUrl}
+        alt="Thermal"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+          transformOrigin: "top left",
+          width: "100%",
+          height: "auto",
+          display: "block",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      />
       {/* Overlay layer */}
-      <div style={{ position: "absolute", inset: 0 }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+          transformOrigin: "top left",
+          pointerEvents: "none",
+        }}
+      >
         {list.map((b, idx) => {
-          const allOn = toggles.looseJoint && toggles.pointOverload && toggles.wireOverload;
-          const show = allOn || (
-            (b.boxFault === "loose joint" && toggles.looseJoint) ||
-            (b.boxFault === "point overload" && toggles.pointOverload) ||
-            (b.boxFault === "wire overload" && toggles.wireOverload)
-          );
+          // Normalize the boxFault value to handle case sensitivity and trim whitespace
+          console.log("Box fault from data:", b.boxFault);
+          const normalizedFault = (b.boxFault || "").toLowerCase().trim();
+          
+          // Check if this box should be shown based on its fault type and the toggles
+          let show = false;
+          if (normalizedFault === "loose joint") {
+            show = toggles.looseJoint;
+          } else if (normalizedFault === "point overload") {
+            show = toggles.pointOverload;
+          } else if (normalizedFault === "wire overload") {
+            show = toggles.wireOverload;
+          } else if (normalizedFault === "none" || normalizedFault === "") {
+            // Show "none" faults if any toggle is enabled (fallback for unclassified faults)
+            show = toggles.looseJoint || toggles.pointOverload || toggles.wireOverload;
+          } else {
+            // Default for unknown fault types: show if any toggle is on.
+            show = toggles.looseJoint || toggles.pointOverload || toggles.wireOverload;
+          }
+          
           if (!show) return null;
           return (
             <div key={`${b.x}-${b.y}-${idx}`}
@@ -104,7 +190,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                   borderRadius: 2,
                 }}
               >
-                {b.boxFault}
+                {b.label || b.boxFault || "fault"}
               </div>
             </div>
           );

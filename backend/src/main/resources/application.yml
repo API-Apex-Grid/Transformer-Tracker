@@ -15,8 +15,8 @@ app:
     secret: change-me-in-prod-32-bytes-minimum-secret
     expiry-seconds: 86400
   ai:
-    python: python
-    script: /AI/analyze.py
+    python: py
+    script: ./AI/analyze.py
 
 cors:
   allowed-origins: "http://localhost:3000"
