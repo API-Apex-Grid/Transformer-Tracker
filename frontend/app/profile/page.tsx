@@ -48,15 +48,19 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch(apiUrl("/api/profile/password"), {
+      const res = await fetch(apiUrl("/api/profile/image"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, image }),
       });
       if (!res.ok) throw new Error("Failed to save image");
       setMessage("Profile image saved");
-    } catch (e: any) {
-      setMessage(e.message || "Failed to save image");
+      // Update localStorage so the profile picture shows up immediately in the header
+      try {
+        localStorage.setItem("userImage", image || "");
+      } catch {}
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Failed to save image");
     } finally {
       setSaving(false);
     }
@@ -79,8 +83,8 @@ export default function ProfilePage() {
       setMessage("Password updated");
       setCurrentPassword("");
       setNewPassword("");
-    } catch (e: any) {
-      setMessage(e.message || "Failed to change password");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Failed to change password");
     } finally {
       setSaving(false);
     }
@@ -99,7 +103,7 @@ export default function ProfilePage() {
       <div className="flex items-center gap-4 mb-6">
         <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 border">
           <Image
-            src={image || "/profile.png"}
+            src={image || "/avatar.png"}
             alt="Profile picture"
             width={64}
             height={64}

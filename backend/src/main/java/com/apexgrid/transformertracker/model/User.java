@@ -21,6 +21,10 @@ public class User {
     @Column(name = "createdat", nullable = false)
     private Instant createdAt = Instant.now();
 
+    // Store base64 data URLs as text instead of LOB to prevent streaming issues in Postgres
+    @Column(name = "image", columnDefinition = "text")
+    private String image;
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getUsername() { return username; }
@@ -29,4 +33,6 @@ public class User {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public String getImage() { return image; }
+    public void setImage(String image) { this.image = image; }
 }
