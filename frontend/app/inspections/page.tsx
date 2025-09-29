@@ -44,7 +44,9 @@ const InspectionsPage = () => {
     };
 
     const openView = (index: number) => {
-        setViewingInspection(inspections[index]);
+        const i = inspections[index];
+        // Ensure lastAnalysisWeather is preferred in the details panel via props/state there
+        setViewingInspection(i);
     };
 
     const closeView = () => {

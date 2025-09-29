@@ -139,8 +139,10 @@ public class InspectionController {
 
     var result = pythonAnalyzerService.analyze(baseResized, candidate);
 
-        // Persist last analysis weather and detected bounding boxes on the inspection
-        i.setLastAnalysisWeather(weather);
+    // Persist last analysis weather and detected bounding boxes on the inspection
+    i.setLastAnalysisWeather(weather);
+    // Keep the inspection's weather in sync with the last used weather for convenience
+    i.setWeather(weather);
         try {
             // Persist only the boxes array as returned by Python
             var boxesNode = result.path("boxes");
@@ -203,6 +205,8 @@ public class InspectionController {
             try {
                 // These setters exist but may be null in DB schema; safe to call
                 i.setFaultTypes(null);
+                // Clear the last analysis weather since analysis has been cleared
+                i.setLastAnalysisWeather(null);
                 // analyzed image dimensions removed; nothing to clear
             } catch (Exception ignore) { }
             repo.save(i);

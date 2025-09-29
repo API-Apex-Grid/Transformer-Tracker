@@ -7,6 +7,7 @@ import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 import { useState, useMemo } from "react";
 import { apiUrl } from "@/lib/api";
+import { useEffect } from "react";
 
 interface InspectionDetailsPanelProps {
     inspection: Inspection;
@@ -16,7 +17,10 @@ interface InspectionDetailsPanelProps {
 const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelProps) => {
     const { transformers, reload: reloadTransformers } = useTransformers();
     const { reload } = useInspections();
-    const [selectedWeather, setSelectedWeather] = useState<string>(inspection.weather || "sunny");
+    const [selectedWeather, setSelectedWeather] = useState<string>(
+        // Prefer last analysis weather when present, else current inspection weather, else sunny
+        (inspection.lastAnalysisWeather as string) || inspection.weather || "sunny"
+    );
     const [uploadedUrl, setUploadedUrl] = useState<string | null>(inspection.imageUrl || null);
     const [uploadedAt, setUploadedAt] = useState<string | null>(inspection.imageUploadedAt || null);
     const [uploadedBy, setUploadedBy] = useState<string | null>(inspection.imageUploadedBy || null);
@@ -33,10 +37,16 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         imageHeight?: number;
     } | null>(null);
     const [overlayToggles, setOverlayToggles] = useState<OverlayToggles>({ looseJoint: true, pointOverload: true, wireOverload: true });
+    // When true, hide stored analysis and ignore inspection.imageUrl locally after a clear
+    const [clearedStoredAnalysis, setClearedStoredAnalysis] = useState<boolean>(false);
 
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
     ), [transformers, inspection.transformerNumber]);
+
+    const effectiveUploadedUrl = useMemo(() => {
+        return uploadedUrl ?? (clearedStoredAnalysis ? null : (inspection.imageUrl || null));
+    }, [uploadedUrl, clearedStoredAnalysis, inspection.imageUrl]);
 
     const baselineForWeather = (weather?: string | null) => {
         if (!transformer) return null;
@@ -52,6 +62,18 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                 return transformer.sunnyImage || transformer.cloudyImage || transformer.windyImage || null;
         }
     };
+
+    // When switching to a different inspection, reinitialize weather and image state
+    useEffect(() => {
+        setSelectedWeather((inspection.lastAnalysisWeather as string) || inspection.weather || "sunny");
+        setUploadedUrl(inspection.imageUrl || null);
+        setUploadedAt(inspection.imageUploadedAt || null);
+        setUploadedBy(inspection.imageUploadedBy || null);
+        setAiStats(null);
+        setPreviewUrl(null);
+        setClearedStoredAnalysis(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inspection.id]);
 
     const handleUpload = async (file: File, weather: string) => {
         if (!inspection.id) return;
@@ -165,6 +187,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     setUploadedAt(null);
                                     setUploadedBy(null);
                                     setAiStats(null);
+                                    // Hide stored analysis and old image locally right away
+                                    setClearedStoredAnalysis(true);
                                     await reload();
                                     await reloadTransformers();
                                 } catch {
@@ -181,6 +205,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                     <ThermalImage
                         onImageUpload={(file) => handleUpload(file, selectedWeather)}
                         onWeatherChange={(w) => setSelectedWeather(w)}
+                        defaultWeather={selectedWeather}
                         onAnalyze={() => { /* handled inside component */ }}
                         onResetAnalysis={() => {
                             setAiStats(null);
@@ -198,6 +223,12 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 imageWidth: res.imageWidth,
                                 imageHeight: res.imageHeight,
                             });
+                            // Persisted on backend; optimistically update local selected weather and image
+                            setSelectedWeather(selectedWeather);
+                            // Ensure the uploaded image remains the default shown after analysis
+                            if (previewUrl) setUploadedUrl(previewUrl);
+                            // Reload list to pull updated lastAnalysisWeather and weather
+                            void reload();
                         }}
                     />
 
@@ -225,9 +256,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             </div>
                             <div>
                                 <p className="text-sm text-gray-600 mb-1">Uploaded</p>
-                                                                {(uploadedUrl || inspection.imageUrl) ? (
+                                                                {effectiveUploadedUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={(uploadedUrl || inspection.imageUrl) as string} alt="Uploaded" className="w-full h-56 object-contain border rounded" />
+                                                                    <img src={effectiveUploadedUrl as string} alt="Uploaded" className="w-full h-56 object-contain border rounded" />
                                 ) : (
                                     <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">No image uploaded</div>
                                 )}
@@ -264,9 +295,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     Wire overload
                                 </label>
                             </div>
-                            {(previewUrl || uploadedUrl || inspection.imageUrl) && aiStats ? (
+                            {(previewUrl || effectiveUploadedUrl) && aiStats ? (
                                 <OverlayedThermal
-                                    imageUrl={(previewUrl || uploadedUrl || inspection.imageUrl) as string}
+                                    imageUrl={(previewUrl || effectiveUploadedUrl) as string}
                                     naturalWidth={aiStats.imageWidth}
                                     naturalHeight={aiStats.imageHeight}
                                     boxes={(aiStats.boxes as number[][]) ?? []}
@@ -288,7 +319,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 </div>
                             )}
                             {/* Stored analysis display: if inspection has an imageUrl and saved boundingBoxes, show them */}
-                            {(!aiStats && (inspection.imageUrl || uploadedUrl)) && inspection.boundingBoxes && (
+                            {(!aiStats && effectiveUploadedUrl && !clearedStoredAnalysis) && inspection.boundingBoxes && (
                                 <div className="mt-4">
                                     <h5 className="font-semibold mb-2">Stored analysis</h5>
                                     {/* overall fault type removed; per-box labels shown on overlays */}
@@ -296,6 +327,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                         const boxes = (typeof inspection.boundingBoxes === 'string'
                                             ? (() => { try { return JSON.parse(inspection.boundingBoxes as string) as number[][]; } catch { return []; } })()
                                             : (inspection.boundingBoxes as number[][])) || [];
+                                        if (!boxes || (Array.isArray(boxes) && boxes.length === 0)) return null;
                                         const ft = (Array.isArray(inspection.faultTypes)
                                             ? inspection.faultTypes
                                             : (typeof inspection.faultTypes === 'string' ? (() => { try { return JSON.parse(inspection.faultTypes as string) as string[]; } catch { return []; } })() : []));
@@ -306,7 +338,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                         }));
                                         return (
                                             <OverlayedThermal
-                                                imageUrl={(uploadedUrl || inspection.imageUrl) as string}
+                                                imageUrl={effectiveUploadedUrl as string}
                                                 // no persisted dims; component infers automatically
                                                 boxes={boxes}
                                                 boxInfo={boxInfo}

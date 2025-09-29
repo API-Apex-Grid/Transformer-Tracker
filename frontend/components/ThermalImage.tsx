@@ -15,6 +15,8 @@ interface ThermalImageProps {
   onResetAnalysis?: () => void;
   // New props to trigger backend analysis and bubble result up
   inspectionId: string;
+  // Default weather selection provided by parent (e.g., lastAnalysisWeather)
+  defaultWeather?: string;
   onPreviewUrl?: (url: string | null) => void;
   onAnalysisResult?: (result: {
     prob: number;
@@ -75,11 +77,12 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
   onAnalyze,
   onResetAnalysis,
   inspectionId,
+  defaultWeather,
   onPreviewUrl,
   onAnalysisResult,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [weather, setWeather] = useState<string>('sunny');
+  const [weather, setWeather] = useState<string>(defaultWeather || 'sunny');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -110,6 +113,18 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
     setWeather(newWeather);
     onWeatherChange?.(newWeather);
   };
+
+  // Keep local weather in sync when parent default changes
+  useEffect(() => {
+    if (defaultWeather && defaultWeather !== weather) {
+      setWeather(defaultWeather);
+    }
+    if (!defaultWeather && weather !== 'sunny') {
+      // If default not provided, ensure a sane default
+      setWeather('sunny');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultWeather]);
 
   const resetProgress = () => {
     setUploadStatus('pending');
