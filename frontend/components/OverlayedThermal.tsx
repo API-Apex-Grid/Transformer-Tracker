@@ -124,44 +124,52 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       onMouseLeave={onMouseLeave}
       onMouseMove={onMouseMove}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        ref={imgRef}
-        onLoad={(e) => {
-          const el = e.currentTarget;
-          // Use the image's intrinsic size if not explicitly provided
-          if (!naturalWidth || !naturalHeight) {
-            setNat({ w: el.naturalWidth, h: el.naturalHeight });
-          }
-        }}
-        src={imageUrl}
-        alt="Thermal"
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-          transformOrigin: "top left",
-          width: "100%",
-          height: "auto",
-          display: "block",
-          userSelect: "none",
-          pointerEvents: "none",
-        }}
-      />
-      {/* Overlay layer */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-          transformOrigin: "top left",
-          pointerEvents: "none",
-        }}
-      >
-        {list.map((b, idx) => {
+      {(() => {
+        const effW = naturalWidth ?? nat?.w ?? 0;
+        const effH = naturalHeight ?? nat?.h ?? 0;
+        // Wait for image dimensions before rendering stage
+        return (
+          <>
+            {/* Stage: fixed to natural pixel size, then transformed for zoom/pan */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imgRef}
+              onLoad={(e) => {
+                const el = e.currentTarget;
+                if (!naturalWidth || !naturalHeight) {
+                  setNat({ w: el.naturalWidth, h: el.naturalHeight });
+                }
+              }}
+              src={imageUrl}
+              alt="Thermal"
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                transformOrigin: "top left",
+                width: effW ? `${effW}px` : undefined,
+                height: effH ? `${effH}px` : undefined,
+                display: "block",
+                userSelect: "none",
+                pointerEvents: "none",
+              }}
+            />
+            {/* Overlay layer, same sized stage as image */}
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: effW ? `${effW}px` : undefined,
+                height: effH ? `${effH}px` : undefined,
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                transformOrigin: "top left",
+                pointerEvents: "none",
+              }}
+            >
+              {list.map((b, idx) => {
           // Normalize the boxFault value to handle case sensitivity and trim whitespace
-          console.log("Box fault from data:", b.boxFault);
           const normalizedFault = (b.boxFault || "").toLowerCase().trim();
           
           // Check if this box should be shown based on its fault type and the toggles
@@ -181,19 +189,18 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
           }
           
           if (!show) return null;
-          const effW = naturalWidth ?? nat?.w ?? 1;
-          const effH = naturalHeight ?? nat?.h ?? 1;
-          return (
-            <div key={`${b.x}-${b.y}-${idx}`}
-              style={{
-                position: "absolute",
-                left: `${(b.x / effW) * 100}%`,
-                top: `${(b.y / effH) * 100}%`,
-                width: `${(b.w / effW) * 100}%`,
-                height: `${(b.h / effH) * 100}%`,
-                border: "2px solid red",
-                boxSizing: "border-box",
-              }}>
+                  if (!effW || !effH) return null;
+                  return (
+                    <div key={`${b.x}-${b.y}-${idx}`}
+                      style={{
+                        position: "absolute",
+                        left: `${b.x}px`,
+                        top: `${b.y}px`,
+                        width: `${b.w}px`,
+                        height: `${b.h}px`,
+                        border: "2px solid red",
+                        boxSizing: "border-box",
+                      }}>
               <div
                 style={{
                   position: "absolute",
@@ -208,10 +215,13 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
               >
                 {b.label || b.boxFault || "fault"}
               </div>
+                    </div>
+                  );
+                })}
             </div>
-          );
-        })}
-      </div>
+          </>
+        );
+      })()}
     </div>
   );
 };

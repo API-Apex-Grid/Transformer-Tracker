@@ -149,11 +149,7 @@ public class InspectionController {
                 String boxesJson = boxesNode.toString();
                 i.setBoundingBoxes(boxesJson);
             }
-            // Persist overall faultType classification if available
-            var ft = result.path("faultType").asText(null);
-            if (ft != null) {
-                i.setFaultType(ft);
-            }
+            // Overall faultType column removed; we persist only per-box faultTypes
             // Persist per-box fault types (map boxInfo[].boxFault when available)
             var boxInfoNode = result.path("boxInfo");
             if (boxInfoNode != null && boxInfoNode.isArray()) {
@@ -182,11 +178,12 @@ public class InspectionController {
         "histDistance", result.path("histDistance").asDouble(0.0),
         "dv95", result.path("dv95").asDouble(0.0),
         "warmFraction", result.path("warmFraction").asDouble(0.0),
-        // Always provide dimensions from the analyzed candidate image
-    // image dimensions removed; frontend infers dynamically
+        // Provide dimensions from the analyzed candidate image
+        "imageWidth", result.path("imageWidth").asInt(W),
+        "imageHeight", result.path("imageHeight").asInt(H),
         "boxes", result.path("boxes"),
         "boxInfo", result.path("boxInfo"),
-        "faultType", result.path("faultType").asText("none"),
+    // faultType removed from API; UI derives from per-box faultTypes if needed
         // 'annotated' from Python is ignored by the frontend; retain for debugging
         "annotated", result.path("annotated").asText("")
     ));
@@ -202,7 +199,6 @@ public class InspectionController {
             // Remove stored analysis artifacts
             i.setImageUrl(null);
             i.setBoundingBoxes(null);
-            i.setFaultType(null);
             // Also clear per-box fault types and dimensions if present
             try {
                 // These setters exist but may be null in DB schema; safe to call

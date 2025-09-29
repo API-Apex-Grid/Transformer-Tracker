@@ -47,9 +47,6 @@ public class Inspection {
     @Column(name = "boundingboxes", columnDefinition = "text")
     private String boundingBoxes;
 
-    // Persist last detected overall fault type from analysis (e.g., "loose joint", "point overload", "wire overload", "none")
-    @Column(name = "faulttype")
-    private String faultType;
 
     // Persist per-box fault types corresponding to boundingBoxes order as JSON array of strings
     @Column(name = "faulttypes", columnDefinition = "text")
@@ -101,8 +98,7 @@ public class Inspection {
     public String getBoundingBoxes() { return boundingBoxes; }
     public void setBoundingBoxes(String boundingBoxes) { this.boundingBoxes = boundingBoxes; }
 
-    public String getFaultType() { return faultType; }
-    public void setFaultType(String faultType) { this.faultType = faultType; }
+    // overall faultType column removed; only per-box faultTypes are stored
 
     public String getFaultTypes() { return faultTypes; }
     public void setFaultTypes(String faultTypes) { this.faultTypes = faultTypes; }

@@ -27,9 +27,10 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         dv95?: number;
         warmFraction?: number;
         boxes?: number[][] | number[];
-        faultType?: string;
         boxInfo?: OverlayBoxInfo[];
     // dimensions omitted; overlay infers them from the image element
+        imageWidth?: number;
+        imageHeight?: number;
     } | null>(null);
     const [overlayToggles, setOverlayToggles] = useState<OverlayToggles>({ looseJoint: true, pointOverload: true, wireOverload: true });
 
@@ -193,9 +194,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 dv95: res.dv95,
                                 warmFraction: res.warmFraction,
                                 boxes: res.boxes as number[][] | number[],
-                                faultType: res.faultType || undefined,
                                 boxInfo: res.boxInfo || [],
-                                // dimensions not used
+                                imageWidth: res.imageWidth,
+                                imageHeight: res.imageHeight,
                             });
                         }}
                     />
@@ -266,7 +267,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             {(previewUrl || uploadedUrl || inspection.imageUrl) && aiStats ? (
                                 <OverlayedThermal
                                     imageUrl={(previewUrl || uploadedUrl || inspection.imageUrl) as string}
-                                    // dimensions omitted
+                                    naturalWidth={aiStats.imageWidth}
+                                    naturalHeight={aiStats.imageHeight}
                                     boxes={(aiStats.boxes as number[][]) ?? []}
                                     boxInfo={aiStats.boxInfo}
                                     toggles={overlayToggles}
@@ -289,9 +291,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             {(!aiStats && (inspection.imageUrl || uploadedUrl)) && inspection.boundingBoxes && (
                                 <div className="mt-4">
                                     <h5 className="font-semibold mb-2">Stored analysis</h5>
-                                    {inspection.faultType && (
-                                        <p className="text-sm text-gray-600 mb-2">Fault type: {inspection.faultType}</p>
-                                    )}
+                                    {/* overall fault type removed; per-box labels shown on overlays */}
                                     {(() => {
                                         const boxes = (typeof inspection.boundingBoxes === 'string'
                                             ? (() => { try { return JSON.parse(inspection.boundingBoxes as string) as number[][]; } catch { return []; } })()
@@ -307,7 +307,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                         return (
                                             <OverlayedThermal
                                                 imageUrl={(uploadedUrl || inspection.imageUrl) as string}
-                                                // dimensions omitted
+                                                // no persisted dims; component infers automatically
                                                 boxes={boxes}
                                                 boxInfo={boxInfo}
                                                 toggles={overlayToggles}
