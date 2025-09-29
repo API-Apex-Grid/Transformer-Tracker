@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import AddTransformerModal from "@/components/AddTransformerModal";
 import TransformerList from "@/components/TransformerList";
 import EditTransformerModal from "@/components/EditTransformerModal";
@@ -213,10 +214,24 @@ const TransformerPage = () => {
               Logged in as: <span className="font-medium">{username || "unknown"}</span>
             </span>
             <button
+              onClick={() => router.push("/profile")}
+              className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 border hover:ring-2 hover:ring-gray-300"
+              title="Profile Settings"
+            >
+              <Image 
+                src={(typeof window !== "undefined" ? localStorage.getItem("userImage") : null) || "/avatar.png"} 
+                alt="Profile" 
+                width={32}
+                height={32}
+                className="w-full h-full object-cover" 
+              />
+            </button>
+            <button
               onClick={() => {
                 try {
                   localStorage.removeItem("isLoggedIn");
                   localStorage.removeItem("username");
+                  localStorage.removeItem("userImage");
                 } catch {}
                 router.replace("/");
               }}

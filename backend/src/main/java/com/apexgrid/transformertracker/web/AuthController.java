@@ -31,6 +31,10 @@ public class AuthController {
         if (!encoder.matches(password, user.getPasswordHash())) {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
         }
-        return ResponseEntity.ok(Map.of("token", "dev-token"));
+        return ResponseEntity.ok(Map.of(
+            "token", "dev-token",
+            "username", user.getUsername(),
+            "image", user.getImage() != null ? user.getImage() : ""
+        ));
     }
 }

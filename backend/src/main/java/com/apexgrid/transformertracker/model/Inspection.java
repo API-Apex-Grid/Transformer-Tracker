@@ -14,24 +14,30 @@ public class Inspection {
     @JoinColumn(name = "transformer_id")
     private Transformer transformer;
 
-    @Column(unique = true, nullable = false)
+    @Column(name = "inspectionnumber", unique = true, nullable = false)
     private String inspectionNumber;
 
+    @Column(name = "inspecteddate")
     private String inspectedDate;
+    @Column(name = "maintainancedate")
     private String maintainanceDate;
     private String branch;
     private String status;
 
     // Store full data URL (base64) as plain text to avoid LOB stream issues
-    @Column(columnDefinition = "text")
+    @Column(name = "imageurl", columnDefinition = "text")
     private String imageUrl;
     private String weather;
 
     // Stores the last weather condition used when analysis was executed
+    @Column(name = "lastanalysisweather")
     private String lastAnalysisWeather;
 
+    @Column(name = "uploadedby")
     private String uploadedBy;
+    @Column(name = "imageuploadedby")
     private String imageUploadedBy;
+    @Column(name = "imageuploadedat")
     private Instant imageUploadedAt;
 
     private boolean favourite = false;

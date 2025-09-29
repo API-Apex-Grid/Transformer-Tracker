@@ -19,7 +19,7 @@ public class PythonAnalyzerService {
     @Value("${app.ai.python:python}")
     private String pythonCommand;
 
-    @Value("${app.ai.script:/AI/analyze.py}")
+    @Value("${app.ai.script:./AI/analyze.py}")
     private String scriptPath;
 
     public JsonNode analyze(BufferedImage baseline, BufferedImage candidate) throws Exception {
@@ -30,15 +30,22 @@ public class PythonAnalyzerService {
         ImageIO.write(baseline, "png", baseFile);
         ImageIO.write(candidate, "png", candFile);
 
+        // Resolve script path relative to current working directory
+        File scriptFile = new File(scriptPath);
+        if (!scriptFile.isAbsolute()) {
+            scriptFile = new File(System.getProperty("user.dir"), scriptPath);
+        }
+
         List<String> cmd = new ArrayList<>();
         cmd.add(pythonCommand);
-        cmd.add(new File(scriptPath).getPath());
+        cmd.add(scriptFile.getAbsolutePath());
         cmd.add(baseFile.getAbsolutePath());
         cmd.add(candFile.getAbsolutePath());
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         pb.directory(new File(System.getProperty("user.dir")));
+        
         Process p = pb.start();
 
         String output;
@@ -46,7 +53,7 @@ public class PythonAnalyzerService {
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = br.readLine()) != null) {
-                sb.append(line);
+                sb.append(line).append("\n");
             }
             output = sb.toString();
         }

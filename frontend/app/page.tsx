@@ -24,10 +24,12 @@ export default function Home() {
         setError(data.error || "Invalid credentials");
         return;
       }
-      // Mark logged-in for simple client gating; also store username
+      // Mark logged-in for simple client gating; also store username and image
+      const data = await res.json();
       try {
         localStorage.setItem("isLoggedIn", "true");
         localStorage.setItem("username", username);
+        localStorage.setItem("userImage", data.image || "");
       } catch {}
       router.push("/transformer");
   } catch {

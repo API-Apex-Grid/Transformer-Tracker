@@ -15,29 +15,37 @@ public class Transformer {
 
     private String region;
 
-    @Column(unique = true, nullable = false)
+    @Column(name = "transformernumber", unique = true, nullable = false)
     private String transformerNumber;
 
+    @Column(name = "polenumber")
     private String poleNumber;
     private String type;
     @Column(length = 2048)
     private String location;
 
     // Store base64 data URLs as text instead of LOB to prevent streaming issues in Postgres
-    @Column(columnDefinition = "text")
+    @Column(name = "sunnyimage", columnDefinition = "text")
     private String sunnyImage;
-    @Column(columnDefinition = "text")
+    @Column(name = "cloudyimage", columnDefinition = "text")
     private String cloudyImage;
-    @Column(columnDefinition = "text")
+    @Column(name = "windyimage", columnDefinition = "text")
     private String windyImage;
 
+    @Column(name = "uploadedby")
     private String uploadedBy;
+    @Column(name = "sunnyimageuploadedby")
     private String sunnyImageUploadedBy;
+    @Column(name = "cloudyimageuploadedby")
     private String cloudyImageUploadedBy;
+    @Column(name = "windyimageuploadedby")
     private String windyImageUploadedBy;
 
+    @Column(name = "sunnyimageuploadedat")
     private Instant sunnyImageUploadedAt;
+    @Column(name = "cloudyimageuploadedat")
     private Instant cloudyImageUploadedAt;
+    @Column(name = "windyimageuploadedat")
     private Instant windyImageUploadedAt;
 
     private boolean favourite = false;
