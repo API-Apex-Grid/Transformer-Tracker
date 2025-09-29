@@ -15,5 +15,10 @@ export interface Inspection {
     // Serialized JSON string of boxes [[x,y,w,h], ...] or already parsed structure when coming from API
     boundingBoxes?: string | number[][] | number[] | null;
     faultType?: "loose joint" | "point overload" | "wire overload" | "none" | string | null;
+    // Per-box fault types (JSON string or parsed array), aligned to boundingBoxes order
+    faultTypes?: string | string[] | null;
+    // Dimensions of analyzed image used to compute boxes (for proper scaling of stored overlays)
+    analyzedImageWidth?: number | null;
+    analyzedImageHeight?: number | null;
     favourite?: boolean;
 }

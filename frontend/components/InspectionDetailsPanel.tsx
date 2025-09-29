@@ -149,7 +149,33 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
 
             {/* Thermal Image Upload & Comparison */}
             <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Thermal Image</h3>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Thermal Image</h3>
+                    <div className="flex items-center gap-2">
+                        <button
+                            className="px-3 py-1 text-sm border rounded hover:bg-gray-50"
+                            title="Clear stored image and analysis"
+                            onClick={async () => {
+                                if (!inspection.id) return;
+                                try {
+                                    await fetch(apiUrl(`/api/inspections/${inspection.id}/clear-analysis`), { method: 'POST' });
+                                    // Reset local UI state
+                                    setPreviewUrl(null);
+                                    setUploadedUrl(null);
+                                    setUploadedAt(null);
+                                    setUploadedBy(null);
+                                    setAiStats(null);
+                                    await reload();
+                                    await reloadTransformers();
+                                } catch (e) {
+                                    // no-op
+                                }
+                            }}
+                        >
+                            Clear analysis
+                        </button>
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Uploader */}
                     <ThermalImage
@@ -269,12 +295,32 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     {inspection.faultType && (
                                         <p className="text-sm text-gray-600 mb-2">Fault type: {inspection.faultType}</p>
                                     )}
-                                    <OverlayedThermal
-                                        imageUrl={(uploadedUrl || inspection.imageUrl) as string}
-                                        boxes={(typeof inspection.boundingBoxes === 'string' ? (() => { try { return JSON.parse(inspection.boundingBoxes as string) as number[][]; } catch { return []; } })() : (inspection.boundingBoxes as number[][])) || []}
-                                        toggles={overlayToggles}
-                                        containerClassName="w-full border rounded overflow-hidden"
-                                    />
+                                    {(() => {
+                                        const boxes = (typeof inspection.boundingBoxes === 'string'
+                                            ? (() => { try { return JSON.parse(inspection.boundingBoxes as string) as number[][]; } catch { return []; } })()
+                                            : (inspection.boundingBoxes as number[][])) || [];
+                                        const ft = (Array.isArray(inspection.faultTypes)
+                                            ? inspection.faultTypes
+                                            : (typeof inspection.faultTypes === 'string' ? (() => { try { return JSON.parse(inspection.faultTypes as string) as string[]; } catch { return []; } })() : []));
+                                        const boxInfo = boxes.map((b, idx) => ({
+                                            x: b[0], y: b[1], w: b[2], h: b[3],
+                                            boxFault: (ft[idx] as string | undefined) || 'none',
+                                            label: (ft[idx] as string | undefined) || 'none',
+                                        }));
+                                        const natW = (inspection as any).analyzedImageWidth as number | undefined;
+                                        const natH = (inspection as any).analyzedImageHeight as number | undefined;
+                                        return (
+                                            <OverlayedThermal
+                                                imageUrl={(uploadedUrl || inspection.imageUrl) as string}
+                                                naturalWidth={natW}
+                                                naturalHeight={natH}
+                                                boxes={boxes}
+                                                boxInfo={boxInfo}
+                                                toggles={overlayToggles}
+                                                containerClassName="w-full border rounded overflow-hidden"
+                                            />
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>

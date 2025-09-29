@@ -154,6 +154,27 @@ public class InspectionController {
             if (ft != null) {
                 i.setFaultType(ft);
             }
+            // Persist per-box fault types (map boxInfo[].boxFault when available)
+            var boxInfoNode = result.path("boxInfo");
+            if (boxInfoNode != null && boxInfoNode.isArray()) {
+                // Build array of fault labels aligned with boxes
+                // When lengths mismatch, fall back to best-effort order
+                StringBuilder sb = new StringBuilder();
+                sb.append('[');
+                boolean first = true;
+                for (var bi : boxInfoNode) {
+                    String label = bi.path("boxFault").asText("none");
+                    if (!first) sb.append(',');
+                    first = false;
+                    // JSON-escape minimal (labels are simple)
+                    sb.append('"').append(label.replace("\"", "\\\"")).append('"');
+                }
+                sb.append(']');
+                i.setFaultTypes(sb.toString());
+            }
+            // Persist analyzed image dimensions
+            i.setAnalyzedImageWidth(W);
+            i.setAnalyzedImageHeight(H);
         } catch (Exception ignore) { }
         repo.save(i);
 
@@ -175,6 +196,25 @@ public class InspectionController {
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Analysis failed"));
             }
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/clear-analysis")
+    public ResponseEntity<?> clearAnalysis(@PathVariable String id) {
+        return repo.findById(id).map(i -> {
+            // Remove stored analysis artifacts
+            i.setImageUrl(null);
+            i.setBoundingBoxes(null);
+            i.setFaultType(null);
+            // Also clear per-box fault types and dimensions if present
+            try {
+                // These setters exist but may be null in DB schema; safe to call
+                i.setFaultTypes(null);
+                i.setAnalyzedImageWidth(null);
+                i.setAnalyzedImageHeight(null);
+            } catch (Exception ignore) { }
+            repo.save(i);
+            return ResponseEntity.ok(Map.of("ok", true));
         }).orElse(ResponseEntity.notFound().build());
     }
     private static BufferedImage resize(BufferedImage src, int W, int H) {
