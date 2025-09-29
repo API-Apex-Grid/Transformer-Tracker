@@ -1,0 +1,150 @@
+"use client";
+
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiUrl } from "@/lib/api";
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const [username, setUsername] = useState<string | null>(null);
+  const [image, setImage] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loggedIn = typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
+    if (!loggedIn) {
+      router.replace("/");
+      return;
+    }
+    const u = typeof window !== "undefined" ? localStorage.getItem("username") : null;
+    setUsername(u);
+    if (u) {
+      fetch(apiUrl(`/api/profile?username=${encodeURIComponent(u)}`))
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(data => {
+          setImage(data.image || null);
+        })
+        .catch(() => {});
+    }
+  }, [router]);
+
+  const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveImage = async () => {
+    if (!username) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(apiUrl("/api/profile/password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, image }),
+      });
+      if (!res.ok) throw new Error("Failed to save image");
+      setMessage("Profile image saved");
+    } catch (e: any) {
+      setMessage(e.message || "Failed to save image");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (!username) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(apiUrl("/api/profile/password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, currentPassword, newPassword }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to change password");
+      }
+      setMessage("Password updated");
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (e: any) {
+      setMessage(e.message || "Failed to change password");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Your Profile</h1>
+        <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-200">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex items-center gap-4 mb-6">
+        <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 border">
+          <Image
+            src={image || "/profile.png"}
+            alt="Profile picture"
+            width={64}
+            height={64}
+            className="object-cover w-16 h-16"
+          />
+        </div>
+        <div>
+          <div className="text-gray-700 text-sm">Logged in as</div>
+          <div className="font-medium">{username}</div>
+        </div>
+      </div>
+
+      <div className="space-y-4 mb-8">
+        <div>
+          <label className="block text-sm font-medium mb-1">Change profile picture</label>
+          <input type="file" accept="image/*" onChange={onPickImage} />
+          <button onClick={saveImage} disabled={saving} className="ml-3 inline-flex items-center rounded-md bg-black px-3 py-2 text-white hover:bg-black/80">
+            Save image
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <label className="block">
+          <span className="block text-sm font-medium mb-1">Current password</span>
+          <input type="password" value={currentPassword} onChange={(e)=>setCurrentPassword(e.target.value)} className="px-3 py-2 border rounded-md w-full" />
+        </label>
+        <label className="block">
+          <span className="block text-sm font-medium mb-1">New password</span>
+          <input type="password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="px-3 py-2 border rounded-md w-full" />
+        </label>
+        <button onClick={changePassword} disabled={saving} className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white hover:bg-black/80">Update password</button>
+      </div>
+
+      {message && (
+        <p
+          className={`mt-4 text-sm ${
+            message.includes("incorrect") || message.includes("Failed")
+              ? "text-red-600"
+              : "text-gray-700"
+          }`}
+        >
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
