@@ -42,6 +42,11 @@ public class Inspection {
 
     private boolean favourite = false;
 
+    // Persist detected bounding boxes from analysis as JSON (array of [x,y,w,h])
+    // Store as text in DB to avoid dialect-specific JSON types
+    @Column(name = "boundingboxes", columnDefinition = "text")
+    private String boundingBoxes;
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -83,4 +88,7 @@ public class Inspection {
 
     public boolean isFavourite() { return favourite; }
     public void setFavourite(boolean favourite) { this.favourite = favourite; }
+
+    public String getBoundingBoxes() { return boundingBoxes; }
+    public void setBoundingBoxes(String boundingBoxes) { this.boundingBoxes = boundingBoxes; }
 }

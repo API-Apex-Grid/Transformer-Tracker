@@ -139,8 +139,17 @@ public class InspectionController {
 
     var result = pythonAnalyzerService.analyze(baseResized, candidate);
 
-        // Persist last analysis weather on the inspection
+        // Persist last analysis weather and detected bounding boxes on the inspection
         i.setLastAnalysisWeather(weather);
+        try {
+            // Persist only the boxes array as returned by Python
+            var boxesNode = result.path("boxes");
+            if (boxesNode != null && !boxesNode.isMissingNode()) {
+                // Serialize to compact JSON string
+                String boxesJson = boxesNode.toString();
+                i.setBoundingBoxes(boxesJson);
+            }
+        } catch (Exception ignore) { }
         repo.save(i);
 
         // Pass through fields as-is from Python, including fault classification

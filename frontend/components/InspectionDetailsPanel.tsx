@@ -262,6 +262,18 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     {typeof aiStats.histDistance === 'number' && <span>histD={aiStats.histDistance.toFixed(3)}</span>}
                                 </div>
                             )}
+                            {/* Stored analysis display: if inspection has an imageUrl and saved boundingBoxes, show them */}
+                            {(!aiStats && (inspection.imageUrl || uploadedUrl)) && inspection.boundingBoxes && (
+                                <div className="mt-4">
+                                    <h5 className="font-semibold mb-2">Stored analysis</h5>
+                                    <OverlayedThermal
+                                        imageUrl={(uploadedUrl || inspection.imageUrl) as string}
+                                        boxes={(typeof inspection.boundingBoxes === 'string' ? (() => { try { return JSON.parse(inspection.boundingBoxes as string) as number[][]; } catch { return []; } })() : (inspection.boundingBoxes as number[][])) || []}
+                                        toggles={overlayToggles}
+                                        containerClassName="w-full border rounded overflow-hidden"
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -34,7 +34,12 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
         if (typeof raw === 'object' && raw !== null) {
           const obj = raw as Record<string, unknown> & { transformer?: { transformerNumber?: string } };
           const transformerNumber = (obj.transformerNumber as string) ?? obj.transformer?.transformerNumber ?? "";
-          return { ...(obj as object), transformerNumber } as Inspection;
+          // Parse boundingBoxes if it's a JSON string
+          let boundingBoxes: unknown = (obj as any).boundingBoxes;
+          if (typeof boundingBoxes === 'string') {
+            try { boundingBoxes = JSON.parse(boundingBoxes); } catch { /* keep as string if invalid */ }
+          }
+          return { ...(obj as object), transformerNumber, boundingBoxes } as Inspection;
         }
         return {
           transformerNumber: "",
