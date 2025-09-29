@@ -14,5 +14,6 @@ export interface Inspection {
     lastAnalysisWeather?: "sunny" | "cloudy" | "rainy" | string | null;
     // Serialized JSON string of boxes [[x,y,w,h], ...] or already parsed structure when coming from API
     boundingBoxes?: string | number[][] | number[] | null;
+    faultType?: "loose joint" | "point overload" | "wire overload" | "none" | string | null;
     favourite?: boolean;
 }

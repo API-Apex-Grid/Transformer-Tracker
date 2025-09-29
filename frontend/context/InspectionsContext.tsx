@@ -39,6 +39,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
           if (typeof boundingBoxes === 'string') {
             try { boundingBoxes = JSON.parse(boundingBoxes); } catch { /* keep as string if invalid */ }
           }
+          // faultType (string) comes straight from the API; include as-is via spread
           return { ...(obj as object), transformerNumber, boundingBoxes } as Inspection;
         }
         return {

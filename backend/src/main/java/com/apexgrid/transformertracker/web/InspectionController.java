@@ -149,6 +149,11 @@ public class InspectionController {
                 String boxesJson = boxesNode.toString();
                 i.setBoundingBoxes(boxesJson);
             }
+            // Persist overall faultType classification if available
+            var ft = result.path("faultType").asText(null);
+            if (ft != null) {
+                i.setFaultType(ft);
+            }
         } catch (Exception ignore) { }
         repo.save(i);
 

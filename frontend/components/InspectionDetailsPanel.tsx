@@ -266,6 +266,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             {(!aiStats && (inspection.imageUrl || uploadedUrl)) && inspection.boundingBoxes && (
                                 <div className="mt-4">
                                     <h5 className="font-semibold mb-2">Stored analysis</h5>
+                                    {inspection.faultType && (
+                                        <p className="text-sm text-gray-600 mb-2">Fault type: {inspection.faultType}</p>
+                                    )}
                                     <OverlayedThermal
                                         imageUrl={(uploadedUrl || inspection.imageUrl) as string}
                                         boxes={(typeof inspection.boundingBoxes === 'string' ? (() => { try { return JSON.parse(inspection.boundingBoxes as string) as number[][]; } catch { return []; } })() : (inspection.boundingBoxes as number[][])) || []}

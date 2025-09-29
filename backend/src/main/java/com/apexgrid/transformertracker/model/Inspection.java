@@ -47,6 +47,10 @@ public class Inspection {
     @Column(name = "boundingboxes", columnDefinition = "text")
     private String boundingBoxes;
 
+    // Persist last detected overall fault type from analysis (e.g., "loose joint", "point overload", "wire overload", "none")
+    @Column(name = "faulttype")
+    private String faultType;
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -91,4 +95,7 @@ public class Inspection {
 
     public String getBoundingBoxes() { return boundingBoxes; }
     public void setBoundingBoxes(String boundingBoxes) { this.boundingBoxes = boundingBoxes; }
+
+    public String getFaultType() { return faultType; }
+    public void setFaultType(String faultType) { this.faultType = faultType; }
 }
