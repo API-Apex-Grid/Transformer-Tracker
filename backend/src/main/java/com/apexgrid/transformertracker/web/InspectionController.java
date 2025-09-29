@@ -172,9 +172,7 @@ public class InspectionController {
                 sb.append(']');
                 i.setFaultTypes(sb.toString());
             }
-            // Persist analyzed image dimensions
-            i.setAnalyzedImageWidth(W);
-            i.setAnalyzedImageHeight(H);
+            // analyzed image dimensions no longer persisted
         } catch (Exception ignore) { }
         repo.save(i);
 
@@ -185,8 +183,7 @@ public class InspectionController {
         "dv95", result.path("dv95").asDouble(0.0),
         "warmFraction", result.path("warmFraction").asDouble(0.0),
         // Always provide dimensions from the analyzed candidate image
-        "imageWidth", W,
-        "imageHeight", H,
+    // image dimensions removed; frontend infers dynamically
         "boxes", result.path("boxes"),
         "boxInfo", result.path("boxInfo"),
         "faultType", result.path("faultType").asText("none"),
@@ -210,8 +207,7 @@ public class InspectionController {
             try {
                 // These setters exist but may be null in DB schema; safe to call
                 i.setFaultTypes(null);
-                i.setAnalyzedImageWidth(null);
-                i.setAnalyzedImageHeight(null);
+                // analyzed image dimensions removed; nothing to clear
             } catch (Exception ignore) { }
             repo.save(i);
             return ResponseEntity.ok(Map.of("ok", true));

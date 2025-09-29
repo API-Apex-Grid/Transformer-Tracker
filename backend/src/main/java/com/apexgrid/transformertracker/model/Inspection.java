@@ -55,11 +55,6 @@ public class Inspection {
     @Column(name = "faulttypes", columnDefinition = "text")
     private String faultTypes;
 
-    // Persist last analyzed candidate image dimensions for proper overlay scaling
-    @Column(name = "analyzedimagewidth")
-    private Integer analyzedImageWidth;
-    @Column(name = "analyzedimageheight")
-    private Integer analyzedImageHeight;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -112,8 +107,5 @@ public class Inspection {
     public String getFaultTypes() { return faultTypes; }
     public void setFaultTypes(String faultTypes) { this.faultTypes = faultTypes; }
 
-    public Integer getAnalyzedImageWidth() { return analyzedImageWidth; }
-    public void setAnalyzedImageWidth(Integer analyzedImageWidth) { this.analyzedImageWidth = analyzedImageWidth; }
-    public Integer getAnalyzedImageHeight() { return analyzedImageHeight; }
-    public void setAnalyzedImageHeight(Integer analyzedImageHeight) { this.analyzedImageHeight = analyzedImageHeight; }
+    // analyzed image dimensions removed; overlay will infer from image at runtime
 }

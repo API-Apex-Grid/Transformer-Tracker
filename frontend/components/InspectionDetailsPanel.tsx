@@ -29,8 +29,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         boxes?: number[][] | number[];
         faultType?: string;
         boxInfo?: OverlayBoxInfo[];
-        imageWidth?: number;
-        imageHeight?: number;
+    // dimensions omitted; overlay infers them from the image element
     } | null>(null);
     const [overlayToggles, setOverlayToggles] = useState<OverlayToggles>({ looseJoint: true, pointOverload: true, wireOverload: true });
 
@@ -196,8 +195,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 boxes: res.boxes as number[][] | number[],
                                 faultType: res.faultType || undefined,
                                 boxInfo: res.boxInfo || [],
-                                imageWidth: res.imageWidth,
-                                imageHeight: res.imageHeight,
+                                // dimensions not used
                             });
                         }}
                     />
@@ -268,8 +266,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             {(previewUrl || uploadedUrl || inspection.imageUrl) && aiStats ? (
                                 <OverlayedThermal
                                     imageUrl={(previewUrl || uploadedUrl || inspection.imageUrl) as string}
-                                    naturalWidth={aiStats.imageWidth}
-                                    naturalHeight={aiStats.imageHeight}
+                                    // dimensions omitted
                                     boxes={(aiStats.boxes as number[][]) ?? []}
                                     boxInfo={aiStats.boxInfo}
                                     toggles={overlayToggles}
@@ -307,13 +304,10 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                             boxFault: (ft[idx] as string | undefined) || 'none',
                                             label: (ft[idx] as string | undefined) || 'none',
                                         }));
-                                        const natW = inspection.analyzedImageWidth ?? undefined;
-                                        const natH = inspection.analyzedImageHeight ?? undefined;
                                         return (
                                             <OverlayedThermal
                                                 imageUrl={(uploadedUrl || inspection.imageUrl) as string}
-                                                naturalWidth={natW}
-                                                naturalHeight={natH}
+                                                // dimensions omitted
                                                 boxes={boxes}
                                                 boxInfo={boxInfo}
                                                 toggles={overlayToggles}

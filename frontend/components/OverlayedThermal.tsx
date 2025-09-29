@@ -16,8 +16,8 @@ export type OverlayToggles = {
 
 interface OverlayedThermalProps {
   imageUrl: string;
-  naturalWidth?: number;
-  naturalHeight?: number;
+  naturalWidth?: number; // optional external hint; component will infer automatically if not provided
+  naturalHeight?: number; // optional external hint; component will infer automatically if not provided
   boxes: number[][] | number[];
   boxInfo?: OverlayBoxInfo[];
   toggles: OverlayToggles;
@@ -37,6 +37,10 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   toggles,
   containerClassName,
 }) => {
+
+  // Track actual image natural dimensions to compute relative box positions
+  const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const list = useMemo(() => {
   const rawBoxes: Array<{x:number;y:number;w:number;h:number}> = [];
@@ -105,6 +109,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     // Reset zoom/pan when imageUrl changes
     setScale(1);
     setOffset({ x: 0, y: 0 });
+    // Reset natural size; will be set on image load
+    setNat(null);
   }, [imageUrl]);
 
   return (
@@ -120,6 +126,14 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        ref={imgRef}
+        onLoad={(e) => {
+          const el = e.currentTarget;
+          // Use the image's intrinsic size if not explicitly provided
+          if (!naturalWidth || !naturalHeight) {
+            setNat({ w: el.naturalWidth, h: el.naturalHeight });
+          }
+        }}
         src={imageUrl}
         alt="Thermal"
         style={{
@@ -167,14 +181,16 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
           }
           
           if (!show) return null;
+          const effW = naturalWidth ?? nat?.w ?? 1;
+          const effH = naturalHeight ?? nat?.h ?? 1;
           return (
             <div key={`${b.x}-${b.y}-${idx}`}
               style={{
                 position: "absolute",
-                left: `${(b.x / (naturalWidth || 1)) * 100}%`,
-                top: `${(b.y / (naturalHeight || 1)) * 100}%`,
-                width: `${(b.w / (naturalWidth || 1)) * 100}%`,
-                height: `${(b.h / (naturalHeight || 1)) * 100}%`,
+                left: `${(b.x / effW) * 100}%`,
+                top: `${(b.y / effH) * 100}%`,
+                width: `${(b.w / effW) * 100}%`,
+                height: `${(b.h / effH) * 100}%`,
                 border: "2px solid red",
                 boxSizing: "border-box",
               }}>
