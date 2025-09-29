@@ -167,7 +167,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     setAiStats(null);
                                     await reload();
                                     await reloadTransformers();
-                                } catch (e) {
+                                } catch {
                                     // no-op
                                 }
                             }}
@@ -307,8 +307,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                             boxFault: (ft[idx] as string | undefined) || 'none',
                                             label: (ft[idx] as string | undefined) || 'none',
                                         }));
-                                        const natW = (inspection as any).analyzedImageWidth as number | undefined;
-                                        const natH = (inspection as any).analyzedImageHeight as number | undefined;
+                                        const natW = inspection.analyzedImageWidth ?? undefined;
+                                        const natH = inspection.analyzedImageHeight ?? undefined;
                                         return (
                                             <OverlayedThermal
                                                 imageUrl={(uploadedUrl || inspection.imageUrl) as string}
