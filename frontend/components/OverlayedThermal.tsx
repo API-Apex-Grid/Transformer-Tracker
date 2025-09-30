@@ -126,7 +126,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     };
     el.addEventListener('wheel', handler, { passive: false, capture: true });
     return () => {
-      el.removeEventListener('wheel', handler, { capture: true } as any);
+      el.removeEventListener('wheel', handler, { capture: true });
     };
   }, []);
 

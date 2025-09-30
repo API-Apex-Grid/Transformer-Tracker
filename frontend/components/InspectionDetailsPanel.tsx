@@ -9,6 +9,147 @@ import { useState, useMemo } from "react";
 import { apiUrl } from "@/lib/api";
 import { useEffect } from "react";
 
+const toFinite = (value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+};
+
+const canonicalizeFault = (fault: string | null | undefined): string => {
+    if (!fault) return "none";
+    const normalized = fault.toString().trim().toLowerCase().replace(/[\-_]+/g, " ");
+    if (!normalized) return "none";
+    if (normalized.includes("loose") && normalized.includes("joint")) return "loose joint";
+    if (normalized.includes("wire") && normalized.includes("overload")) return "wire overload";
+    if (normalized.includes("point") && normalized.includes("overload")) return "point overload";
+    if (normalized === "none" || normalized === "ok" || normalized === "normal") return "none";
+    return normalized;
+};
+
+const toDisplayLabel = (fault: string): string => {
+    if (!fault || fault === "none") return "No classification";
+    return fault
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+};
+
+const faultToToggleKey = (fault: string | null | undefined): keyof OverlayToggles | null => {
+    const normalized = canonicalizeFault(fault);
+    switch (normalized) {
+        case "loose joint":
+            return "looseJoint";
+        case "point overload":
+            return "pointOverload";
+        case "wire overload":
+            return "wireOverload";
+        default:
+            return null;
+    }
+};
+
+const parseBoundingBoxes = (raw: Inspection["boundingBoxes"]): number[][] => {
+    let source: unknown = raw;
+    if (typeof source === "string") {
+        try { source = JSON.parse(source); }
+        catch { return []; }
+    }
+    if (!Array.isArray(source)) return [];
+    if (source.length === 0) return [];
+
+    const boxes: number[][] = [];
+    const maybePush = (x: number | null, y: number | null, w: number | null, h: number | null) => {
+        if (x === null || y === null || w === null || h === null) return;
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+        boxes.push([x, y, w, h]);
+    };
+
+    const arraySource = source as unknown[];
+    if (typeof arraySource[0] === "number" || typeof arraySource[0] === "string") {
+        const flat = arraySource as Array<number | string>;
+        for (let i = 0; i + 3 < flat.length; i += 4) {
+            maybePush(
+                toFinite(flat[i]),
+                toFinite(flat[i + 1]),
+                toFinite(flat[i + 2]),
+                toFinite(flat[i + 3])
+            );
+        }
+        return boxes;
+    }
+
+    for (const entry of arraySource) {
+        if (Array.isArray(entry)) {
+            maybePush(
+                toFinite(entry[0]),
+                toFinite(entry[1]),
+                toFinite(entry[2]),
+                toFinite(entry[3])
+            );
+            continue;
+        }
+        if (entry && typeof entry === "object") {
+            const obj = entry as Record<string, unknown>;
+            const x = toFinite(obj.x ?? obj.left ?? obj.startX ?? obj[0]);
+            const y = toFinite(obj.y ?? obj.top ?? obj.startY ?? obj[1]);
+            let w = toFinite(obj.w ?? obj.width ?? obj[2]);
+            let h = toFinite(obj.h ?? obj.height ?? obj[3]);
+            if ((w === null || h === null) && x !== null && y !== null) {
+                const x2 = toFinite(obj.x2 ?? obj.right ?? obj.endX);
+                const y2 = toFinite(obj.y2 ?? obj.bottom ?? obj.endY);
+                if (w === null && x2 !== null) w = x2 - x;
+                if (h === null && y2 !== null) h = y2 - y;
+            }
+            maybePush(x, y, w, h);
+        }
+    }
+
+    return boxes;
+};
+
+const parseFaultTypes = (raw: Inspection["faultTypes"], expectedLength: number): string[] => {
+    let source: unknown = raw;
+    if (typeof source === "string") {
+        const original = source;
+        try {
+            const parsed = JSON.parse(original);
+            source = parsed;
+        } catch {
+            source = original
+                .split(/[,;\n]+/)
+                .map((part: string) => part.trim())
+                .filter((part) => part.length > 0);
+        }
+    }
+    const arr: string[] = Array.isArray(source)
+        ? (source as unknown[]).map((item) => (typeof item === "string" ? item : item != null ? String(item) : ""))
+        : (typeof source === "string" ? [source] : []);
+
+    const normalized = arr.map((fault) => canonicalizeFault(fault));
+    if (normalized.length < expectedLength) {
+        normalized.push(...Array.from({ length: expectedLength - normalized.length }, () => "none"));
+    }
+    return normalized.slice(0, expectedLength);
+};
+
+const buildBoxInfo = (boxes: number[][], faults: string[]): OverlayBoxInfo[] => (
+    boxes.map((box, index) => {
+        const fault = faults[index] ?? "none";
+        return {
+            x: box[0],
+            y: box[1],
+            w: box[2],
+            h: box[3],
+            boxFault: fault,
+            label: toDisplayLabel(fault),
+        };
+    })
+);
+
 interface InspectionDetailsPanelProps {
     inspection: Inspection;
     onClose: () => void;
@@ -41,6 +182,30 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const [storedBoxes, setStoredBoxes] = useState<number[][]>([]);
     const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
     const [storedBoxInfo, setStoredBoxInfo] = useState<OverlayBoxInfo[]>([]);
+
+    const storedFaultSummary = useMemo(() => {
+        if (!storedBoxInfo.length) return [] as Array<{ fault: string; label: string; count: number }>;
+        const counts = storedBoxInfo.reduce<Record<string, number>>((acc, box) => {
+            const key = canonicalizeFault(box.boxFault ?? "none");
+            acc[key] = (acc[key] ?? 0) + 1;
+            return acc;
+        }, {});
+        return Object.entries(counts)
+            .map(([fault, count]) => ({ fault, label: toDisplayLabel(fault), count }))
+            .sort((a, b) => b.count - a.count);
+    }, [storedBoxInfo]);
+
+    const storedVisibleBoxCount = useMemo(() => {
+        if (!storedBoxInfo.length) return 0;
+        const anyToggleEnabled = overlayToggles.looseJoint || overlayToggles.pointOverload || overlayToggles.wireOverload;
+        return storedBoxInfo.reduce((count, box) => {
+            const toggleKey = faultToToggleKey(box.boxFault);
+            if (toggleKey) {
+                return overlayToggles[toggleKey] ? count + 1 : count;
+            }
+            return anyToggleEnabled ? count + 1 : count;
+        }, 0);
+    }, [overlayToggles, storedBoxInfo]);
 
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
@@ -78,50 +243,36 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         setAiStats(null);
         setPreviewUrl(null);
         // initialize stored analysis states from inspection
-        let boxes: number[][] = [];
         try {
-            const raw = typeof inspection.boundingBoxes === 'string'
-                ? JSON.parse(inspection.boundingBoxes)
-                : (inspection.boundingBoxes as any);
-            if (Array.isArray(raw)) {
-                if (raw.length === 0) boxes = [];
-                else if (Array.isArray(raw[0])) boxes = raw as number[][];
-                else {
-                    // flat array assumed [x,y,w,h, x,y,w,h, ...]
-                    const flat = raw as number[];
-                    for (let i = 0; i + 3 < flat.length; i += 4) {
-                        boxes.push([flat[i], flat[i + 1], flat[i + 2], flat[i + 3]]);
-                    }
-                }
-            }
-            setStoredBoxes(boxes);
-        } catch (e) { 
-            setStoredBoxes([]); 
-            boxes = [];
-        }
-        try {
-            const ft = Array.isArray(inspection.faultTypes)
-                ? (inspection.faultTypes as string[])
-                : (typeof inspection.faultTypes === 'string' ? (JSON.parse(inspection.faultTypes) as string[]) : []);
-            const finalFt = Array.isArray(ft) ? ft : [];
-            setStoredFaultTypes(finalFt);
-
-            const info: OverlayBoxInfo[] = boxes.map((box, index) => ({
-                x: box[0],
-                y: box[1],
-                w: box[2],
-                h: box[3],
-                label: finalFt[index] || 'unknown',
-                boxFault: finalFt[index] || 'unknown',
-            }));
-            setStoredBoxInfo(info);
-        } catch (e) { 
-            setStoredFaultTypes([]); 
+            const parsedBoxes = parseBoundingBoxes(inspection.boundingBoxes);
+            const parsedFaults = parseFaultTypes(inspection.faultTypes, parsedBoxes.length);
+            setStoredBoxes(parsedBoxes);
+            setStoredFaultTypes(parsedFaults);
+            setStoredBoxInfo(buildBoxInfo(parsedBoxes, parsedFaults));
+        } catch {
+            setStoredBoxes([]);
+            setStoredFaultTypes([]);
             setStoredBoxInfo([]);
         }
     // Also update when boundingBoxes/faultTypes/imageUrl change on the same inspection id
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inspection.id, inspection.boundingBoxes, inspection.faultTypes, inspection.imageUrl]);
+
+    useEffect(() => {
+        if (aiStats || storedBoxInfo.length === 0) return;
+        setOverlayToggles((prev) => {
+            const next = { ...prev } as OverlayToggles;
+            let changed = false;
+            for (const box of storedBoxInfo) {
+                const key = faultToToggleKey(box.boxFault);
+                if (key && !next[key]) {
+                    next[key] = true;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [aiStats, storedBoxInfo]);
 
     const handleUpload = async (file: File, weather: string) => {
         if (!inspection.id) return;
@@ -238,6 +389,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     // Clear local stored analysis immediately
                                     setStoredBoxes([]);
                                     setStoredFaultTypes([]);
+                                    setStoredBoxInfo([]);
                                     await reload();
                                     await reloadTransformers();
                                 } catch {
@@ -351,7 +503,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                         naturalWidth={aiStats.imageWidth}
                                         naturalHeight={aiStats.imageHeight}
                                         boxes={(aiStats.boxes as number[][]) ?? []}
-                                        boxInfo={aiStats.boxInfo}
+                                        boxInfo={(aiStats.boxInfo ?? []).map((bi, i) => ({ ...bi, label: String(i + 1) }))}
                                         toggles={overlayToggles}
                                         onRemoveBox={async (idx, box) => {
                                         if (!inspection.id) return;
@@ -359,12 +511,12 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                             // Optimistically update local aiStats
                                             setAiStats((prev) => {
                                                 if (!prev) return prev;
-                                                const next = { ...prev } as any;
+                                                const next = { ...prev };
                                                 if (Array.isArray(next.boxes)) {
                                                     const arr = (next.boxes as number[][]).slice();
                                                     if (box) {
-                                                        const i = arr.findIndex((b) => b && b.length >= 4 && b[0] === box.x && b[1] === box.y && b[2] === box.w && b[3] === box.h);
-                                                        if (i >= 0) arr.splice(i, 1); else arr.splice(idx, 1);
+                                                        const matchIdx = arr.findIndex((b) => b && b.length >= 4 && b[0] === box.x && b[1] === box.y && b[2] === box.w && b[3] === box.h);
+                                                        if (matchIdx >= 0) arr.splice(matchIdx, 1); else arr.splice(idx, 1);
                                                     } else {
                                                         arr.splice(idx, 1);
                                                     }
@@ -373,8 +525,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                                 if (Array.isArray(next.boxInfo)) {
                                                     const info = (next.boxInfo as OverlayBoxInfo[]).slice();
                                                     if (box) {
-                                                        const i2 = info.findIndex((bi) => bi && bi.x === box.x && bi.y === box.y && bi.w === box.w && bi.h === box.h);
-                                                        if (i2 >= 0) info.splice(i2, 1); else info.splice(idx, 1);
+                                                        const matchInfoIdx = info.findIndex((bi) => bi && bi.x === box.x && bi.y === box.y && bi.w === box.w && bi.h === box.h);
+                                                        if (matchInfoIdx >= 0) info.splice(matchInfoIdx, 1); else info.splice(idx, 1);
                                                     } else {
                                                         info.splice(idx, 1);
                                                     }
@@ -403,6 +555,19 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     Run analysis to see overlay
                                 </div>
                             )}
+                            {aiStats && (aiStats.boxInfo?.length ?? 0) > 0 && (
+                                <ol className="mt-2 text-xs text-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+                                    {aiStats.boxInfo!.map((bi, i) => {
+                                        const fault = toDisplayLabel(canonicalizeFault(bi.boxFault || 'none'));
+                                        return (
+                                            <li key={`ai-legend-${i}`} className="flex items-center gap-2">
+                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-semibold">{i + 1}</span>
+                                                <span>{fault}</span>
+                                            </li>
+                                        );
+                                    })}
+                                </ol>
+                            )}
                             {aiStats && (
                                 <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
                                     {typeof aiStats.prob === 'number' && <span>p={aiStats.prob.toFixed(2)}</span>}
@@ -412,55 +577,57 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 </div>
                             )}
                             {/* Stored analysis display: if inspection has an imageUrl and saved boundingBoxes, show them */}
-                            {(!aiStats && storedImageUrl && Array.isArray(storedBoxes) && storedBoxes.length > 0) && (
+                            {(!aiStats && storedImageUrl) && (
                                 <div className="mt-4">
                                     <h5 className="font-semibold mb-2">Stored analysis</h5>
-                                    {/* overall fault type removed; per-box labels shown on overlays */}
-                                    {(() => {
-                                        const boxes = storedBoxes;
-                                        if (!boxes || boxes.length === 0) return null;
-                                        const ft = storedFaultTypes;
-                                        const boxInfo = boxes.map((b, idx) => {
-                                            const faultType = ft[idx] ?? 'none';
-                                            return {
-                                                x: b[0], y: b[1], w: b[2], h: b[3],
-                                                boxFault: faultType,
-                                                label: faultType,
-                                            };
-                                        });
-                                        return (
-                                            <div className="overscroll-none overflow-hidden">
-                                                <OverlayedThermal
-                                                    imageUrl={storedImageUrl as string}
-                                                    // no persisted dims; component infers automatically
-                                                    boxes={boxes}
-                                                    boxInfo={boxInfo}
-                                                    toggles={{looseJoint: true, pointOverload: true, wireOverload: true}} // Force all toggles on for stored analysis
+                                    {storedBoxInfo.length > 0 ? (
+                                        <div className="overscroll-none overflow-hidden">
+                                            {(storedFaultSummary.length > 0 || storedVisibleBoxCount === 0) && (
+                                                <div className="flex flex-wrap items-center gap-2 mb-2 text-xs text-gray-600">
+                                                    {storedFaultSummary.map((item) => (
+                                                        <span key={item.fault} className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2 py-1 bg-white">
+                                                            <span className="font-semibold text-gray-700">{item.count}</span>
+                                                            <span>{item.label}</span>
+                                                        </span>
+                                                    ))}
+                                                    {storedVisibleBoxCount === 0 && storedBoxInfo.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            className="ml-auto inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-700 hover:bg-gray-50"
+                                                            onClick={() => setOverlayToggles({ looseJoint: true, pointOverload: true, wireOverload: true })}
+                                                        >
+                                                            Show all overlays
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <OverlayedThermal
+                                                imageUrl={storedImageUrl as string}
+                                                // no persisted dims; component infers automatically
+                                                boxes={storedBoxes}
+                                                boxInfo={storedBoxInfo.map((bi, idx) => ({ ...bi, label: String(idx + 1) }))}
+                                                toggles={overlayToggles}
                                                 onRemoveBox={async (idx, box) => {
                                                     if (!inspection.id) return;
                                                     try {
-                                                        // Determine the exact index to remove from current local arrays
                                                         let matchIdx = idx;
                                                         if (box && Array.isArray(storedBoxes)) {
-                                                            const i2 = storedBoxes.findIndex(b => b && b.length >= 4 && b[0] === box.x && b[1] === box.y && b[2] === box.w && b[3] === box.h);
-                                                            if (i2 >= 0) matchIdx = i2;
+                                                            const found = storedBoxes.findIndex((b) => b && b.length >= 4 && b[0] === box.x && b[1] === box.y && b[2] === box.w && b[3] === box.h);
+                                                            if (found >= 0) matchIdx = found;
                                                         }
-                                                        // Optimistically update local stored arrays
                                                         const newBoxes = Array.isArray(storedBoxes) ? storedBoxes.slice() : [];
                                                         if (matchIdx >= 0 && matchIdx < newBoxes.length) newBoxes.splice(matchIdx, 1);
+                                                        const newFaults = Array.isArray(storedFaultTypes) ? storedFaultTypes.slice() : [];
+                                                        if (matchIdx >= 0 && matchIdx < newFaults.length) newFaults.splice(matchIdx, 1);
                                                         setStoredBoxes(newBoxes);
-                                                        const newFT = Array.isArray(storedFaultTypes) ? storedFaultTypes.slice() : [];
-                                                        if (matchIdx >= 0 && matchIdx < newFT.length) newFT.splice(matchIdx, 1);
-                                                        setStoredFaultTypes(newFT);
-                                                        // Persist removal precisely using coords if available
+                                                        setStoredFaultTypes(newFaults);
+                                                        setStoredBoxInfo(buildBoxInfo(newBoxes, newFaults));
                                                         if (box) {
                                                             const params = new URLSearchParams({ x: String(box.x), y: String(box.y), w: String(box.w), h: String(box.h) });
                                                             await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes?${params.toString()}`), { method: 'DELETE' });
                                                         } else {
                                                             await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes/${idx}`), { method: 'DELETE' });
                                                         }
-                                                        // Section hides automatically when boxes array becomes empty
-                                                        // Optionally reload in background to keep context consistent
                                                         void reload();
                                                     } catch {
                                                         // no-op
@@ -468,9 +635,20 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                                 }}
                                                 containerClassName="w-full border rounded overflow-hidden"
                                             />
-                                            </div>
-                                        );
-                                    })()}
+                                            {storedBoxInfo.length > 0 && (
+                                                <ol className="mt-2 text-xs text-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+                                                    {storedBoxInfo.map((bi, i) => (
+                                                        <li key={`stored-legend-${i}`} className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-semibold">{i + 1}</span>
+                                                            <span>{toDisplayLabel(canonicalizeFault(bi.boxFault || 'none'))}</span>
+                                                        </li>
+                                                    ))}
+                                                </ol>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">No stored bounding boxes found for this inspection.</p>
+                                    )}
                                 </div>
                             )}
                         </div>
