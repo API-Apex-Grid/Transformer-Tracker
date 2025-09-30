@@ -37,16 +37,22 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         imageHeight?: number;
     } | null>(null);
     const [overlayToggles, setOverlayToggles] = useState<OverlayToggles>({ looseJoint: true, pointOverload: true, wireOverload: true });
-    // When true, hide stored analysis and ignore inspection.imageUrl locally after a clear
-    const [clearedStoredAnalysis, setClearedStoredAnalysis] = useState<boolean>(false);
+    // Local states for stored analysis so we can update immediately after delete
+    const [storedBoxes, setStoredBoxes] = useState<number[][]>([]);
+    const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
+    const [storedBoxInfo, setStoredBoxInfo] = useState<OverlayBoxInfo[]>([]);
 
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
     ), [transformers, inspection.transformerNumber]);
 
     const effectiveUploadedUrl = useMemo(() => {
-        return uploadedUrl ?? (clearedStoredAnalysis ? null : (inspection.imageUrl || null));
-    }, [uploadedUrl, clearedStoredAnalysis, inspection.imageUrl]);
+        return uploadedUrl ?? (inspection.imageUrl || null);
+    }, [uploadedUrl, inspection.imageUrl]);
+
+    const storedImageUrl = useMemo(() => {
+        return (inspection.imageUrl || uploadedUrl || previewUrl) || null;
+    }, [inspection.imageUrl, uploadedUrl, previewUrl]);
 
     const baselineForWeather = (weather?: string | null) => {
         if (!transformer) return null;
@@ -71,9 +77,51 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         setUploadedBy(inspection.imageUploadedBy || null);
         setAiStats(null);
         setPreviewUrl(null);
-        setClearedStoredAnalysis(false);
+        // initialize stored analysis states from inspection
+        let boxes: number[][] = [];
+        try {
+            const raw = typeof inspection.boundingBoxes === 'string'
+                ? JSON.parse(inspection.boundingBoxes)
+                : (inspection.boundingBoxes as any);
+            if (Array.isArray(raw)) {
+                if (raw.length === 0) boxes = [];
+                else if (Array.isArray(raw[0])) boxes = raw as number[][];
+                else {
+                    // flat array assumed [x,y,w,h, x,y,w,h, ...]
+                    const flat = raw as number[];
+                    for (let i = 0; i + 3 < flat.length; i += 4) {
+                        boxes.push([flat[i], flat[i + 1], flat[i + 2], flat[i + 3]]);
+                    }
+                }
+            }
+            setStoredBoxes(boxes);
+        } catch (e) { 
+            setStoredBoxes([]); 
+            boxes = [];
+        }
+        try {
+            const ft = Array.isArray(inspection.faultTypes)
+                ? (inspection.faultTypes as string[])
+                : (typeof inspection.faultTypes === 'string' ? (JSON.parse(inspection.faultTypes) as string[]) : []);
+            const finalFt = Array.isArray(ft) ? ft : [];
+            setStoredFaultTypes(finalFt);
+
+            const info: OverlayBoxInfo[] = boxes.map((box, index) => ({
+                x: box[0],
+                y: box[1],
+                w: box[2],
+                h: box[3],
+                label: finalFt[index] || 'unknown',
+                boxFault: finalFt[index] || 'unknown',
+            }));
+            setStoredBoxInfo(info);
+        } catch (e) { 
+            setStoredFaultTypes([]); 
+            setStoredBoxInfo([]);
+        }
+    // Also update when boundingBoxes/faultTypes/imageUrl change on the same inspection id
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [inspection.id]);
+    }, [inspection.id, inspection.boundingBoxes, inspection.faultTypes, inspection.imageUrl]);
 
     const handleUpload = async (file: File, weather: string) => {
         if (!inspection.id) return;
@@ -187,8 +235,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     setUploadedAt(null);
                                     setUploadedBy(null);
                                     setAiStats(null);
-                                    // Hide stored analysis and old image locally right away
-                                    setClearedStoredAnalysis(true);
+                                    // Clear local stored analysis immediately
+                                    setStoredBoxes([]);
+                                    setStoredFaultTypes([]);
                                     await reload();
                                     await reloadTransformers();
                                 } catch {
@@ -296,15 +345,59 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 </label>
                             </div>
                             {(previewUrl || effectiveUploadedUrl) && aiStats ? (
-                                <OverlayedThermal
-                                    imageUrl={(previewUrl || effectiveUploadedUrl) as string}
-                                    naturalWidth={aiStats.imageWidth}
-                                    naturalHeight={aiStats.imageHeight}
-                                    boxes={(aiStats.boxes as number[][]) ?? []}
-                                    boxInfo={aiStats.boxInfo}
-                                    toggles={overlayToggles}
+                                <div className="overscroll-none overflow-hidden">
+                                    <OverlayedThermal
+                                        imageUrl={(previewUrl || effectiveUploadedUrl) as string}
+                                        naturalWidth={aiStats.imageWidth}
+                                        naturalHeight={aiStats.imageHeight}
+                                        boxes={(aiStats.boxes as number[][]) ?? []}
+                                        boxInfo={aiStats.boxInfo}
+                                        toggles={overlayToggles}
+                                        onRemoveBox={async (idx, box) => {
+                                        if (!inspection.id) return;
+                                        try {
+                                            // Optimistically update local aiStats
+                                            setAiStats((prev) => {
+                                                if (!prev) return prev;
+                                                const next = { ...prev } as any;
+                                                if (Array.isArray(next.boxes)) {
+                                                    const arr = (next.boxes as number[][]).slice();
+                                                    if (box) {
+                                                        const i = arr.findIndex((b) => b && b.length >= 4 && b[0] === box.x && b[1] === box.y && b[2] === box.w && b[3] === box.h);
+                                                        if (i >= 0) arr.splice(i, 1); else arr.splice(idx, 1);
+                                                    } else {
+                                                        arr.splice(idx, 1);
+                                                    }
+                                                    next.boxes = arr;
+                                                }
+                                                if (Array.isArray(next.boxInfo)) {
+                                                    const info = (next.boxInfo as OverlayBoxInfo[]).slice();
+                                                    if (box) {
+                                                        const i2 = info.findIndex((bi) => bi && bi.x === box.x && bi.y === box.y && bi.w === box.w && bi.h === box.h);
+                                                        if (i2 >= 0) info.splice(i2, 1); else info.splice(idx, 1);
+                                                    } else {
+                                                        info.splice(idx, 1);
+                                                    }
+                                                    next.boxInfo = info;
+                                                }
+                                                return next;
+                                            });
+                                            // Call backend to persist removal in DB (both boundingBoxes and faultTypes) by value for precision
+                                            if (box) {
+                                                const params = new URLSearchParams({ x: String(box.x), y: String(box.y), w: String(box.w), h: String(box.h) });
+                                                await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes?${params.toString()}`), { method: 'DELETE' });
+                                            } else {
+                                                await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes/${idx}`), { method: 'DELETE' });
+                                            }
+                                            // Reload to ensure context picks up latest persisted state
+                                            await reload();
+                                        } catch {
+                                            // ignore errors for now; a full toast can be added later
+                                        }
+                                    }}
                                     containerClassName="w-full border rounded overflow-hidden"
                                 />
+                                </div>
                             ) : (
                                 <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">
                                     Run analysis to see overlay
@@ -319,32 +412,63 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 </div>
                             )}
                             {/* Stored analysis display: if inspection has an imageUrl and saved boundingBoxes, show them */}
-                            {(!aiStats && effectiveUploadedUrl && !clearedStoredAnalysis) && inspection.boundingBoxes && (
+                            {(!aiStats && storedImageUrl && Array.isArray(storedBoxes) && storedBoxes.length > 0) && (
                                 <div className="mt-4">
                                     <h5 className="font-semibold mb-2">Stored analysis</h5>
                                     {/* overall fault type removed; per-box labels shown on overlays */}
                                     {(() => {
-                                        const boxes = (typeof inspection.boundingBoxes === 'string'
-                                            ? (() => { try { return JSON.parse(inspection.boundingBoxes as string) as number[][]; } catch { return []; } })()
-                                            : (inspection.boundingBoxes as number[][])) || [];
-                                        if (!boxes || (Array.isArray(boxes) && boxes.length === 0)) return null;
-                                        const ft = (Array.isArray(inspection.faultTypes)
-                                            ? inspection.faultTypes
-                                            : (typeof inspection.faultTypes === 'string' ? (() => { try { return JSON.parse(inspection.faultTypes as string) as string[]; } catch { return []; } })() : []));
-                                        const boxInfo = boxes.map((b, idx) => ({
-                                            x: b[0], y: b[1], w: b[2], h: b[3],
-                                            boxFault: (ft[idx] as string | undefined) || 'none',
-                                            label: (ft[idx] as string | undefined) || 'none',
-                                        }));
+                                        const boxes = storedBoxes;
+                                        if (!boxes || boxes.length === 0) return null;
+                                        const ft = storedFaultTypes;
+                                        const boxInfo = boxes.map((b, idx) => {
+                                            const faultType = ft[idx] ?? 'none';
+                                            return {
+                                                x: b[0], y: b[1], w: b[2], h: b[3],
+                                                boxFault: faultType,
+                                                label: faultType,
+                                            };
+                                        });
                                         return (
-                                            <OverlayedThermal
-                                                imageUrl={effectiveUploadedUrl as string}
-                                                // no persisted dims; component infers automatically
-                                                boxes={boxes}
-                                                boxInfo={boxInfo}
-                                                toggles={overlayToggles}
+                                            <div className="overscroll-none overflow-hidden">
+                                                <OverlayedThermal
+                                                    imageUrl={storedImageUrl as string}
+                                                    // no persisted dims; component infers automatically
+                                                    boxes={boxes}
+                                                    boxInfo={boxInfo}
+                                                    toggles={{looseJoint: true, pointOverload: true, wireOverload: true}} // Force all toggles on for stored analysis
+                                                onRemoveBox={async (idx, box) => {
+                                                    if (!inspection.id) return;
+                                                    try {
+                                                        // Determine the exact index to remove from current local arrays
+                                                        let matchIdx = idx;
+                                                        if (box && Array.isArray(storedBoxes)) {
+                                                            const i2 = storedBoxes.findIndex(b => b && b.length >= 4 && b[0] === box.x && b[1] === box.y && b[2] === box.w && b[3] === box.h);
+                                                            if (i2 >= 0) matchIdx = i2;
+                                                        }
+                                                        // Optimistically update local stored arrays
+                                                        const newBoxes = Array.isArray(storedBoxes) ? storedBoxes.slice() : [];
+                                                        if (matchIdx >= 0 && matchIdx < newBoxes.length) newBoxes.splice(matchIdx, 1);
+                                                        setStoredBoxes(newBoxes);
+                                                        const newFT = Array.isArray(storedFaultTypes) ? storedFaultTypes.slice() : [];
+                                                        if (matchIdx >= 0 && matchIdx < newFT.length) newFT.splice(matchIdx, 1);
+                                                        setStoredFaultTypes(newFT);
+                                                        // Persist removal precisely using coords if available
+                                                        if (box) {
+                                                            const params = new URLSearchParams({ x: String(box.x), y: String(box.y), w: String(box.w), h: String(box.h) });
+                                                            await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes?${params.toString()}`), { method: 'DELETE' });
+                                                        } else {
+                                                            await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes/${idx}`), { method: 'DELETE' });
+                                                        }
+                                                        // Section hides automatically when boxes array becomes empty
+                                                        // Optionally reload in background to keep context consistent
+                                                        void reload();
+                                                    } catch {
+                                                        // no-op
+                                                    }
+                                                }}
                                                 containerClassName="w-full border rounded overflow-hidden"
                                             />
+                                            </div>
                                         );
                                     })()}
                                 </div>

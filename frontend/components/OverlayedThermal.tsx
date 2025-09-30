@@ -22,6 +22,8 @@ interface OverlayedThermalProps {
   boxInfo?: OverlayBoxInfo[];
   toggles: OverlayToggles;
   containerClassName?: string;
+  // Optional: called with (index) when user requests to remove a box from view
+  onRemoveBox?: (index: number, box?: { x: number; y: number; w: number; h: number }) => void;
 }
 
 function is2DArray(a: unknown): a is number[][] {
@@ -36,6 +38,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   boxInfo,
   toggles,
   containerClassName,
+  onRemoveBox,
 }) => {
 
   // Track actual image natural dimensions to compute relative box positions
@@ -71,7 +74,9 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   const containerRef = useRef<HTMLDivElement|null>(null);
 
   const onWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
+    // Prevent page from scrolling while zooming over the image
     e.preventDefault();
+    e.stopPropagation();
     const delta = -e.deltaY;
     const zoomFactor = Math.exp(delta * 0.0015); // smooth zoom
     const newScale = Math.min(8, Math.max(0.25, scale * zoomFactor));
@@ -89,6 +94,11 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   };
 
   const onMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    // Ignore mousedown originating from interactive children like the X button
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'BUTTON' || target.closest('button'))) {
+      return;
+    }
     isPanningRef.current = true;
     lastPosRef.current = { x: e.clientX, y: e.clientY };
   };
@@ -106,6 +116,21 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   };
 
   useEffect(() => {
+    // Attach a native wheel listener with passive: false to ensure preventDefault works
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (evt: WheelEvent) => {
+      // Always prevent default scroll when mouse wheel is over the interactive image area
+      // Do not stop propagation here so React's onWheel zoom logic still runs.
+      evt.preventDefault();
+    };
+    el.addEventListener('wheel', handler, { passive: false, capture: true });
+    return () => {
+      el.removeEventListener('wheel', handler, { capture: true } as any);
+    };
+  }, []);
+
+  useEffect(() => {
     // Reset zoom/pan when imageUrl changes
     setScale(1);
     setOffset({ x: 0, y: 0 });
@@ -117,7 +142,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     <div
       ref={containerRef}
       className={containerClassName}
-      style={{ position: "relative", width: "100%", height: "28rem", overflow: "hidden", cursor: isPanningRef.current ? "grabbing" : "grab" }}
+      style={{ position: "relative", width: "100%", height: "28rem", overflow: "hidden", cursor: isPanningRef.current ? "grabbing" : "grab", overscrollBehavior: "contain" }}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
@@ -137,6 +162,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
               onLoad={(e) => {
                 const el = e.currentTarget;
                 if (!naturalWidth || !naturalHeight) {
+                  console.log('Image loaded, setting natural dimensions:', el.naturalWidth, 'x', el.naturalHeight);
                   setNat({ w: el.naturalWidth, h: el.naturalHeight });
                 }
               }}
@@ -152,23 +178,26 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                 height: effH ? `${effH}px` : undefined,
                 display: "block",
                 userSelect: "none",
+                // Keep the image itself non-interactive; overlay will handle interactions
                 pointerEvents: "none",
               }}
             />
-            {/* Overlay layer, same sized stage as image */}
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                width: effW ? `${effW}px` : undefined,
-                height: effH ? `${effH}px` : undefined,
-                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-                transformOrigin: "top left",
-                pointerEvents: "none",
-              }}
-            >
-              {list.map((b, idx) => {
+            {/* Overlay layer, same sized stage as image - only render when we have dimensions */}
+            {effW > 0 && effH > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: `${effW}px`,
+                  height: `${effH}px`,
+                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                  transformOrigin: "top left",
+                  // Allow interaction with overlay (for remove buttons)
+                  pointerEvents: "auto",
+                }}
+              >
+                {list.map((b, idx) => {
           // Normalize the boxFault value to handle case sensitivity and trim whitespace
           const normalizedFault = (b.boxFault || "").toLowerCase().trim();
           
@@ -188,8 +217,9 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
             show = toggles.looseJoint || toggles.pointOverload || toggles.wireOverload;
           }
           
+          console.log(`Box ${idx}: fault="${normalizedFault}", show=${show}, effW=${effW}, effH=${effH}, coords=[${b.x},${b.y},${b.w},${b.h}]`);
+          
           if (!show) return null;
-                  if (!effW || !effH) return null;
                   return (
                     <div key={`${b.x}-${b.y}-${idx}`}
                       style={{
@@ -200,6 +230,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                         height: `${b.h}px`,
                         border: "2px solid red",
                         boxSizing: "border-box",
+                        cursor: onRemoveBox ? 'pointer' : 'default',
                       }}>
               <div
                 style={{
@@ -215,10 +246,39 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
               >
                 {b.label || b.boxFault || "fault"}
               </div>
+              {/* Hover X button to remove */}
+              {onRemoveBox && (
+                <button
+                  type="button"
+                  title="Remove box"
+                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemoveBox(idx, { x: b.x, y: b.y, w: b.w, h: b.h }); }}
+                  style={{
+                    position: 'absolute',
+                    top: -8,
+                    right: -8,
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: '#000',
+                    color: '#fff',
+                    lineHeight: '20px',
+                    fontSize: 12,
+                    textAlign: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  ×
+                </button>
+              )}
                     </div>
                   );
                 })}
-            </div>
+              </div>
+            )}
           </>
         );
       })()}

@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Base64;
 import java.util.Map;
 import javax.imageio.ImageIO;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 
 @RestController
 @RequestMapping("/api/inspections")
@@ -127,7 +130,8 @@ public class InspectionController {
                 }
 
                 BufferedImage baseline = readDataUrlToImage(baselineDataUrl);
-                BufferedImage candidate = ImageIO.read(new ByteArrayInputStream(file.getBytes()));
+                byte[] candidateBytes = file.getBytes();
+                BufferedImage candidate = ImageIO.read(new ByteArrayInputStream(candidateBytes));
                 if (baseline == null || candidate == null) {
                     return ResponseEntity.badRequest().body(Map.of("error", "Invalid images for analysis"));
                 }
@@ -143,6 +147,13 @@ public class InspectionController {
     i.setLastAnalysisWeather(weather);
     // Keep the inspection's weather in sync with the last used weather for convenience
     i.setWeather(weather);
+    // Also persist the analyzed image as the current imageUrl so it becomes the default next time
+    try {
+        String mime = file.getContentType() == null ? "application/octet-stream" : file.getContentType();
+        String base64 = Base64.getEncoder().encodeToString(candidateBytes);
+        String imageUrl = "data:" + mime + ";base64," + base64;
+        i.setImageUrl(imageUrl);
+    } catch (Exception ignore) { }
         try {
             // Persist only the boxes array as returned by Python
             var boxesNode = result.path("boxes");
@@ -230,5 +241,110 @@ public class InspectionController {
         String base64 = dataUrl.substring(comma + 1);
         byte[] bytes = Base64.getDecoder().decode(base64);
         return ImageIO.read(new ByteArrayInputStream(bytes));
+    }
+
+    @DeleteMapping("/{id}/boxes/{index}")
+    public ResponseEntity<?> removeBox(@PathVariable String id, @PathVariable int index) {
+        return repo.findById(id).map(i -> {
+            try {
+                String boxesJson = i.getBoundingBoxes();
+                if (boxesJson == null || boxesJson.isBlank()) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "No bounding boxes to modify"));
+                }
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode node = mapper.readTree(boxesJson);
+                if (!(node instanceof ArrayNode)) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "boundingBoxes is not an array"));
+                }
+                ArrayNode arr = (ArrayNode) node;
+                if (index < 0 || index >= arr.size()) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Index out of range"));
+                }
+                // Remove the box at index
+                arr.remove(index);
+                i.setBoundingBoxes(arr.toString());
+
+                // Update faultTypes if present and valid
+                String ftJson = i.getFaultTypes();
+                if (ftJson != null && !ftJson.isBlank()) {
+                    try {
+                        JsonNode ftNode = mapper.readTree(ftJson);
+                        if (ftNode instanceof ArrayNode) {
+                            ArrayNode ftArr = (ArrayNode) ftNode;
+                            if (index >= 0 && index < ftArr.size()) {
+                                ftArr.remove(index);
+                                i.setFaultTypes(ftArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed faultTypes */ }
+                }
+
+                repo.save(i);
+                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Failed to remove box"));
+            }
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}/boxes")
+    public ResponseEntity<?> removeBoxByValue(@PathVariable String id,
+                                              @RequestParam("x") double x,
+                                              @RequestParam("y") double y,
+                                              @RequestParam("w") double w,
+                                              @RequestParam("h") double h) {
+        return repo.findById(id).map(i -> {
+            try {
+                String boxesJson = i.getBoundingBoxes();
+                if (boxesJson == null || boxesJson.isBlank()) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "No bounding boxes to modify"));
+                }
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode node = mapper.readTree(boxesJson);
+                if (!(node instanceof ArrayNode)) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "boundingBoxes is not an array"));
+                }
+                ArrayNode arr = (ArrayNode) node;
+                int matchIdx = -1;
+                final double EPS = 0.5; // tolerance for float vs int serialization
+                for (int idx = 0; idx < arr.size(); idx++) {
+                    JsonNode b = arr.get(idx);
+                    if (b instanceof ArrayNode && b.size() >= 4) {
+                        double bx = b.get(0).asDouble();
+                        double by = b.get(1).asDouble();
+                        double bw = b.get(2).asDouble();
+                        double bh = b.get(3).asDouble();
+                        if (Math.abs(bx - x) < EPS && Math.abs(by - y) < EPS && Math.abs(bw - w) < EPS && Math.abs(bh - h) < EPS) {
+                            matchIdx = idx;
+                            break;
+                        }
+                    }
+                }
+                if (matchIdx < 0) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Box not found"));
+                }
+                arr.remove(matchIdx);
+                i.setBoundingBoxes(arr.toString());
+
+                String ftJson = i.getFaultTypes();
+                if (ftJson != null && !ftJson.isBlank()) {
+                    try {
+                        JsonNode ftNode = mapper.readTree(ftJson);
+                        if (ftNode instanceof ArrayNode) {
+                            ArrayNode ftArr = (ArrayNode) ftNode;
+                            if (matchIdx >= 0 && matchIdx < ftArr.size()) {
+                                ftArr.remove(matchIdx);
+                                i.setFaultTypes(ftArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed faultTypes */ }
+                }
+
+                repo.save(i);
+                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Failed to remove box"));
+            }
+        }).orElse(ResponseEntity.notFound().build());
     }
 }
