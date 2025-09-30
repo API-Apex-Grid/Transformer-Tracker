@@ -4,8 +4,8 @@ import { apiUrl } from "@/lib/api";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const body = await req.json();
   const res = await fetch(apiUrl(`/api/inspections/${id}/boxes`), {
     method: "POST",
