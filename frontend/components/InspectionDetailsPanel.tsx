@@ -182,6 +182,12 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const [storedBoxes, setStoredBoxes] = useState<number[][]>([]);
     const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
     const [storedBoxInfo, setStoredBoxInfo] = useState<OverlayBoxInfo[]>([]);
+    // Drawing & modal state
+    const [isDrawMode, setIsDrawMode] = useState(false);
+    const [drawTarget, setDrawTarget] = useState<"ai" | "stored" | null>(null);
+    const [pendingRect, setPendingRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const [showFaultModal, setShowFaultModal] = useState(false);
+    const [faultSelection, setFaultSelection] = useState<string>("loose joint");
 
     const storedFaultSummary = useMemo(() => {
         if (!storedBoxInfo.length) return [] as Array<{ fault: string; label: string; count: number }>;
@@ -505,6 +511,11 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                         boxes={(aiStats.boxes as number[][]) ?? []}
                                         boxInfo={(aiStats.boxInfo ?? []).map((bi, i) => ({ ...bi, label: String(i + 1) }))}
                                         toggles={overlayToggles}
+                                        allowDraw={isDrawMode && drawTarget === 'ai'}
+                                        onDrawComplete={(rect) => {
+                                            setPendingRect(rect);
+                                            setShowFaultModal(true);
+                                        }}
                                         onRemoveBox={async (idx, box) => {
                                         if (!inspection.id) return;
                                         try {
@@ -549,6 +560,20 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     }}
                                     containerClassName="w-full border rounded overflow-hidden"
                                 />
+                                    {/* Add box button for AI overlay */}
+                                    <div className="mt-2 flex gap-2">
+                                        <button
+                                            className={`px-2 py-1 text-xs border rounded ${isDrawMode && drawTarget === 'ai' ? 'bg-black text-white' : ''}`}
+                                            onClick={() => { setIsDrawMode(true); setDrawTarget('ai'); }}
+                                        >
+                                            {isDrawMode && drawTarget === 'ai' ? 'Drawing: click-drag on image' : 'Add box'}
+                                        </button>
+                                        {isDrawMode && drawTarget === 'ai' && (
+                                            <button className="px-2 py-1 text-xs border rounded" onClick={() => { setIsDrawMode(false); setDrawTarget(null); setPendingRect(null); }}>
+                                                Cancel drawing
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">
@@ -568,12 +593,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     })}
                                 </ol>
                             )}
-                            {aiStats && (
-                                <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
-                                    {typeof aiStats.prob === 'number' && <span>p={aiStats.prob.toFixed(2)}</span>}
-                                    {typeof aiStats.warmFraction === 'number' && <span>warm={aiStats.warmFraction.toFixed(3)}</span>}
-                                    {typeof aiStats.dv95 === 'number' && <span>dv95={aiStats.dv95.toFixed(3)}</span>}
-                                    {typeof aiStats.histDistance === 'number' && <span>histD={aiStats.histDistance.toFixed(3)}</span>}
+                            {typeof aiStats?.prob === 'number' && (
+                                <div className="mt-2 text-xs text-gray-700">
+                                    <span className="font-semibold">Confidence:</span> {aiStats.prob.toFixed(2)}
                                 </div>
                             )}
                             {/* Stored analysis display: if inspection has an imageUrl and saved boundingBoxes, show them */}
@@ -607,6 +629,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                                 boxes={storedBoxes}
                                                 boxInfo={storedBoxInfo.map((bi, idx) => ({ ...bi, label: String(idx + 1) }))}
                                                 toggles={overlayToggles}
+                                                allowDraw={isDrawMode && drawTarget === 'stored'}
+                                                onDrawComplete={(rect) => { setPendingRect(rect); setShowFaultModal(true); }}
                                                 onRemoveBox={async (idx, box) => {
                                                     if (!inspection.id) return;
                                                     try {
@@ -635,6 +659,20 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                                 }}
                                                 containerClassName="w-full border rounded overflow-hidden"
                                             />
+                                            {/* Add box button for stored overlay */}
+                                            <div className="mt-2 flex gap-2">
+                                                <button
+                                                    className={`px-2 py-1 text-xs border rounded ${isDrawMode && drawTarget === 'stored' ? 'bg-black text-white' : ''}`}
+                                                    onClick={() => { setIsDrawMode(true); setDrawTarget('stored'); }}
+                                                >
+                                                    {isDrawMode && drawTarget === 'stored' ? 'Drawing: click-drag on image' : 'Add box'}
+                                                </button>
+                                                {isDrawMode && drawTarget === 'stored' && (
+                                                    <button className="px-2 py-1 text-xs border rounded" onClick={() => { setIsDrawMode(false); setDrawTarget(null); setPendingRect(null); }}>
+                                                        Cancel drawing
+                                                    </button>
+                                                )}
+                                            </div>
                                             {storedBoxInfo.length > 0 && (
                                                 <ol className="mt-2 text-xs text-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                                                     {storedBoxInfo.map((bi, i) => (
@@ -654,9 +692,86 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                         </div>
                     </div>
                 </div>
+                {/* Fault selection modal */}
+                {showFaultModal && pendingRect && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                        <div className="bg-white rounded shadow-lg p-4 w-80">
+                            <h3 className="font-semibold mb-3">Select fault type</h3>
+                            <label className="block text-sm text-gray-700 mb-1">Fault type</label>
+                            <select
+                                className="w-full border rounded px-2 py-1 mb-4"
+                                value={faultSelection}
+                                onChange={(e) => setFaultSelection(e.target.value)}
+                            >
+                                <option value="loose joint">Loose joint</option>
+                                <option value="point overload">Point overload</option>
+                                <option value="wire overload">Wire overload</option>
+                                <option value="none">None</option>
+                            </select>
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    className="px-3 py-1 text-sm border rounded"
+                                    onClick={() => { setShowFaultModal(false); setPendingRect(null); setIsDrawMode(false); setDrawTarget(null); }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="px-3 py-1 text-sm rounded bg-black text-white"
+                                    onClick={async () => {
+                                        if (!inspection.id || !pendingRect) return;
+                                        const ft = faultSelection;
+                                        const rect = pendingRect; // capture before clearing state
+                                        // Optimistically update UI so the new box appears immediately
+                                        setStoredBoxes((prev) => [...prev, [rect.x, rect.y, rect.w, rect.h]]);
+                                        setStoredFaultTypes((prev) => [...prev, ft]);
+                                        setStoredBoxInfo((prev) => [...prev, { x: rect.x, y: rect.y, w: rect.w, h: rect.h, boxFault: ft }]);
+                                        const key = faultToToggleKey(ft);
+                                        if (key) setOverlayToggles((t) => ({ ...t, [key]: true } as OverlayToggles));
+                                        setAiStats((prev) => {
+                                            if (!prev) return prev;
+                                            const next = { ...prev };
+                                            const bxs = Array.isArray(next.boxes) ? (next.boxes as number[][]).slice() : [];
+                                            bxs.push([rect.x, rect.y, rect.w, rect.h]);
+                                            next.boxes = bxs;
+                                            const info = Array.isArray(next.boxInfo) ? (next.boxInfo as OverlayBoxInfo[]).slice() : [];
+                                            info.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h, boxFault: ft });
+                                            next.boxInfo = info;
+                                            return next;
+                                        });
+                                        // Close modal immediately after clicking save
+                                        setShowFaultModal(false);
+                                        setPendingRect(null);
+                                        setIsDrawMode(false);
+                                        setDrawTarget(null);
+                                        // Persist in background
+                                        try {
+                                            const res = await fetch(`/api/inspections/${inspection.id}/boxes`, {
+                                                method: 'POST',
+                                                headers: { 'content-type': 'application/json' },
+                                                body: JSON.stringify({ x: rect.x, y: rect.y, w: rect.w, h: rect.h, faultType: ft }),
+                                            });
+                                            if (!res.ok) {
+                                                alert('Failed to save box. The overlay was added locally, but did not persist.');
+                                                await reload();
+                                            }
+                                        } catch {
+                                            alert('Network error saving box. The overlay was added locally, but did not persist.');
+                                        }
+                                    }}
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
 export default InspectionDetailsPanel;
+
+// Modal for selecting fault type after drawing
+// We place it at file bottom for simplicity; could be refactored into its own component.
+

@@ -24,6 +24,10 @@ interface OverlayedThermalProps {
   containerClassName?: string;
   // Optional: called with (index) when user requests to remove a box from view
   onRemoveBox?: (index: number, box?: { x: number; y: number; w: number; h: number }) => void;
+  // Optional: enable draw mode to create new boxes by dragging on the image
+  allowDraw?: boolean;
+  // Called when a new rectangle has been drawn
+  onDrawComplete?: (box: { x: number; y: number; w: number; h: number }) => void;
 }
 
 function is2DArray(a: unknown): a is number[][] {
@@ -39,6 +43,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   toggles,
   containerClassName,
   onRemoveBox,
+  allowDraw,
+  onDrawComplete,
 }) => {
 
   // Track actual image natural dimensions to compute relative box positions
@@ -72,6 +78,20 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   const isPanningRef = useRef(false);
   const lastPosRef = useRef<{x:number;y:number}|null>(null);
   const containerRef = useRef<HTMLDivElement|null>(null);
+  const drawStartRef = useRef<{x:number;y:number}|null>(null);
+  const [drawRect, setDrawRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
+
+  const toStageCoords = (clientX: number, clientY: number) => {
+    const el = containerRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const cx = clientX - rect.left;
+    const cy = clientY - rect.top;
+    // invert transform: (cx,cy) = translate(offset) + scale(stage)
+    const sx = (cx - offset.x) / scale;
+    const sy = (cy - offset.y) / scale;
+    return { x: Math.max(0, sx), y: Math.max(0, sy) };
+  };
 
   const onWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
     // Prevent page from scrolling while zooming over the image
@@ -99,15 +119,45 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     if (target && (target.tagName === 'BUTTON' || target.closest('button'))) {
       return;
     }
-    isPanningRef.current = true;
-    lastPosRef.current = { x: e.clientX, y: e.clientY };
+    if (allowDraw) {
+      const s = toStageCoords(e.clientX, e.clientY);
+      drawStartRef.current = s;
+      setDrawRect({ x: s.x, y: s.y, w: 0, h: 0 });
+      isPanningRef.current = false;
+      lastPosRef.current = null;
+    } else {
+      isPanningRef.current = true;
+      lastPosRef.current = { x: e.clientX, y: e.clientY };
+    }
   };
   const onMouseUp: React.MouseEventHandler<HTMLDivElement> = () => {
+    if (drawStartRef.current && drawRect && allowDraw) {
+      // finalize draw
+      const rect = drawRect;
+      setDrawRect(null);
+      drawStartRef.current = null;
+      if (rect.w > 4 && rect.h > 4) {
+        if (onDrawComplete) {
+          onDrawComplete({ x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) });
+        }
+      }
+      return;
+    }
     isPanningRef.current = false;
     lastPosRef.current = null;
   };
   const onMouseLeave: React.MouseEventHandler<HTMLDivElement> = onMouseUp;
   const onMouseMove: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (drawStartRef.current && allowDraw) {
+      const s = drawStartRef.current;
+      const p = toStageCoords(e.clientX, e.clientY);
+      const x = Math.min(s.x, p.x);
+      const y = Math.min(s.y, p.y);
+      const w = Math.abs(p.x - s.x);
+      const h = Math.abs(p.y - s.y);
+      setDrawRect({ x, y, w, h });
+      return;
+    }
     if (!isPanningRef.current || !lastPosRef.current) return;
     const dx = e.clientX - lastPosRef.current.x;
     const dy = e.clientY - lastPosRef.current.y;
@@ -197,6 +247,21 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                   pointerEvents: "auto",
                 }}
               >
+                {drawRect && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `${drawRect.x}px`,
+                      top: `${drawRect.y}px`,
+                      width: `${drawRect.w}px`,
+                      height: `${drawRect.h}px`,
+                      border: '2px dashed #2563eb',
+                      background: 'rgba(37,99,235,0.1)',
+                      boxSizing: 'border-box',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
                 {list.map((b, idx) => {
           // Normalize the boxFault value to handle case sensitivity and trim whitespace
           const normalizedFault = (b.boxFault || "").toLowerCase().trim();

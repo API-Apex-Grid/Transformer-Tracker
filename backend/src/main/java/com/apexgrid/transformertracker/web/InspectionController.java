@@ -347,4 +347,56 @@ public class InspectionController {
             }
         }).orElse(ResponseEntity.notFound().build());
     }
+
+    @PostMapping("/{id}/boxes")
+    public ResponseEntity<?> addBox(@PathVariable String id, @RequestBody Map<String, Object> payload) {
+        return repo.findById(id).map(i -> {
+            try {
+                double x = ((Number)payload.getOrDefault("x", 0)).doubleValue();
+                double y = ((Number)payload.getOrDefault("y", 0)).doubleValue();
+                double w = ((Number)payload.getOrDefault("w", 0)).doubleValue();
+                double h = ((Number)payload.getOrDefault("h", 0)).doubleValue();
+                String faultType = String.valueOf(payload.getOrDefault("faultType", "none"));
+
+                ObjectMapper mapper = new ObjectMapper();
+                ArrayNode boxesArr;
+                String boxesJson = i.getBoundingBoxes();
+                if (boxesJson != null && !boxesJson.isBlank()) {
+                    try {
+                        var node = mapper.readTree(boxesJson);
+                        boxesArr = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+                    } catch (Exception ex) {
+                        boxesArr = mapper.createArrayNode();
+                    }
+                } else {
+                    boxesArr = mapper.createArrayNode();
+                }
+                ArrayNode newBox = mapper.createArrayNode();
+                newBox.add(x).add(y).add(w).add(h);
+                boxesArr.add(newBox);
+                i.setBoundingBoxes(boxesArr.toString());
+
+                // Update faultTypes aligned with boxes
+                ArrayNode ftArr;
+                String ftJson = i.getFaultTypes();
+                if (ftJson != null && !ftJson.isBlank()) {
+                    try {
+                        var node = mapper.readTree(ftJson);
+                        ftArr = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+                    } catch (Exception ex) {
+                        ftArr = mapper.createArrayNode();
+                    }
+                } else {
+                    ftArr = mapper.createArrayNode();
+                }
+                ftArr.add(faultType);
+                i.setFaultTypes(ftArr.toString());
+
+                repo.save(i);
+                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", boxesArr, "faultTypes", ftArr));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Failed to add box"));
+            }
+        }).orElse(ResponseEntity.notFound().build());
+    }
 }
