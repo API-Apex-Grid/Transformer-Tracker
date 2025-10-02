@@ -3,17 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/api";
+import LoadingScreen from "@/components/LoadingScreen";
 
 export default function Home() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
+      setLoading(true);
   const res = await fetch(apiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -34,6 +37,8 @@ export default function Home() {
       router.push("/transformer");
   } catch {
       setError("Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -69,12 +74,14 @@ export default function Home() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
-            className="w-full inline-flex justify-center rounded-md bg-black px-4 py-2 text-white font-medium hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+            className="w-full inline-flex justify-center rounded-md bg-black px-4 py-2 text-white font-medium hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-60"
+            disabled={loading}
           >
-            Sign in
+            {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
       </div>
+      <LoadingScreen show={loading} message="Signing you in…" />
     </div>
   );
 }
