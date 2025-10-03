@@ -41,6 +41,8 @@ const TransformerPage = () => {
     null
   );
   const [username, setUsername] = useState<string | null>(null);
+  // Keep avatar src consistent between SSR and first client render; update after mount
+  const [profileSrc, setProfileSrc] = useState<string>("/avatar.png");
 
   // Filters for the main Transformers list view
   const [tfNumberQuery, setTfNumberQuery] = useState("");
@@ -61,6 +63,10 @@ const TransformerPage = () => {
       }
       if (typeof window !== "undefined") {
         setUsername(localStorage.getItem("username"));
+        const stored = localStorage.getItem("userImage");
+        if (stored && stored.length > 0) {
+          setProfileSrc(stored);
+        }
       }
     } catch {
       router.replace("/");
@@ -218,12 +224,14 @@ const TransformerPage = () => {
               className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 border hover:ring-2 hover:ring-gray-300"
               title="Profile Settings"
             >
-              <Image 
-                src={(typeof window !== "undefined" ? localStorage.getItem("userImage") : null) || "/avatar.png"} 
-                alt="Profile" 
+              <Image
+                src={profileSrc}
+                alt="Profile"
                 width={32}
                 height={32}
-                className="w-full h-full object-cover" 
+                loading="lazy"
+                unoptimized={profileSrc.startsWith("data:")}
+                className="w-full h-full object-cover"
               />
             </button>
             <button

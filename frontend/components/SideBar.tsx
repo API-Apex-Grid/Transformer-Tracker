@@ -10,14 +10,13 @@ type Props = {
 
 const Sidebar = ({ children }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const pathname = usePathname();
 
   const checkLoginStatus = () => {
     try {
-      const loggedIn = false;
-        // typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
-      setIsLoggedIn(loggedIn);
+      const loggedIn = typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
+      setIsLoggedIn(!!loggedIn);
     } catch {
       setIsLoggedIn(false);
     }

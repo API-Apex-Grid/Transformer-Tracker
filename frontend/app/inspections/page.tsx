@@ -16,6 +16,8 @@ const InspectionsPage = () => {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [username, setUsername] = useState<string | null>(null);
+    // Ensure client/server render the same initial avatar; update after mount from localStorage
+    const [profileSrc, setProfileSrc] = useState<string>("/avatar.png");
 
     // Filters
     const [inspQuery, setInspQuery] = useState("");
@@ -33,6 +35,10 @@ const InspectionsPage = () => {
             }
             if (typeof window !== 'undefined') {
                 setUsername(localStorage.getItem("username"));
+                const stored = localStorage.getItem("userImage");
+                if (stored && stored.length > 0) {
+                    setProfileSrc(stored);
+                }
             }
         } catch {
             router.replace("/");
@@ -97,12 +103,15 @@ const InspectionsPage = () => {
                             className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 border hover:ring-2 hover:ring-gray-300"
                             title="Profile Settings"
                         >
-                            <Image 
-                                src={(typeof window !== "undefined" ? localStorage.getItem("userImage") : null) || "/avatar.png"} 
-                                alt="Profile" 
+                            <Image
+                                src={profileSrc}
+                                alt="Profile"
                                 width={32}
                                 height={32}
-                                className="w-full h-full object-cover" 
+                                loading="lazy"
+                                // Avoid Next.js optimization pipeline for data URLs to keep attributes consistent
+                                unoptimized={profileSrc.startsWith("data:")}
+                                className="w-full h-full object-cover"
                             />
                         </button>
                         <button

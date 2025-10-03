@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TransformersProvider } from "@/context/TransformersContext";
 import { InspectionsProvider } from "@/context/InspectionsContext";
-import Sidebar from "@/components/SideBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +29,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-black`}>
         <TransformersProvider>
           <InspectionsProvider>
-            <Sidebar>{children}</Sidebar>
+            {children}
           </InspectionsProvider>
         </TransformersProvider>
       </body>

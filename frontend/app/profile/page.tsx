@@ -107,6 +107,8 @@ export default function ProfilePage() {
             alt="Profile picture"
             width={64}
             height={64}
+            loading="lazy"
+            unoptimized={!!image && image.startsWith("data:")}
             className="object-cover w-16 h-16"
           />
         </div>

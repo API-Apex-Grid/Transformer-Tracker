@@ -31,7 +31,19 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
         throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
       }
       const data = await res.json();
-      setTransformers(Array.isArray(data) ? data : []);
+      const list: Transformer[] = Array.isArray(data) ? data : [];
+      const numKey = (s: string | undefined) => {
+        if (!s) return Number.POSITIVE_INFINITY;
+        const m = s.match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+      };
+      list.sort((a, b) => {
+        const na = numKey(a.transformerNumber);
+        const nb = numKey(b.transformerNumber);
+        if (na !== nb) return na - nb;
+        return (a.transformerNumber || '').localeCompare(b.transformerNumber || '');
+      });
+      setTransformers(list);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error fetching transformers';
       console.error('[TransformersContext] load failed:', err);
