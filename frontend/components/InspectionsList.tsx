@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useInspections } from "@/context/InspectionsContext";
 import { Inspection } from "@/types/inspection";
 
@@ -15,6 +15,8 @@ interface InspectionListProps {
 const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransformerColumn = false }: InspectionListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const { updateInspection } = useInspections();
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
 
   const toggleFavourite = (index: number) => {
     const i = inspections[index];
@@ -43,7 +45,7 @@ const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransforme
               Inspection No.
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-36">
-              Inspected Date Time
+              Date of Inspection
             </th>
             <th className="px-6 py-3 border-b-2 border-gray-300 text-left text-xs leading-4 font-bold uppercase tracking-wider w-40">
               Maintainance Date
@@ -91,10 +93,30 @@ const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransforme
                 {inspection.inspectionNumber}
               </td>
               <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-36 min-w-0">
-                {inspection.inspectedDate}
+                {(() => {
+                  // Avoid using Date.now() during SSR to prevent hydration mismatches
+                  if (!isMounted) return <span>{inspection.inspectedDate}</span>;
+                  const status = (inspection.status || '').toLowerCase();
+                  const dueStr = inspection.inspectedDate;
+                  let cls = '';
+                  if (dueStr) {
+                    const due = new Date(dueStr);
+                    if (!Number.isNaN(due.getTime())) {
+                      const now = Date.now();
+                      const diffMs = due.getTime() - now;
+                      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+                      if (diffMs < 0) {
+                        cls = 'bg-red-100 text-red-800 border border-red-300 px-1 rounded';
+                      } else if (status === 'pending' && diffMs <= threeDaysMs) {
+                        cls = 'bg-yellow-100 text-yellow-800 border border-yellow-300 px-1 rounded';
+                      }
+                    }
+                  }
+                  return <span className={cls}>{inspection.inspectedDate}</span>;
+                })()}
               </td>
               <td className="px-6 py-4 align-top whitespace-normal break-words border-b border-gray-200 w-40 min-w-0">
-                {inspection.maintainanceDate}
+                {(inspection.status === 'Completed') ? (inspection.maintainanceDate || '') : ''}
               </td>
               <td className="px-6 py-4 align-top whitespace-normal break-words break-all border-b border-gray-200 w-32 min-w-0">
                 <span

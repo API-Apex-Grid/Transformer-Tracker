@@ -39,7 +39,7 @@ public class Inspection {
     private String imageUploadedBy;
     @Column(name = "imageuploadedat")
     private Instant imageUploadedAt;
-
+    @Column(name = "favourite")
     private boolean favourite = false;
 
     // Persist detected bounding boxes from analysis as JSON (array of [x,y,w,h])

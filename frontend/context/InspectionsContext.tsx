@@ -56,6 +56,18 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
           status: "",
         } as Inspection;
       });
+      // Sort by natural numeric order of transformer number (e.g., TR1, TR2, ..., TR9, TR10)
+      const numKey = (s: string | undefined) => {
+        if (!s) return Number.POSITIVE_INFINITY;
+        const m = s.match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+      };
+      normalized.sort((a, b) => {
+        const na = numKey(a.transformerNumber);
+        const nb = numKey(b.transformerNumber);
+        if (na !== nb) return na - nb;
+        return (a.transformerNumber || '').localeCompare(b.transformerNumber || '');
+      });
       setInspections(normalized);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error fetching inspections';
@@ -112,6 +124,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
         maintainanceDate: i.maintainanceDate,
         branch: i.branch,
         status: i.status,
+        favourite: typeof i.favourite === 'boolean' ? i.favourite : undefined,
         transformer: { transformerNumber: i.transformerNumber },
       }),
     });
