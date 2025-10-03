@@ -24,9 +24,11 @@ interface ThermalImageProps {
     histDistance?: number;
     dv95?: number;
     warmFraction?: number;
-    boxInfo?: Array<{ x: number; y: number; w: number; h: number; label?: string; areaFrac?: number; aspect?: number; overlapCenterFrac?: number; boxFault?: string }>;
+    boxInfo?: Array<{ x: number; y: number; w: number; h: number; label?: string; areaFrac?: number; aspect?: number; overlapCenterFrac?: number; boxFault?: string; severity?: number; severityLabel?: string; avgDeltaV?: number; maxDeltaV?: number }>;
     imageWidth?: number;
     imageHeight?: number;
+    overallSeverity?: number;
+    overallSeverityLabel?: string;
   }) => void;
 }
 
@@ -198,6 +200,8 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
         boxInfo: data.boxInfo,
         imageWidth: data.imageWidth,
         imageHeight: data.imageHeight,
+        overallSeverity: data.overallSeverity,
+        overallSeverityLabel: data.overallSeverityLabel,
       });
       reviewTimerRef.current = setTimeout(() => setReviewStatus('completed'), 1000);
   } catch {

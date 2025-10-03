@@ -172,10 +172,12 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
         dv95?: number;
         warmFraction?: number;
         boxes?: number[][] | number[];
-        boxInfo?: OverlayBoxInfo[];
+        boxInfo?: (OverlayBoxInfo & { severity?: number; severityLabel?: string; avgDeltaV?: number; maxDeltaV?: number; })[];
     // dimensions omitted; overlay infers them from the image element
         imageWidth?: number;
         imageHeight?: number;
+        overallSeverity?: number;
+        overallSeverityLabel?: string;
     } | null>(null);
     const [overlayToggles, setOverlayToggles] = useState<OverlayToggles>({ looseJoint: true, pointOverload: true, wireOverload: true });
     // Local states for stored analysis so we can update immediately after delete
@@ -429,6 +431,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 boxInfo: res.boxInfo || [],
                                 imageWidth: res.imageWidth,
                                 imageHeight: res.imageHeight,
+                                overallSeverity: res.overallSeverity,
+                                overallSeverityLabel: res.overallSeverityLabel,
                             });
                             // Persisted on backend; optimistically update local selected weather and image
                             setSelectedWeather(selectedWeather);
@@ -584,10 +588,12 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 <ol className="mt-2 text-xs text-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                                     {aiStats.boxInfo!.map((bi, i) => {
                                         const fault = toDisplayLabel(canonicalizeFault(bi.boxFault || 'none'));
+                                        const sev = typeof bi.severity === 'number' ? bi.severity : undefined;
+                                        const sevPct = typeof sev === 'number' ? Math.round(sev * 100) : undefined;
                                         return (
                                             <li key={`ai-legend-${i}`} className="flex items-center gap-2">
                                                 <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-semibold">{i + 1}</span>
-                                                <span>{fault}</span>
+                                                <span>{fault}{sevPct !== undefined ? ` · Severity ${sevPct}%` : ''}</span>
                                             </li>
                                         );
                                     })}
@@ -596,6 +602,11 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             {typeof aiStats?.prob === 'number' && (
                                 <div className="mt-2 text-xs text-gray-700">
                                     <span className="font-semibold">Confidence:</span> {aiStats.prob.toFixed(2)}
+                                </div>
+                            )}
+                            {typeof aiStats?.overallSeverity === 'number' && (
+                                <div className="mt-2 text-xs text-gray-700">
+                                    <span className="font-semibold">Overall severity:</span> {Math.round((aiStats.overallSeverity ?? 0) * 100)}% {aiStats.overallSeverityLabel ? `(${aiStats.overallSeverityLabel})` : ''}
                                 </div>
                             )}
                             {/* Stored analysis display: if inspection has an imageUrl and saved boundingBoxes, show them */}
