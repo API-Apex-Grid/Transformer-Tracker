@@ -202,18 +202,24 @@ const TransformerPage = () => {
 
   return (
     <div className="p-4 pb-24">
-      <div className="flex items-center justify-between mb-4">
-        {viewingInspection ? (
-          <h1 className="text-2xl font-bold">
-            Inspection {viewingInspection.inspectionNumber}
-          </h1>
-        ) : viewingTransformer ? (
-          <h1 className="text-2xl font-bold">
-            Transformer {viewingTransformer.transformerNumber}
-          </h1>
-        ) : (
-          <h1 className="text-2xl font-bold">All Transformers</h1>
-        )}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex flex-col items-start gap-2">
+          <div className="flex items-center gap-3">
+            <Image src="/transformer.png" alt="Apex Grid" width={36} height={36} />
+            <span className="font-semibold text-2xl tracking-wider" style={{ fontFamily: 'var(--font-orbitron)' }}>APEX-GRID</span>
+          </div>
+          {viewingInspection ? (
+            <h1 className="text-2xl font-bold">
+              Inspection {viewingInspection.inspectionNumber}
+            </h1>
+          ) : viewingTransformer ? (
+            <h1 className="text-2xl font-bold">
+              Transformer {viewingTransformer.transformerNumber}
+            </h1>
+          ) : (
+            <h1 className="text-2xl font-bold">All Transformers</h1>
+          )}
+        </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-700">

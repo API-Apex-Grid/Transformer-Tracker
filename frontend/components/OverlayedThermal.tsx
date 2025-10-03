@@ -80,6 +80,89 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   const containerRef = useRef<HTMLDivElement|null>(null);
   const drawStartRef = useRef<{x:number;y:number}|null>(null);
   const [drawRect, setDrawRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
+  const [containerSize, setContainerSize] = useState<{w:number;h:number}>({ w: 0, h: 0 });
+  const PADDING = 10; // px per side
+
+  // Track container size with ResizeObserver
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const cr = entry.contentRect;
+        setContainerSize({ w: cr.width, h: cr.height });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const getEffectiveImageSize = () => {
+    const effW = naturalWidth ?? nat?.w ?? 0;
+    const effH = naturalHeight ?? nat?.h ?? 0;
+    return { effW, effH };
+  };
+
+  const computeMinScale = (imgW: number, imgH: number, viewW: number, viewH: number) => {
+    if (imgW <= 0 || imgH <= 0 || viewW <= 0 || viewH <= 0) return 1;
+    const sx = (viewW - 2 * PADDING) / imgW;
+    const sy = (viewH - 2 * PADDING) / imgH;
+    // Ensure we cannot zoom out to show empty space on all 4 corners
+    return Math.min(sx, sy);
+  };
+
+  const clampOffset = (newScale: number, o: {x:number;y:number}) => {
+    const { effW, effH } = getEffectiveImageSize();
+    const sw = effW * newScale;
+    const sh = effH * newScale;
+    const vw = containerSize.w;
+    const vh = containerSize.h;
+
+    let x = o.x;
+    let y = o.y;
+
+    // Horizontal constraints
+    if (sw >= vw - 2 * PADDING) {
+      const minX = vw - sw - PADDING;
+      const maxX = PADDING;
+      x = Math.min(maxX, Math.max(minX, x));
+    } else {
+      // Center horizontally if image is narrower than the view (with current scale)
+      x = Math.round((vw - sw) / 2);
+    }
+
+    // Vertical constraints
+    if (sh >= vh - 2 * PADDING) {
+      const minY = vh - sh - PADDING;
+      const maxY = PADDING;
+      y = Math.min(maxY, Math.max(minY, y));
+    } else {
+      // Center vertically if image is shorter than the view (with current scale)
+      y = Math.round((vh - sh) / 2);
+    }
+
+    return { x, y };
+  };
+
+  const fitToView = () => {
+    const { effW, effH } = getEffectiveImageSize();
+    const viewW = containerSize.w;
+    const viewH = containerSize.h;
+    const sx = (viewW - 2 * PADDING) / (effW || 1);
+    const sy = (viewH - 2 * PADDING) / (effH || 1);
+    const minS = Math.min(sx, sy);
+    
+    const sw = effW * minS;
+    const sh = effH * minS;
+    
+    // center in both directions
+    const x = Math.round((viewW - sw) / 2);
+    const y = Math.round((viewH - sh) / 2);
+    
+    setScale(minS);
+    setOffset({ x, y });
+};
+
 
   const toStageCoords = (clientX: number, clientY: number) => {
     const el = containerRef.current;
@@ -99,7 +182,9 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     e.stopPropagation();
     const delta = -e.deltaY;
     const zoomFactor = Math.exp(delta * 0.0015); // smooth zoom
-    const newScale = Math.min(8, Math.max(0.25, scale * zoomFactor));
+  const { effW, effH } = getEffectiveImageSize();
+  const minS = computeMinScale(effW, effH, containerSize.w, containerSize.h);
+  const newScale = Math.min(8, Math.max(minS, scale * zoomFactor));
 
     // Zoom relative to cursor position
     if (containerRef.current) {
@@ -108,7 +193,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       const cy = e.clientY - rect.top;
       const sx = cx - (cx - offset.x) * (newScale / scale);
       const sy = cy - (cy - offset.y) * (newScale / scale);
-      setOffset({ x: sx, y: sy });
+      const clamped = clampOffset(newScale, { x: sx, y: sy });
+      setOffset(clamped);
     }
     setScale(newScale);
   };
@@ -162,7 +248,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     const dx = e.clientX - lastPosRef.current.x;
     const dy = e.clientY - lastPosRef.current.y;
     lastPosRef.current = { x: e.clientX, y: e.clientY };
-    setOffset((o) => ({ x: o.x + dx, y: o.y + dy }));
+    setOffset((o) => clampOffset(scale, { x: o.x + dx, y: o.y + dy }));
   };
 
   useEffect(() => {
@@ -182,11 +268,23 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
 
   useEffect(() => {
     // Reset zoom/pan when imageUrl changes
-    setScale(1);
-    setOffset({ x: 0, y: 0 });
-    // Reset natural size; will be set on image load
     setNat(null);
+    // We'll fit to view once we know image size and container size
   }, [imageUrl]);
+
+  // Fit to view when container or natural image size is ready
+  useEffect(() => {
+    if (!imageUrl) return;
+    const { effW, effH } = getEffectiveImageSize();
+    if (effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0) {
+      fitToView();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nat, naturalWidth, naturalHeight, containerSize.w, containerSize.h, imageUrl]);
+
+  const onResetView = () => {
+    fitToView();
+  };
 
   return (
     <div
@@ -205,6 +303,15 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
         // Wait for image dimensions before rendering stage
         return (
           <>
+            {/* Reset zoom control */}
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onResetView(); }}
+              style={{ position: 'absolute', right: 8, top: 8, zIndex: 5, background: '#000', color: '#fff', padding: '6px 10px', borderRadius: 6, opacity: 0.85 }}
+              title="Reset zoom"
+            >
+              Reset
+            </button>
             {/* Stage: fixed to natural pixel size, then transformed for zoom/pan */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

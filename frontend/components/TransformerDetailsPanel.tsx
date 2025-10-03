@@ -181,12 +181,14 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
 
                             {editingWeather === weather && (
                                 <div className="mt-3">
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => handleFileChange(weather, e.target.files?.[0] || null)}
-                                        className="text-sm border rounded w-full py-1 px-2"
-                                    />
+                                                                        <input
+                                                                                type="file"
+                                                                                accept="image/*"
+                                                                                onChange={(e) => handleFileChange(weather, e.target.files?.[0] || null)}
+                                                                                className={`text-sm border rounded w-full py-1 px-2
+                                                                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                                                                    text-gray-400`}
+                                                                        />
                                     <div className="flex gap-2 mt-2">
                                         <button
                                             onClick={() => setEditingWeather(null)}

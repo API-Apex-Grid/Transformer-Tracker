@@ -326,7 +326,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   type="file"
                                   accept="image/*"
                                   onChange={(e) => handleFileChange('sunny', e.target.files?.[0] || null)}
-                                  className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                                  className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                    ${sunnyImage ? 'text-black' : 'text-gray-400'}`}
                                 />
                                 {sunnyImage && (
                                   <div className="mt-2">
@@ -353,7 +355,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   type="file"
                                   accept="image/*"
                                   onChange={(e) => handleFileChange('cloudy', e.target.files?.[0] || null)}
-                                  className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                                  className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                    ${cloudyImage ? 'text-black' : 'text-gray-400'}`}
                                 />
                                 {cloudyImage && (
                                   <div className="mt-2">
@@ -380,7 +384,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   type="file"
                                   accept="image/*"
                                   onChange={(e) => handleFileChange('windy', e.target.files?.[0] || null)}
-                                  className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                                  className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                    ${windyImage ? 'text-black' : 'text-gray-400'}`}
                                 />
                                 {windyImage && (
                                   <div className="mt-2">

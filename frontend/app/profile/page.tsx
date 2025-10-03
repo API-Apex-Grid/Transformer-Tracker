@@ -9,6 +9,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [username, setUsername] = useState<string | null>(null);
   const [image, setImage] = useState<string | null>(null);
+  const [hasPickedImage, setHasPickedImage] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -39,6 +40,7 @@ export default function ProfilePage() {
     reader.onload = () => {
       const dataUrl = reader.result as string;
       setImage(dataUrl);
+      setHasPickedImage(true);
     };
     reader.readAsDataURL(file);
   };
@@ -121,7 +123,16 @@ export default function ProfilePage() {
       <div className="space-y-4 mb-8">
         <div>
           <label className="block text-sm font-medium mb-1">Change profile picture</label>
-          <input type="file" accept="image/*" onChange={onPickImage} />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={onPickImage}
+            className={`
+              file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+              border rounded px-3 py-2
+              ${hasPickedImage ? 'text-black' : 'text-gray-400'}
+            `}
+          />
           <button onClick={saveImage} disabled={saving} className="ml-3 inline-flex items-center rounded-md bg-black px-3 py-2 text-white hover:bg-black/80">
             Save image
           </button>
