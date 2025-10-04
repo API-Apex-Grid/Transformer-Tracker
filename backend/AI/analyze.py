@@ -203,7 +203,7 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
     # Classify on raw boxes first
     fault_type_raw, _ = classify_fault(W, H, boxes)
 
-    # Filter nested boxes if 80% of a box area overlaps another (remove the inner)
+    # Filter nested boxes if 50% of a box area overlaps another (remove the inner)
     def overlap_area(a, b):
         ax, ay, aw, ah = a
         bx, by, bw, bh = b
