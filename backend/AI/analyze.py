@@ -6,9 +6,7 @@ Output: JSON to stdout with keys: prob, histDistance, dv95, warmFraction, boxes,
 """
 import sys
 import json
-import base64
-import io
-from PIL import Image, ImageDraw
+from PIL import Image
 import numpy as np
 import cv2
 
