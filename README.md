@@ -3,16 +3,12 @@
 ## Live app
 
 - Production (deployed): <https://apex-grid-transformer-tracker.vercel.app/>
-- Want to run everything locally? Use the "local" branch which is set up for a fully local workflow (Spring Boot + H2 + Next.js). From your repo:
-  - `git checkout local`
-  - Follow the local instructions below (they also exist in the local branch README).
+- Want to run everything locally? Use the below instructions
 
 Next.js App Router frontend with a Spring Boot backend (preferred). Legacy Next.js API + Prisma/SQLite remains available for local only.
 
 - Frontend: Next.js (App Router), React, Tailwind
-- Backend: Spring Boot (Web, Data JPA, Security), H2 (in-memory/file) or your DB
-- Images are saved as base64 strings in the database
-- Inspections relate to Transformers and are cascade-deleted when a Transformer is removed
+- Backend: Spring Boot (Web, Data JPA, Security), postgres
 
 ## Prerequisites
 
@@ -25,94 +21,124 @@ Next.js App Router frontend with a Spring Boot backend (preferred). Legacy Next.
 
 ## Run locally (Spring backend + Next.js frontend)
 
-1. Start the backend (port 8080)
+Make sure the database is running and accessible. Schema is given below
+
+```sql
+
+CREATE TABLE public.inspections (
+  id CHARACTER VARYING NOT NULL,
+  transformer_id CHARACTER VARYING NOT NULL,
+  inspectionnumber TEXT NOT NULL UNIQUE,
+  inspecteddate TEXT,
+  maintainancedate TEXT,
+  branch CHARACTER VARYING,
+  status CHARACTER VARYING,
+  imageurl TEXT,
+  weather CHARACTER VARYING,
+  lastanalysisweather TEXT,
+  uploadedby TEXT,
+  imageuploadedby TEXT,
+  imageuploadedat TIMESTAMP WITH TIME ZONE,
+  favourite BOOLEAN NOT NULL DEFAULT FALSE,
+  boundingboxes TEXT,
+  faulttypes TEXT,
+  CONSTRAINT inspections_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_inspections_transformer FOREIGN KEY (transformer_id) REFERENCES public.transformers(id)
+);
+
+CREATE TABLE public.transformers (
+  id CHARACTER VARYING NOT NULL,
+  region CHARACTER VARYING,
+  transformernumber TEXT NOT NULL UNIQUE,
+  polenumber TEXT,
+  type CHARACTER VARYING,
+  location CHARACTER VARYING,
+  sunnyimage TEXT,
+  cloudyimage TEXT,
+  windyimage TEXT,
+  uploadedby TEXT,
+  sunnyimageuploadedby TEXT,
+  cloudyimageuploadedby TEXT,
+  windyimageuploadedby TEXT,
+  sunnyimageuploadedat TIMESTAMP WITH TIME ZONE,
+  cloudyimageuploadedat TIMESTAMP WITH TIME ZONE,
+  windyimageuploadedat TIMESTAMP WITH TIME ZONE,
+  favourite BOOLEAN NOT NULL DEFAULT FALSE,
+  CONSTRAINT transformers_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE public.users (
+  id CHARACTER VARYING NOT NULL,
+  username CHARACTER VARYING NOT NULL UNIQUE,
+  passwordhash TEXT NOT NULL,
+  createdat TIMESTAMP WITH TIME ZONE NOT NULL,
+  image TEXT,
+  CONSTRAINT users_pkey PRIMARY KEY (id)
+);
+
+```
+
+### Recommended method: Use Docker for the backend
+
+1. Create a `.env` file in the `backend/` directory based on `.env.example` with your DB credentials.
+
+2. Build and run the Docker container
 
 ```powershell
 # from the project root
 cd backend
+docker pull warrensjk/transformer-tracker:latest
+docker run -d --env-file .env -p 8080:8080 --name transformer-tracker warrensjk/transformer-tracker:latest
+```
+
+### Alternative method: Run the backend directly with Maven
+
+1. Install python dependencies for the AI model
+
+```powershell
+# from the project root
+cd backend/AI
+pip install -r requirements.txt
+```
+
+2. Start the backend (port 8080)
+
+```powershell
+# from the project root
+cd backend
+mvn clean install
+
+$env:DB_URL="<your-database-url>"
+$env:DB_USERNAME="<your-database-username>"
+$env:DB_PASSWORD="<your-database-password>"
+
 mvn spring-boot:run
+
 ```
 
 - API base: <http://localhost:8080>
-- Database: file-based H2 located at `backend/db/transformerdb.mv.db`
+
+### Start the frontend
 
 1. Start the frontend (port 3000)
 
 ```powershell
-# in a new terminal, from the project root
+# from the project root (new terminal)
 cd frontend
+$env:DB_URL="<backend-url>" # optional:localhost:8080 is default
 pnpm install
-
-# point the UI to the Spring backend (optional if using the default)
-# create .env.local with this line (no quotes):
-# NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
-
 pnpm run dev
 ```
 
-1. Open the app at <http://localhost:3000>
-
-Notes
-
-- All frontend API calls go to `${NEXT_PUBLIC_BACKEND_URL}/api/...` via `lib/api.ts`.
-- If you change backend port/host, update `NEXT_PUBLIC_BACKEND_URL` in `.env.local` and restart `pnpm dev`.
-
-## Environment variables
-
-Since env files are ignored by Git, create them locally as needed.
-
-- Frontend (.env.local at project root)
-
-  Create a file named `.env.local` next to `package.json` with:
-
-  ```env
-  NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
-  ```
-
-  Windows PowerShell (temporary for the current shell only):
-
-  ```powershell
-  $env:NEXT_PUBLIC_BACKEND_URL = "http://localhost:8080"
-  pnpm run dev
-  ```
-
-- Backend (Spring) optional overrides
-
-  Defaults are in `backend/src/main/resources/application.yml`. You can override via environment variables (restart backend after changes):
-
-  ```powershell
-  # Change server port
-  $env:SERVER_PORT = "8080"
-
-  # Point to a different DB (example keeps the project default)
-  $env:SPRING_DATASOURCE_URL = "jdbc:h2:file:./db/transformerdb;MODE=PostgreSQL"
-
-  # Set a stronger JWT secret
-  $env:APP_JWT_SECRET = "replace-with-a-long-random-secret"
-
-  # Run the backend
-  cd backend
-  mvn spring-boot:run
-  ```
-
-  Notes:
-  - Spring maps `app.jwt.secret` -> `APP_JWT_SECRET`, `server.port` -> `SERVER_PORT`, etc.
-  - Ensure the backend can read the env vars (set them in the same shell where you start Maven, or use your system’s env settings).
-
-## Data and persistence
-
-- When using the Spring backend, data is stored in `backend/db/transformerdb.mv.db` (H2 file DB).
-- Data survives backend restarts. Remove the file if you want a clean slate.
+2. Open the app at <http://localhost:3000>
 
 ## Auth
 
 - Log in with `user1`..`user5` using the same value as the password (e.g., `user3`/`user3`).
-- Backend handles user creation/verification on first successful login at `/api/login`.
-- The UI shows “Logged in as username” and records `uploadedBy` for created/updated entities and images.
 
 ## Features
 
-- Transformers and Inspections CRUD (App Router API routes with Prisma)
+- Transformers and Inspections CRUD
 - Image uploads stored as base64 in the DB; baseline images can be added/removed
 - Favourites: toggle star in lists; filter by favourites via checkbox
 - Search/filters:
@@ -122,6 +148,7 @@ Since env files are ignored by Git, create them locally as needed.
   - Adding/Editing Inspections: transformer must exist; minimum date is today
   - Adding Transformers: client-side check to ensure `transformerNumber` is unique
 - Cascade delete: deleting a Transformer removes its Inspections
+- AI model can be used to analyze thermal images of transformers (see `backend/AI/README.md` for details)
 
 ## Project structure (high level)
 
