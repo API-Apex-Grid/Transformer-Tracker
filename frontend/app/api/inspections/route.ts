@@ -30,11 +30,35 @@ export async function GET(req: Request) {
   }
   const data = await res.json();
   if (summary) {
-    const list = Array.isArray(data) ? data : [];
-    const stripped = list.map((i) => {
-      const { imageUrl, boundingBoxes, faultTypes, imageUploadedBy, imageUploadedAt, lastAnalysisWeather, transformer, ...rest } = i || {} as any;
-      const transformerNumber = (rest as any).transformerNumber ?? (transformer?.transformerNumber ?? "");
-      return { ...rest, transformerNumber };
+    type TransformerRef = { transformerNumber?: string } | undefined;
+    type InputItem = Record<string, unknown> & { transformer?: TransformerRef };
+    type OutputItem = Record<string, unknown> & { transformerNumber?: string };
+
+    const list: InputItem[] = Array.isArray(data) ? (data as InputItem[]) : [];
+    const stripped: OutputItem[] = list.map((i) => {
+      const item = i ?? {} as InputItem;
+      const transformer = item.transformer as TransformerRef;
+      // Copy all props except the ones we want to drop
+      const out: OutputItem = {};
+      for (const [k, v] of Object.entries(item)) {
+        if (
+          k === "imageUrl" ||
+          k === "boundingBoxes" ||
+          k === "faultTypes" ||
+          k === "imageUploadedBy" ||
+          k === "imageUploadedAt" ||
+          k === "lastAnalysisWeather" ||
+          k === "transformer"
+        ) {
+          continue;
+        }
+        out[k] = v;
+      }
+      // Ensure transformerNumber is present for list
+      if (out.transformerNumber == null) {
+        out.transformerNumber = transformer?.transformerNumber ?? "";
+      }
+      return out;
     });
     return NextResponse.json(stripped, { headers: { "Cache-Control": "no-store" } });
   }

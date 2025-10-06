@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
 
 export type OverlayBoxInfo = {
   x: number; y: number; w: number; h: number;
@@ -28,6 +28,8 @@ interface OverlayedThermalProps {
   allowDraw?: boolean;
   // Called when a new rectangle has been drawn
   onDrawComplete?: (box: { x: number; y: number; w: number; h: number }) => void;
+  // Optional key; when this changes, the viewer will re-center once like on first mount
+  resetKey?: string | number;
 }
 
 function is2DArray(a: unknown): a is number[][] {
@@ -45,6 +47,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   onRemoveBox,
   allowDraw,
   onDrawComplete,
+  resetKey,
 }) => {
 
   // Track actual image natural dimensions to compute relative box positions
@@ -63,14 +66,23 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       const key = `${bi.x},${bi.y},${bi.w},${bi.h}`;
       infosByKey.set(key, bi);
     });
+    // Detect if boxes appear to be normalized (0..1). If so, convert to pixels using natural size.
+    const effW = naturalWidth ?? nat?.w ?? 0;
+    const effH = naturalHeight ?? nat?.h ?? 0;
+    const looksNormalized = rawBoxes.length > 0 && effW > 0 && effH > 0 && rawBoxes.some(b => b.w > 0 && b.w <= 1.0 && b.h > 0 && b.h <= 1.0);
+
     return rawBoxes.map(b => {
+      const bx = looksNormalized ? b.x * effW : b.x;
+      const by = looksNormalized ? b.y * effH : b.y;
+      const bw = looksNormalized ? b.w * effW : b.w;
+      const bh = looksNormalized ? b.h * effH : b.h;
       const key = `${b.x},${b.y},${b.w},${b.h}`;
       const info = infosByKey.get(key);
       const boxFault = info?.boxFault ?? "none";
       const label = info?.label ?? boxFault;
-      return { ...b, boxFault, label };
+      return { x: bx, y: by, w: bw, h: bh, boxFault, label };
     });
-  }, [boxes, boxInfo]);
+  }, [boxes, boxInfo, naturalWidth, naturalHeight, nat?.w, nat?.h]);
 
   // Zoom/Pan state
   const [scale, setScale] = useState(1);
@@ -82,6 +94,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   const [drawRect, setDrawRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
   const [containerSize, setContainerSize] = useState<{w:number;h:number}>({ w: 0, h: 0 });
   const PADDING = 10; // px per side
+  const didInitialFitRef = useRef(false);
+  const userInteractedRef = useRef(false);
 
   // Track container size with ResizeObserver
   useEffect(() => {
@@ -96,6 +110,18 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // If the container resizes before any user interaction, keep it centered/fitted.
+  useEffect(() => {
+    const { effW, effH } = getEffectiveImageSize();
+    if (
+      effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0 &&
+      didInitialFitRef.current && !userInteractedRef.current
+    ) {
+      fitToView();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerSize.w, containerSize.h]);
 
   const getEffectiveImageSize = () => {
     const effW = naturalWidth ?? nat?.w ?? 0;
@@ -180,7 +206,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     // Prevent page from scrolling while zooming over the image
     e.preventDefault();
     e.stopPropagation();
-    const delta = -e.deltaY;
+  userInteractedRef.current = true;
+  const delta = -e.deltaY;
     const zoomFactor = Math.exp(delta * 0.0015); // smooth zoom
   const { effW, effH } = getEffectiveImageSize();
   const minS = computeMinScale(effW, effH, containerSize.w, containerSize.h);
@@ -212,6 +239,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       isPanningRef.current = false;
       lastPosRef.current = null;
     } else {
+      userInteractedRef.current = true;
       isPanningRef.current = true;
       lastPosRef.current = { x: e.clientX, y: e.clientY };
     }
@@ -270,17 +298,75 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
     // Reset zoom/pan when imageUrl changes
     setNat(null);
     // We'll fit to view once we know image size and container size
+    didInitialFitRef.current = false;
+    userInteractedRef.current = false;
   }, [imageUrl]);
+
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    // Force a new initial fit cycle on resetKey changes
+    didInitialFitRef.current = false;
+    userInteractedRef.current = false;
+    const { effW, effH } = getEffectiveImageSize();
+    if (effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0) {
+      fitToView();
+      didInitialFitRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
 
   // Fit to view when container or natural image size is ready
   useEffect(() => {
     if (!imageUrl) return;
     const { effW, effH } = getEffectiveImageSize();
-    if (effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0) {
+    if (!didInitialFitRef.current && effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0) {
+      // Fit once when both sizes are known to center image initially
       fitToView();
+      didInitialFitRef.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nat, naturalWidth, naturalHeight, containerSize.w, containerSize.h, imageUrl]);
+
+  // Fallback: if still at initial state (scale=1, offset=0) but sizes are ready, center now.
+  useEffect(() => {
+    const { effW, effH } = getEffectiveImageSize();
+    if (
+      imageUrl &&
+      effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0 &&
+      scale === 1 && offset.x === 0 && offset.y === 0
+    ) {
+      requestAnimationFrame(() => {
+        if (scale === 1 && offset.x === 0 && offset.y === 0) {
+          fitToView();
+          didInitialFitRef.current = true;
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl, nat, naturalWidth, naturalHeight, containerSize.w, containerSize.h, scale, offset.x, offset.y]);
+
+  // Handle cached images: if the image is already complete at mount/change, set natural size and center.
+  useLayoutEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+    if (img.complete) {
+      if (!naturalWidth || !naturalHeight) {
+        if (!nat || nat.w !== img.naturalWidth || nat.h !== img.naturalHeight) {
+          setNat({ w: img.naturalWidth, h: img.naturalHeight });
+        }
+      }
+      if (!didInitialFitRef.current) {
+        requestAnimationFrame(() => {
+          const { effW, effH } = getEffectiveImageSize();
+          if (effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0) {
+            fitToView();
+            didInitialFitRef.current = true;
+          }
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl]);
 
   const onResetView = () => {
     fitToView();
@@ -322,6 +408,16 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                   console.log('Image loaded, setting natural dimensions:', el.naturalWidth, 'x', el.naturalHeight);
                   setNat({ w: el.naturalWidth, h: el.naturalHeight });
                 }
+                // After the image loads, if we haven't performed the initial fit, do it now on the next frame
+                if (!didInitialFitRef.current) {
+                  requestAnimationFrame(() => {
+                    const { effW, effH } = getEffectiveImageSize();
+                    if (effW > 0 && effH > 0 && containerSize.w > 0 && containerSize.h > 0) {
+                      fitToView();
+                      didInitialFitRef.current = true;
+                    }
+                  });
+                }
               }}
               src={imageUrl}
               alt="Thermal"
@@ -337,6 +433,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                 userSelect: "none",
                 // Keep the image itself non-interactive; overlay will handle interactions
                 pointerEvents: "none",
+                zIndex: 1,
               }}
             />
             {/* Overlay layer, same sized stage as image - only render when we have dimensions */}
@@ -352,6 +449,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                   transformOrigin: "top left",
                   // Allow interaction with overlay (for remove buttons)
                   pointerEvents: "auto",
+                  zIndex: 2,
                 }}
               >
                 {drawRect && (
@@ -366,6 +464,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                       background: 'rgba(37,99,235,0.1)',
                       boxSizing: 'border-box',
                       pointerEvents: 'none',
+                      zIndex: 3,
                     }}
                   />
                 )}

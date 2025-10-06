@@ -43,11 +43,29 @@ export async function GET(req: Request) {
 
   const data = await res.json();
   if (summary) {
-    const list = Array.isArray(data) ? data : [];
+    type InputItem = Record<string, unknown>;
+    const list: InputItem[] = Array.isArray(data) ? (data as InputItem[]) : [];
     const stripped = list.map((t) => {
-      // Remove heavy image fields and uploader metadata for list view
-      const { sunnyImage, cloudyImage, windyImage, sunnyImageUploadedBy, cloudyImageUploadedBy, windyImageUploadedBy, sunnyImageUploadedAt, cloudyImageUploadedAt, windyImageUploadedAt, inspections, ...rest } = t || {};
-      return rest;
+      const item = t ?? {} as InputItem;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(item)) {
+        if (
+          k === "sunnyImage" ||
+          k === "cloudyImage" ||
+          k === "windyImage" ||
+          k === "sunnyImageUploadedBy" ||
+          k === "cloudyImageUploadedBy" ||
+          k === "windyImageUploadedBy" ||
+          k === "sunnyImageUploadedAt" ||
+          k === "cloudyImageUploadedAt" ||
+          k === "windyImageUploadedAt" ||
+          k === "inspections"
+        ) {
+          continue;
+        }
+        out[k] = v;
+      }
+      return out;
     });
     return NextResponse.json(stripped, { headers: { "Cache-Control": "no-store" } });
   }

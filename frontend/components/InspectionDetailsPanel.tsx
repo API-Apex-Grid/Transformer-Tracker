@@ -526,6 +526,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                             setPendingRect(rect);
                                             setShowFaultModal(true);
                                         }}
+                                        resetKey={`${inspection.id}-ai`}
                                         onRemoveBox={async (idx, box) => {
                                         if (!inspection.id) return;
                                         try {
@@ -642,12 +643,14 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                             )}
                                             <OverlayedThermal
                                                 imageUrl={storedImageUrl as string}
-                                                // no persisted dims; component infers automatically
+                                                // No persisted dims; component infers automatically from the image element
+                                                // Boxes are stored as natural image pixel coordinates (same space as analyze output)
                                                 boxes={storedBoxes}
                                                 boxInfo={storedBoxInfo.map((bi, idx) => ({ ...bi, label: String(idx + 1) }))}
                                                 toggles={overlayToggles}
                                                 allowDraw={isDrawMode && drawTarget === 'stored'}
                                                 onDrawComplete={(rect) => { setPendingRect(rect); setShowFaultModal(true); }}
+                                                resetKey={`${inspection.id}-stored`}
                                                 onRemoveBox={async (idx, box) => {
                                                     if (!inspection.id) return;
                                                     try {
@@ -788,7 +791,3 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
 };
 
 export default InspectionDetailsPanel;
-
-// Modal for selecting fault type after drawing
-// We place it at file bottom for simplicity; could be refactored into its own component.
-

@@ -85,7 +85,7 @@ const TransformerPage = () => {
     } catch {
       router.replace("/");
     }
-  }, [router]);
+  }, [router, transformers.length, inspections.length, reloadTransformersList, reloadInspectionsList]);
 
   const addTransformer = (transformer: Transformer) => {
     addFromCtx(transformer);
