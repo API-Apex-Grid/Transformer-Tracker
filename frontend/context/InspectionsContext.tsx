@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Inspection } from "@/types/inspection";
 import { apiUrl } from "@/lib/api";
 
@@ -12,6 +11,8 @@ type InspectionsContextValue = {
   deleteInspection: (index: number) => void;
   reload: () => Promise<void>;
   lastError: string | null;
+  loading: boolean;
+  fetchInspectionById: (id: string) => Promise<Inspection | null>;
 };
 
 const InspectionsContext = createContext<InspectionsContextValue | undefined>(undefined);
@@ -19,12 +20,13 @@ const InspectionsContext = createContext<InspectionsContextValue | undefined>(un
 export function InspectionsProvider({ children }: { children: React.ReactNode }) {
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
-  const pathname = usePathname();
+  const [loading, setLoading] = useState<boolean>(false);
 
   const load = async () => {
     try {
       setLastError(null);
-      const res = await fetch(apiUrl("/api/inspections"), { cache: "no-store" });
+      setLoading(true);
+      const res = await fetch("/api/inspections?summary=1", { cache: "no-store" });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
@@ -73,19 +75,49 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
       const msg = err instanceof Error ? err.message : 'Unknown error fetching inspections';
       console.error('[InspectionsContext] load failed:', err);
       setLastError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Initial load
+  // Initial load only after login flag is present
   useEffect(() => {
-    void load();
+    try {
+      const logged = typeof window !== 'undefined' && localStorage.getItem('isLoggedIn') === 'true';
+      if (logged) void load();
+    } catch {
+      // ignore
+    }
   }, []);
 
-  // Refetch on route change
-  useEffect(() => {
-    if (!pathname) return;
-    void load();
-  }, [pathname]);
+  // Do not refetch on route change to avoid unnecessary reloads
+
+  const fetchInspectionById = async (id: string): Promise<Inspection | null> => {
+    try {
+      const res = await fetch(`/api/inspections/${id}`, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const raw = await res.json();
+      const normalized: Inspection = ((): Inspection => {
+        if (typeof raw === 'object' && raw !== null) {
+          const obj = raw as Record<string, unknown> & { transformer?: { transformerNumber?: string } };
+          const transformerNumber = (obj.transformerNumber as string) ?? obj.transformer?.transformerNumber ?? "";
+          let boundingBoxes: unknown = (obj as any).boundingBoxes;
+          if (typeof boundingBoxes === 'string') {
+            try { boundingBoxes = JSON.parse(boundingBoxes); } catch {}
+          }
+          let faultTypes: unknown = (obj as any).faultTypes;
+          if (typeof faultTypes === 'string') {
+            try { faultTypes = JSON.parse(faultTypes); } catch {}
+          }
+          return { ...(obj as object), transformerNumber, boundingBoxes, faultTypes } as Inspection;
+        }
+        return raw as Inspection;
+      })();
+      return normalized;
+    } catch {
+      return null;
+    }
+  };
 
   const addInspection = async (i: Inspection) => {
     let username: string | null = null;
@@ -141,8 +173,8 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   };
 
   const value = useMemo(
-    () => ({ inspections, addInspection, updateInspection, deleteInspection, reload: load, lastError }),
-    [inspections, lastError]
+    () => ({ inspections, addInspection, updateInspection, deleteInspection, reload: load, lastError, loading, fetchInspectionById }),
+    [inspections, lastError, loading]
   );
 
   return <InspectionsContext.Provider value={value}>{children}</InspectionsContext.Provider>;

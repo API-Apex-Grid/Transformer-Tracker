@@ -41,6 +41,13 @@ public class InspectionController {
         return repo.findAll();
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<Inspection> getOne(@PathVariable String id) {
+        return repo.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Inspection i) {
         // ensure transformer exists

@@ -1,6 +1,7 @@
 "use client";
 
 import { Inspection } from "@/types/inspection";
+import { Transformer } from "@/types/transformer";
 import ThermalImage from "@/components/ThermalImage";
 import OverlayedThermal, { OverlayToggles, OverlayBoxInfo } from "@/components/OverlayedThermal";
 import { useTransformers } from "@/context/TransformersContext";
@@ -218,6 +219,10 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     const transformer = useMemo(() => (
         transformers.find(t => t.transformerNumber === inspection.transformerNumber)
     ), [transformers, inspection.transformerNumber]);
+    const nestedTransformer: Transformer | undefined = useMemo(() => {
+        const anyObj = inspection as unknown as { transformer?: Transformer };
+        return anyObj.transformer;
+    }, [inspection]);
 
     const effectiveUploadedUrl = useMemo(() => {
         return uploadedUrl ?? (inspection.imageUrl || null);
@@ -228,17 +233,18 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     }, [inspection.imageUrl, uploadedUrl, previewUrl]);
 
     const baselineForWeather = (weather?: string | null) => {
-        if (!transformer) return null;
+        const source = (transformer && (transformer.sunnyImage || transformer.cloudyImage || transformer.windyImage)) ? transformer : (nestedTransformer as Transformer | undefined);
+        if (!source) return null;
         switch (weather) {
             case "sunny":
-                return transformer.sunnyImage || null;
+                return source.sunnyImage || null;
             case "cloudy":
-                return transformer.cloudyImage || null;
+                return source.cloudyImage || null;
             case "rainy":
                 // Map rainy to windy baseline if rainy is not modeled; adjust if needed
-                return transformer.windyImage || null;
+                return source.windyImage || null;
             default:
-                return transformer.sunnyImage || transformer.cloudyImage || transformer.windyImage || null;
+                return source.sunnyImage || source.cloudyImage || source.windyImage || null;
         }
     };
 

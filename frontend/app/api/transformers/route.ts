@@ -16,6 +16,7 @@ export async function GET(req: Request) {
   const incomingUrl = new URL(req.url);
   const tf = incomingUrl.searchParams.get("tf");
   const fav = incomingUrl.searchParams.get("fav");
+  const summary = incomingUrl.searchParams.get("summary");
 
   const base = getBackendBaseUrl();
   const url = new URL(`${base}/api/transformers`);
@@ -41,6 +42,15 @@ export async function GET(req: Request) {
   }
 
   const data = await res.json();
+  if (summary) {
+    const list = Array.isArray(data) ? data : [];
+    const stripped = list.map((t) => {
+      // Remove heavy image fields and uploader metadata for list view
+      const { sunnyImage, cloudyImage, windyImage, sunnyImageUploadedBy, cloudyImageUploadedBy, windyImageUploadedBy, sunnyImageUploadedAt, cloudyImageUploadedAt, windyImageUploadedAt, inspections, ...rest } = t || {};
+      return rest;
+    });
+    return NextResponse.json(stripped, { headers: { "Cache-Control": "no-store" } });
+  }
   return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 

@@ -38,11 +38,11 @@ The script compares a baseline image against a candidate image of the same trans
      - Define a central band as the middle third of width and height.
      - For each box compute area fraction, aspect ratio, and overlap with the center band.
      - Decision order:
-       1. If any box covers ≥30% of the image and ≥40% of that box overlaps the center → `loose joint`.
+       1. If any box covers ≥30%  → `loose joint`.
        1. Else if the largest box area fraction < 30% → `point overload`.
        1. Else if any box has aspect ratio ≥ 2.0 → `wire overload`.
        1. Else → `none`.
-   - Nested box filtering: remove a box if ≥50% of its area overlaps another larger box (de‑dup small nested regions).
+   - Nested box filtering: remove a box if ≥50% of its area overlaps another larger box.
    - Second pass on filtered boxes yields per‑box labels and metrics (see Annotations below).
 
 6. Global similarity & probability
@@ -84,8 +84,8 @@ Top‑level fields:
 ### How the UI uses annotations
 
 - Draws rectangles for each entry in `boxInfo` using `x,y,w,h`.
-- Colors/legends by `severityLabel` and/or `boxFault`.
-- Filters/aggregates by `faultType` and `overallSeverityLabel`.
+- Legends by  `boxFault`.
+- Filters by `faultType`.
 
 ## Backend persistence for annotations (actual schema)
 

@@ -8,6 +8,7 @@ export const revalidate = 0;
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const fav = searchParams.get("fav");
+  const summary = searchParams.get("summary");
 
   const url = new URL(apiUrl("/api/inspections"));
   if (fav) url.searchParams.set("fav", fav);
@@ -28,6 +29,15 @@ export async function GET(req: Request) {
     );
   }
   const data = await res.json();
+  if (summary) {
+    const list = Array.isArray(data) ? data : [];
+    const stripped = list.map((i) => {
+      const { imageUrl, boundingBoxes, faultTypes, imageUploadedBy, imageUploadedAt, lastAnalysisWeather, transformer, ...rest } = i || {} as any;
+      const transformerNumber = (rest as any).transformerNumber ?? (transformer?.transformerNumber ?? "");
+      return { ...rest, transformerNumber };
+    });
+    return NextResponse.json(stripped, { headers: { "Cache-Control": "no-store" } });
+  }
   return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 

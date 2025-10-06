@@ -9,9 +9,10 @@ import AddInspectionModal from "@/components/AddInspectionModal";
 import EditInspectionModal from "@/components/EditInspectionModal";
 import { Inspection } from "@/types/inspection";
 import { useInspections } from "@/context/InspectionsContext";
+import LoadingScreen from "@/components/LoadingScreen";
 
 const InspectionsPage = () => {
-    const { inspections, addInspection: addInspectionCtx, updateInspection, deleteInspection } = useInspections();
+    const { inspections, addInspection: addInspectionCtx, updateInspection, deleteInspection, fetchInspectionById } = useInspections();
     const [viewingInspection, setViewingInspection] = useState<Inspection | null>(null);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -26,6 +27,8 @@ const InspectionsPage = () => {
     const [favOnly, setFavOnly] = useState(false);
 
     const router = useRouter();
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState("");
 
     useEffect(() => {
         try {
@@ -49,10 +52,17 @@ const InspectionsPage = () => {
         addInspectionCtx(inspection);
     };
 
-    const openView = (index: number) => {
+    const openView = async (index: number) => {
         const i = inspections[index];
-        // Ensure lastAnalysisWeather is preferred in the details panel via props/state there
-        setViewingInspection(i);
+        if (!i) return;
+        try {
+            setLoadingMessage("Loading inspection…");
+            setIsLoading(true);
+            const full = i.id ? await fetchInspectionById(i.id) : null;
+            setViewingInspection(full || i);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const closeView = () => {
@@ -88,6 +98,7 @@ const InspectionsPage = () => {
     });
 
     return (
+        <>
         <div className="p-4 pb-24">
             <div className="flex items-start justify-between mb-4">
                 <div className="flex flex-col items-start gap-2">
@@ -215,6 +226,8 @@ const InspectionsPage = () => {
                 onSave={saveEdit}
             />
         </div>
+        <LoadingScreen show={isLoading} message={loadingMessage || "Loading…"} />
+        </>
     );
 };
 

@@ -15,6 +15,7 @@ import { Transformer } from "@/types/transformer";
 import { Inspection } from "@/types/inspection";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
+import LoadingScreen from "@/components/LoadingScreen";
 
 const TransformerPage = () => {
   const {
@@ -22,12 +23,16 @@ const TransformerPage = () => {
     addTransformer: addFromCtx,
     updateTransformer,
     deleteTransformer: deleteFromCtx,
+    fetchTransformerById,
+    reload: reloadTransformersList,
   } = useTransformers();
   const {
     inspections,
     addInspection: addInspectionCtx,
     updateInspection,
     deleteInspection,
+    fetchInspectionById,
+    reload: reloadInspectionsList,
   } = useInspections();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -43,6 +48,8 @@ const TransformerPage = () => {
   const [username, setUsername] = useState<string | null>(null);
   // Keep avatar src consistent between SSR and first client render; update after mount
   const [profileSrc, setProfileSrc] = useState<string>("/avatar.png");
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>("");
 
   // Filters for the main Transformers list view
   const [tfNumberQuery, setTfNumberQuery] = useState("");
@@ -67,6 +74,13 @@ const TransformerPage = () => {
         if (stored && stored.length > 0) {
           setProfileSrc(stored);
         }
+      }
+      // Load summary lists on first entry after login
+      if (loggedIn && transformers.length === 0) {
+        void reloadTransformersList();
+      }
+      if (loggedIn && inspections.length === 0) {
+        void reloadInspectionsList();
       }
     } catch {
       router.replace("/");
@@ -96,8 +110,17 @@ const TransformerPage = () => {
     deleteFromCtx(index);
   };
 
-  const openView = (index: number) => {
-    setViewingTransformer(transformers[index]);
+  const openView = async (index: number) => {
+    const item = transformers[index];
+    if (!item) return;
+    try {
+      setLoadingMessage("Loading transformer…");
+      setIsLoading(true);
+      const full = item.id ? await fetchTransformerById(item.id) : null;
+      setViewingTransformer(full || item);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const closeView = () => {
@@ -154,12 +177,25 @@ const TransformerPage = () => {
     }
   };
 
-  const openViewInspection = (index: number) => {
+  const openViewInspection = async (index: number) => {
     if (!viewingTransformer) return;
     const relatedInspections = getRelatedInspections(
       viewingTransformer.transformerNumber
     );
-    setViewingInspection(relatedInspections[index]);
+    const item = relatedInspections[index];
+    if (!item) return;
+    try {
+      setLoadingMessage("Loading inspection…");
+      setIsLoading(true);
+      const originalIndex = inspections.findIndex(
+        (inspection) => inspection.inspectionNumber === item.inspectionNumber
+      );
+      const byId = originalIndex >= 0 ? inspections[originalIndex]?.id : item.id;
+      const full = byId ? await fetchInspectionById(byId) : null;
+      setViewingInspection(full || item);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const closeViewInspection = () => {
@@ -200,7 +236,10 @@ const TransformerPage = () => {
     return matchesTf && matchesPole && matchesRegion && matchesType && matchesFav;
   });
 
+  const initialListsLoading = transformers.length === 0 && inspections.length === 0;
+
   return (
+    <>
     <div className="p-4 pb-24">
       <div className="flex items-start justify-between mb-4">
         <div className="flex flex-col items-start gap-2">
@@ -392,6 +431,8 @@ const TransformerPage = () => {
         onSave={saveEditInspection}
       />
     </div>
+    <LoadingScreen show={isLoading || initialListsLoading} message={loadingMessage || (initialListsLoading ? "Loading data…" : "Loading…")} />
+    </>
   );
 };
 
