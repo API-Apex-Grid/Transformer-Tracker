@@ -328,9 +328,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     };
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg mb-6 p-6">
+        <div className="details-panel bg-white text-gray-900 border border-gray-200 rounded-lg shadow-lg mb-6 p-6 transition-colors dark:bg-[#101010] dark:text-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Inspection Details</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Inspection Details</h2>
                 <button
                     onClick={onClose}
                     className="text-gray-400 hover:text-gray-600"
@@ -343,27 +343,27 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
 
             <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Inspection Number</label>
-                    <p className="mt-1 text-sm text-gray-900">{inspection.inspectionNumber}</p>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Inspection Number</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.inspectionNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Transformer Number</label>
-                    <p className="mt-1 text-sm text-gray-900">{inspection.transformerNumber}</p>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Transformer Number</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.transformerNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Branch</label>
-                    <p className="mt-1 text-sm text-gray-900">{inspection.branch}</p>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Branch</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.branch}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Inspected Date</label>
-                    <p className="mt-1 text-sm text-gray-900">{inspection.inspectedDate}</p>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Inspected Date</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.inspectedDate}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Maintenance Date</label>
-                    <p className="mt-1 text-sm text-gray-900">{inspection.maintainanceDate || 'N/A'}</p>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Maintenance Date</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.maintainanceDate || 'N/A'}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Status</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Status</label>
                     <span
                         className={`inline-block px-2 py-1 text-xs font-semibold rounded ${inspection.status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
                                 inspection.status === 'In Progress' ? 'bg-green-100 text-green-800 border border-green-300' :
@@ -376,8 +376,8 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                 </div>
                                 {inspection.uploadedBy && (
                                     <div className="col-span-2">
-                                        <label className="block text-sm font-bold text-gray-700">Uploaded by</label>
-                                        <p className="mt-1 text-sm text-gray-900">{inspection.uploadedBy}</p>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Uploaded by</label>
+                                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.uploadedBy}</p>
                                     </div>
                                 )}
             </div>
@@ -385,10 +385,10 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
             {/* Thermal Image Upload & Comparison */}
             <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Thermal Image</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Thermal Image</h3>
                     <div className="flex items-center gap-2">
                         <button
-                            className="px-3 py-1 text-sm border rounded hover:bg-gray-50"
+                            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700/60"
                             title="Clear stored image and analysis"
                             onClick={async () => {
                                 if (!inspection.id) return;
@@ -450,18 +450,18 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                     />
 
                     {/* Side-by-side Comparison */}
-                    <div className="bg-gray-50 border rounded-lg p-4">
-                        <h4 className="font-semibold mb-2">Comparison</h4>
+                    <div className="details-panel bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-colors">
+                        <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">Comparison</h4>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Baseline ({selectedWeather})</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Baseline ({selectedWeather})</p>
                                 {baselineForWeather(selectedWeather) ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={baselineForWeather(selectedWeather) as string} alt="Baseline" className="w-full h-56 object-contain border rounded" />
+                                    <img src={baselineForWeather(selectedWeather) as string} alt="Baseline" className="w-full h-56 object-contain border border-gray-200 dark:border-gray-700 rounded" />
                                 ) : (
-                                    <div className="w-full h-56 flex flex-col gap-2 items-center justify-center border rounded text-gray-400">
+                                        <div className="w-full h-56 flex flex-col gap-2 items-center justify-center border border-gray-200 dark:border-gray-700 rounded text-gray-400">
                                         <span>No baseline</span>
-                                        <label className="px-3 py-1 text-sm bg-black text-white rounded cursor-pointer">
+                                        <label className="px-3 py-1 text-sm bg-black dark:bg-white text-white dark:text-black rounded cursor-pointer">
                                             <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                                                 const f = e.target.files?.[0];
                                                 if (f) uploadBaseline(f, selectedWeather);
@@ -472,15 +472,15 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 )}
                             </div>
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Uploaded</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Uploaded</p>
                                                                 {effectiveUploadedUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                                                    <img src={effectiveUploadedUrl as string} alt="Uploaded" className="w-full h-56 object-contain border rounded" />
+                                                                    <img src={effectiveUploadedUrl as string} alt="Uploaded" className="w-full h-56 object-contain border border-gray-200 dark:border-gray-700 rounded" />
                                 ) : (
-                                    <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">No image uploaded</div>
+                                    <div className="w-full h-56 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded text-gray-400">No image uploaded</div>
                                 )}
                                                 {(uploadedBy || uploadedAt || inspection.imageUploadedBy || inspection.imageUploadedAt) && (
-                                                                    <p className="mt-1 text-xs text-gray-500">
+                                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                     by {(uploadedBy || inspection.imageUploadedBy) || 'unknown'}
                                                     {(uploadedAt || inspection.imageUploadedAt) ? ` on ${new Date(uploadedAt || inspection.imageUploadedAt as string).toLocaleString()}` : ''}
                                                                     </p>
@@ -491,7 +491,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                         <div className="mt-4">
                                                         <div className="flex items-center gap-4 mb-2">
                                                                 <button
-                                                                    className="px-2 py-1 text-xs border rounded"
+                                                                    className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                                                                     onClick={() => {
                                                                         const allOn = overlayToggles.looseJoint && overlayToggles.pointOverload && overlayToggles.wireOverload;
                                                                         setOverlayToggles({ looseJoint: !allOn, pointOverload: !allOn, wireOverload: !allOn });
@@ -499,15 +499,15 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                                                 >
                                                                     {overlayToggles.looseJoint && overlayToggles.pointOverload && overlayToggles.wireOverload ? 'Show none' : 'Show all'}
                                                                 </button>
-                                <label className="flex items-center gap-2 text-sm">
+                                <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-300">
                                     <input type="checkbox" checked={overlayToggles.looseJoint} onChange={(e) => setOverlayToggles(t => ({...t, looseJoint: e.target.checked}))} />
                                     Loose joint
                                 </label>
-                                <label className="flex items-center gap-2 text-sm">
+                                <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-300">
                                     <input type="checkbox" checked={overlayToggles.pointOverload} onChange={(e) => setOverlayToggles(t => ({...t, pointOverload: e.target.checked}))} />
                                     Point overload
                                 </label>
-                                <label className="flex items-center gap-2 text-sm">
+                                <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-300">
                                     <input type="checkbox" checked={overlayToggles.wireOverload} onChange={(e) => setOverlayToggles(t => ({...t, wireOverload: e.target.checked}))} />
                                     Wire overload
                                 </label>
@@ -574,32 +574,32 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                     {/* Add box button for AI overlay */}
                                     <div className="mt-2 flex gap-2">
                                         <button
-                                            className={`px-2 py-1 text-xs border rounded ${isDrawMode && drawTarget === 'ai' ? 'bg-black text-white' : ''}`}
+                                            className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded ${isDrawMode && drawTarget === 'ai' ? 'bg-black dark:bg-white text-white dark:text-black' : 'text-gray-900 dark:text-white'}`}
                                             onClick={() => { setIsDrawMode(true); setDrawTarget('ai'); }}
                                         >
                                             {isDrawMode && drawTarget === 'ai' ? 'Drawing: click-drag on image' : 'Add box'}
                                         </button>
                                         {isDrawMode && drawTarget === 'ai' && (
-                                            <button className="px-2 py-1 text-xs border rounded" onClick={() => { setIsDrawMode(false); setDrawTarget(null); setPendingRect(null); }}>
+                                            <button className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white" onClick={() => { setIsDrawMode(false); setDrawTarget(null); setPendingRect(null); }}>
                                                 Cancel drawing
                                             </button>
                                         )}
                                     </div>
                                 </div>
                             ) : (
-                                <div className="w-full h-56 flex items-center justify-center border rounded text-gray-400">
+                                <div className="w-full h-56 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded text-gray-400">
                                     Run analysis to see overlay
                                 </div>
                             )}
                             {aiStats && (aiStats.boxInfo?.length ?? 0) > 0 && (
-                                <ol className="mt-2 text-xs text-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+                                <ol className="mt-2 text-xs text-gray-700 dark:text-gray-300 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                                     {aiStats.boxInfo!.map((bi, i) => {
                                         const fault = toDisplayLabel(canonicalizeFault(bi.boxFault || 'none'));
                                         const sev = typeof bi.severity === 'number' ? bi.severity : undefined;
                                         const sevPct = typeof sev === 'number' ? Math.round(sev * 100) : undefined;
                                         return (
                                             <li key={`ai-legend-${i}`} className="flex items-center gap-2">
-                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-semibold">{i + 1}</span>
+                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">{i + 1}</span>
                                                 <span>{fault}{sevPct !== undefined ? ` · Severity ${sevPct}%` : ''}</span>
                                             </li>
                                         );
@@ -607,33 +607,33 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                 </ol>
                             )}
                             {typeof aiStats?.prob === 'number' && (
-                                <div className="mt-2 text-xs text-gray-700">
+                                <div className="mt-2 text-xs text-gray-700 dark:text-gray-300">
                                     <span className="font-semibold">Confidence:</span> {aiStats.prob.toFixed(2)}
                                 </div>
                             )}
                             {typeof aiStats?.overallSeverity === 'number' && (
-                                <div className="mt-2 text-xs text-gray-700">
+                                <div className="mt-2 text-xs text-gray-700 dark:text-gray-300">
                                     <span className="font-semibold">Overall severity:</span> {Math.round((aiStats.overallSeverity ?? 0) * 100)}% {aiStats.overallSeverityLabel ? `(${aiStats.overallSeverityLabel})` : ''}
                                 </div>
                             )}
                             {/* Stored analysis display: if inspection has an imageUrl and saved boundingBoxes, show them */}
                             {(!aiStats && storedImageUrl) && (
                                 <div className="mt-4">
-                                    <h5 className="font-semibold mb-2">Stored analysis</h5>
+                                    <h5 className="font-semibold mb-2 text-gray-900 dark:text-white">Stored analysis</h5>
                                     {storedBoxInfo.length > 0 ? (
                                         <div className="overscroll-none overflow-hidden">
                                             {(storedFaultSummary.length > 0 || storedVisibleBoxCount === 0) && (
-                                                <div className="flex flex-wrap items-center gap-2 mb-2 text-xs text-gray-600">
+                                                <div className="flex flex-wrap items-center gap-2 mb-2 text-xs text-gray-600 dark:text-gray-400">
                                                     {storedFaultSummary.map((item) => (
-                                                        <span key={item.fault} className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2 py-1 bg-white">
-                                                            <span className="font-semibold text-gray-700">{item.count}</span>
+                                                        <span key={item.fault} className="details-panel inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-800">
+                                                            <span className="font-semibold text-gray-700 dark:text-gray-300">{item.count}</span>
                                                             <span>{item.label}</span>
                                                         </span>
                                                     ))}
                                                     {storedVisibleBoxCount === 0 && storedBoxInfo.length > 0 && (
                                                         <button
                                                             type="button"
-                                                            className="ml-auto inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-700 hover:bg-gray-50"
+                                                            className="details-panel ml-auto inline-flex items-center gap-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                                                             onClick={() => setOverlayToggles({ looseJoint: true, pointOverload: true, wireOverload: true })}
                                                         >
                                                             Show all overlays
@@ -682,22 +682,22 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                             {/* Add box button for stored overlay */}
                                             <div className="mt-2 flex gap-2">
                                                 <button
-                                                    className={`px-2 py-1 text-xs border rounded ${isDrawMode && drawTarget === 'stored' ? 'bg-black text-white' : ''}`}
+                                                    className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded ${isDrawMode && drawTarget === 'stored' ? 'bg-black dark:bg-white text-white dark:text-black' : 'text-gray-900 dark:text-white'}`}
                                                     onClick={() => { setIsDrawMode(true); setDrawTarget('stored'); }}
                                                 >
                                                     {isDrawMode && drawTarget === 'stored' ? 'Drawing: click-drag on image' : 'Add box'}
                                                 </button>
                                                 {isDrawMode && drawTarget === 'stored' && (
-                                                    <button className="px-2 py-1 text-xs border rounded" onClick={() => { setIsDrawMode(false); setDrawTarget(null); setPendingRect(null); }}>
+                                                    <button className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white" onClick={() => { setIsDrawMode(false); setDrawTarget(null); setPendingRect(null); }}>
                                                         Cancel drawing
                                                     </button>
                                                 )}
                                             </div>
                                             {storedBoxInfo.length > 0 && (
-                                                <ol className="mt-2 text-xs text-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+                                                <ol className="mt-2 text-xs text-gray-700 dark:text-gray-300 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                                                     {storedBoxInfo.map((bi, i) => (
                                                         <li key={`stored-legend-${i}`} className="flex items-center gap-2">
-                                                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-semibold">{i + 1}</span>
+                                                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">{i + 1}</span>
                                                             <span>{toDisplayLabel(canonicalizeFault(bi.boxFault || 'none'))}</span>
                                                         </li>
                                                     ))}
@@ -705,7 +705,7 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                                             )}
                                         </div>
                                     ) : (
-                                        <p className="text-sm text-gray-500">No stored bounding boxes found for this inspection.</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">No stored bounding boxes found for this inspection.</p>
                                     )}
                                 </div>
                             )}
@@ -715,11 +715,11 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                 {/* Fault selection modal */}
                 {showFaultModal && pendingRect && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                        <div className="bg-white rounded shadow-lg p-4 w-80">
-                            <h3 className="font-semibold mb-3">Select fault type</h3>
-                            <label className="block text-sm text-gray-700 mb-1">Fault type</label>
+                        <div className="details-panel bg-white dark:bg-[#111] rounded shadow-lg p-4 w-80">
+                            <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">Select fault type</h3>
+                            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Fault type</label>
                             <select
-                                className="w-full border rounded px-2 py-1 mb-4"
+                                className="details-panel w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 mb-4 bg-white dark:bg-[#0f0f0f] text-gray-900 dark:text-white"
                                 value={faultSelection}
                                 onChange={(e) => setFaultSelection(e.target.value)}
                             >
@@ -730,13 +730,13 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
                             </select>
                             <div className="flex justify-end gap-2">
                                 <button
-                                    className="px-3 py-1 text-sm border rounded"
+                                    className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
                                     onClick={() => { setShowFaultModal(false); setPendingRect(null); setIsDrawMode(false); setDrawTarget(null); }}
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    className="px-3 py-1 text-sm rounded bg-black text-white"
+                                    className="px-3 py-1 text-sm rounded bg-black dark:bg-white text-white dark:text-black"
                                     onClick={async () => {
                                         if (!inspection.id || !pendingRect) return;
                                         const ft = faultSelection;

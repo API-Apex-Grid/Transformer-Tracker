@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/api";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -96,11 +97,14 @@ export default function ProfilePage() {
     <div className="p-4 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Your Profile</h1>
-        <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-200">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div className="flex items-center gap-4 mb-6">
         <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 border">
@@ -115,7 +119,7 @@ export default function ProfilePage() {
           />
         </div>
         <div>
-          <div className="text-gray-700 text-sm">Logged in as</div>
+          <div className="text-gray-700 dark:text-gray-300 text-sm">Logged in as</div>
           <div className="font-medium">{username}</div>
         </div>
       </div>
@@ -128,12 +132,12 @@ export default function ProfilePage() {
             accept="image/*"
             onChange={onPickImage}
             className={`
-              file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+              file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
               border rounded px-3 py-2
-              ${hasPickedImage ? 'text-black' : 'text-gray-400'}
+              ${hasPickedImage ? 'text-black dark:text-white' : 'text-gray-400'}
             `}
           />
-          <button onClick={saveImage} disabled={saving} className="ml-3 inline-flex items-center rounded-md bg-black px-3 py-2 text-white hover:bg-black/80">
+          <button onClick={saveImage} disabled={saving} className="ml-3 inline-flex items-center rounded-md bg-black dark:bg-white px-3 py-2 text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80">
             Save image
           </button>
         </div>
@@ -148,15 +152,15 @@ export default function ProfilePage() {
           <span className="block text-sm font-medium mb-1">New password</span>
           <input type="password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="px-3 py-2 border rounded-md w-full" />
         </label>
-        <button onClick={changePassword} disabled={saving} className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white hover:bg-black/80">Update password</button>
+        <button onClick={changePassword} disabled={saving} className="inline-flex items-center rounded-md bg-black dark:bg-white px-4 py-2 text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80">Update password</button>
       </div>
 
       {message && (
         <p
           className={`mt-4 text-sm ${
             message.includes("incorrect") || message.includes("Failed")
-              ? "text-red-600"
-              : "text-gray-700"
+              ? "text-red-600 dark:text-red-400"
+              : "text-gray-700 dark:text-gray-300"
           }`}
         >
           {message}

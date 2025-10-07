@@ -8,8 +8,10 @@ import InspectionDetailsPanel from "@/components/InspectionDetailsPanel";
 import AddInspectionModal from "@/components/AddInspectionModal";
 import EditInspectionModal from "@/components/EditInspectionModal";
 import { Inspection } from "@/types/inspection";
+import ThemeToggle from "@/components/ThemeToggle";
 import { useInspections } from "@/context/InspectionsContext";
 import LoadingScreen from "@/components/LoadingScreen";
+import Logo from "@/components/Logo";
 
 const InspectionsPage = () => {
     const { inspections, addInspection: addInspectionCtx, updateInspection, deleteInspection, fetchInspectionById } = useInspections();
@@ -103,7 +105,7 @@ const InspectionsPage = () => {
             <div className="flex items-start justify-between mb-4">
                 <div className="flex flex-col items-start gap-2">
                     <div className="flex items-center gap-3">
-                        <Image src="/transformer.png" alt="Apex Grid" width={36} height={36} />
+                        <Logo width={36} height={36} />
                         <span className="font-semibold text-2xl tracking-wider" style={{ fontFamily: 'var(--font-orbitron)' }}>APEX-GRID</span>
                     </div>
                     {viewingInspection ? (
@@ -114,6 +116,7 @@ const InspectionsPage = () => {
                 </div>
                 <div className="flex flex-col items-end gap-2">
                     <div className="flex items-center gap-3">
+                        <ThemeToggle />
                         <span className="text-sm text-gray-700">Logged in as: <span className="font-medium">{username || "unknown"}</span></span>
                         <button
                             onClick={() => router.push("/profile")}
