@@ -47,3 +47,26 @@ body {
 
 /* Cards and panels using default bg-white */
 .dark .shadow { box-shadow: 0 1px 2px rgba(255,255,255,0.05), 0 1px 1px rgba(255,255,255,0.03); }
+
+/* Base (light mode) */
+.details-panel {
+  background-color: #ffffff !important;
+  color: #171717 !important;         /* default text color */
+  border-color: #e5e7eb !important;  /* gray-200 */
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+/* Dark mode */
+.dark .details-panel {
+  background-color: #101010 !important;
+  color: #ffffff !important;         /* text color in dark mode */
+  border-color: #333333 !important;
+}
+
+.grid{
+  color: var(--foreground);
+}
+
+.dark .grid{
+  color: var(--foreground);
+}

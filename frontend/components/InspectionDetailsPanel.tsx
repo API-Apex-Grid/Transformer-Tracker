@@ -328,9 +328,9 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
     };
 
     return (
-        <div className="details-panel bg-white text-gray-900 border border-gray-200 rounded-lg shadow-lg mb-6 p-6 transition-colors dark:bg-[#101010] dark:text-gray-100 dark:border-gray-700">
+        <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
             <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Inspection Details</h2>
+                <h2 className="text-xl font-bold">Inspection Details</h2>
                 <button
                     onClick={onClose}
                     className="text-gray-400 hover:text-gray-600"
@@ -343,27 +343,27 @@ const InspectionDetailsPanel = ({ inspection, onClose }: InspectionDetailsPanelP
 
             <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Inspection Number</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.inspectionNumber}</p>
+                    <label className="block text-sm font-bold">Inspection Number</label>
+                    <p className="mt-1 text-sm">{inspection.inspectionNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Transformer Number</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.transformerNumber}</p>
+                    <label className="block text-sm font-bold">Transformer Number</label>
+                    <p className="mt-1 text-sm">{inspection.transformerNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Branch</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.branch}</p>
+                    <label className="block text-sm font-bold">Branch</label>
+                    <p className="mt-1 text-sm">{inspection.branch}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Inspected Date</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.inspectedDate}</p>
+                    <label className="block text-sm font-bold">Inspected Date</label>
+                    <p className="mt-1 text-sm">{inspection.inspectedDate}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Maintenance Date</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{inspection.maintainanceDate || 'N/A'}</p>
+                    <label className="block text-sm font-bold">Maintenance Date</label>
+                    <p className="mt-1 text-sm">{inspection.maintainanceDate || 'N/A'}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Status</label>
+                    <label className="block text-sm font-bold">Status</label>
                     <span
                         className={`inline-block px-2 py-1 text-xs font-semibold rounded ${inspection.status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
                                 inspection.status === 'In Progress' ? 'bg-green-100 text-green-800 border border-green-300' :

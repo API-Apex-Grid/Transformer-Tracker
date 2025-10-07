@@ -75,7 +75,7 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
     return (
         <div className="details-panel bg-white text-gray-900 border border-gray-200 rounded-lg shadow-lg mb-6 p-6 transition-colors dark:bg-[#101010] dark:text-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Transformer Details</h2>
+                <h2 className="text-xl font-bold">Transformer Details</h2>
                 <button
                     onClick={onClose}
                     className="text-gray-400 hover:text-gray-600"
@@ -88,41 +88,41 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
 
             <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Region</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{transformer.region}</p>
+                    <label className="block text-sm font-bold">Region</label>
+                    <p className="mt-1 text-sm">{transformer.region}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Transformer Number</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{transformer.transformerNumber}</p>
+                    <label className="block text-sm font-bold">Transformer Number</label>
+                    <p className="mt-1 text-sm">{transformer.transformerNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Pole Number</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{transformer.poleNumber}</p>
+                    <label className="block text-sm font-bold">Pole Number</label>
+                    <p className="mt-1 text-sm">{transformer.poleNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Type</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{transformer.type}</p>
+                    <label className="block text-sm font-bold">Type</label>
+                    <p className="mt-1 text-sm">{transformer.type}</p>
                 </div>
                 <div className="col-span-2">
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Location</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{transformer.location}</p>
+                    <label className="block text-sm font-bold">Location</label>
+                    <p className="mt-1 text-sm">{transformer.location}</p>
                 </div>
                                 {transformer.uploadedBy && (
                                     <div className="col-span-2">
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Uploaded by</label>
-                                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{transformer.uploadedBy}</p>
+                                        <label className="block text-sm font-bold">Uploaded by</label>
+                                        <p className="mt-1 text-sm">{transformer.uploadedBy}</p>
                                     </div>
                                 )}
             </div>
 
             {/* Baseline Images Section */}
             <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Baseline Images</h3>
+                <h3 className="text-lg font-semibold mb-4">Baseline Images</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {['sunny', 'cloudy', 'windy'].map((weather) => (
                         <div key={weather} className="details-panel border rounded-lg p-4 border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] transition-colors">
                             <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-medium text-gray-900 dark:text-white capitalize">{weather} Weather</h4>
+                                <h4 className="font-medium capitalize">{weather} Weather</h4>
                                 <span className={`px-2 py-1 text-xs font-semibold rounded ${baselineImages[weather as keyof typeof baselineImages]
                                     ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                                     : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
