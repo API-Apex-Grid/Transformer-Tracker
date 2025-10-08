@@ -73,9 +73,9 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
     };
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg mb-6 p-6">
+        <div className="details-panel bg-white text-gray-900 border border-gray-200 rounded-lg shadow-lg mb-6 p-6 transition-colors dark:bg-[#101010] dark:text-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Transformer Details</h2>
+                <h2 className="text-xl font-bold">Transformer Details</h2>
                 <button
                     onClick={onClose}
                     className="text-gray-400 hover:text-gray-600"
@@ -88,44 +88,44 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
 
             <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Region</label>
-                    <p className="mt-1 text-sm text-gray-900">{transformer.region}</p>
+                    <label className="block text-sm font-bold">Region</label>
+                    <p className="mt-1 text-sm">{transformer.region}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Transformer Number</label>
-                    <p className="mt-1 text-sm text-gray-900">{transformer.transformerNumber}</p>
+                    <label className="block text-sm font-bold">Transformer Number</label>
+                    <p className="mt-1 text-sm">{transformer.transformerNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Pole Number</label>
-                    <p className="mt-1 text-sm text-gray-900">{transformer.poleNumber}</p>
+                    <label className="block text-sm font-bold">Pole Number</label>
+                    <p className="mt-1 text-sm">{transformer.poleNumber}</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700">Type</label>
-                    <p className="mt-1 text-sm text-gray-900">{transformer.type}</p>
+                    <label className="block text-sm font-bold">Type</label>
+                    <p className="mt-1 text-sm">{transformer.type}</p>
                 </div>
                 <div className="col-span-2">
-                    <label className="block text-sm font-bold text-gray-700">Location</label>
-                    <p className="mt-1 text-sm text-gray-900">{transformer.location}</p>
+                    <label className="block text-sm font-bold">Location</label>
+                    <p className="mt-1 text-sm">{transformer.location}</p>
                 </div>
                                 {transformer.uploadedBy && (
                                     <div className="col-span-2">
-                                        <label className="block text-sm font-bold text-gray-700">Uploaded by</label>
-                                        <p className="mt-1 text-sm text-gray-900">{transformer.uploadedBy}</p>
+                                        <label className="block text-sm font-bold">Uploaded by</label>
+                                        <p className="mt-1 text-sm">{transformer.uploadedBy}</p>
                                     </div>
                                 )}
             </div>
 
             {/* Baseline Images Section */}
             <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Baseline Images</h3>
+                <h3 className="text-lg font-semibold mb-4">Baseline Images</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {['sunny', 'cloudy', 'windy'].map((weather) => (
-                        <div key={weather} className="border rounded-lg p-4">
+                        <div key={weather} className="details-panel border rounded-lg p-4 border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] transition-colors">
                             <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-medium text-gray-900 capitalize">{weather} Weather</h4>
+                                <h4 className="font-medium capitalize">{weather} Weather</h4>
                                 <span className={`px-2 py-1 text-xs font-semibold rounded ${baselineImages[weather as keyof typeof baselineImages]
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
                                     }`}>
                                     {baselineImages[weather as keyof typeof baselineImages] ? 'Available' : 'Not Available'}
                                 </span>
@@ -135,7 +135,7 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                 {baselineImages[weather as keyof typeof baselineImages] && (
                                     <button
                                         onClick={() => handleViewImage(weather)}
-                                        className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                                        className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -147,14 +147,14 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
 
                                 <button
                                     onClick={() => handleUpdateImage(weather)}
-                                    className="px-3 py-1 text-sm bg-gray-100 text-gray-800 rounded hover:bg-gray-200"
+                                    className="px-3 py-1 text-sm bg-gray-100 text-gray-800 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
                                 >
                                     {baselineImages[weather as keyof typeof baselineImages] ? 'Update' : 'Add'}
                                 </button>
                                                             {baselineImages[weather as keyof typeof baselineImages] && (
                                                                 <button
                                                                     onClick={() => handleRemoveImage(weather)}
-                                                                    className="px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200"
+                                                                    className="px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
                                                                 >
                                                                     Remove
                                                                 </button>
@@ -186,7 +186,7 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
                                                                                 accept="image/*"
                                                                                 onChange={(e) => handleFileChange(weather, e.target.files?.[0] || null)}
                                                                                 className={`text-sm border rounded w-full py-1 px-2
-                                                                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                                                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
                                                                                     text-gray-400`}
                                                                         />
                                     <div className="flex gap-2 mt-2">
@@ -207,12 +207,12 @@ const TransformerDetailsPanel = ({ transformer, onClose, onUpdateTransformer }: 
             {/* Image Viewer Modal */}
             {viewingImage && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-lg p-4 max-w-2xl max-h-[80vh] overflow-auto">
+                    <div className="details-panel bg-white dark:bg-[#111] rounded-lg p-4 max-w-2xl max-h-[80vh] overflow-auto">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold capitalize">{viewingImage} Weather Baseline</h3>
+                            <h3 className="text-lg font-semibold capitalize text-gray-900 dark:text-white">{viewingImage} Weather Baseline</h3>
                             <button
                                 onClick={() => setViewingImage(null)}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
                             >
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

@@ -16,6 +16,8 @@ import { Inspection } from "@/types/inspection";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 import LoadingScreen from "@/components/LoadingScreen";
+import ThemeToggle from "@/components/ThemeToggle";
+import Logo from "@/components/Logo";
 
 const TransformerPage = () => {
   const {
@@ -244,7 +246,7 @@ const TransformerPage = () => {
       <div className="flex items-start justify-between mb-4">
         <div className="flex flex-col items-start gap-2">
           <div className="flex items-center gap-3">
-            <Image src="/transformer.png" alt="Apex Grid" width={36} height={36} />
+            <Logo width={36} height={36} />
             <span className="font-semibold text-2xl tracking-wider" style={{ fontFamily: 'var(--font-orbitron)' }}>APEX-GRID</span>
           </div>
           {viewingInspection ? (
@@ -261,6 +263,7 @@ const TransformerPage = () => {
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <span className="text-sm text-gray-700">
               Logged in as: <span className="font-medium">{username || "unknown"}</span>
             </span>
@@ -288,19 +291,19 @@ const TransformerPage = () => {
                 } catch {}
                 router.replace("/");
               }}
-              className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white hover:bg-black/80"
+              className="inline-flex items-center rounded-md px-4 py-2 custombutton"
             >
               Log out
             </button>
           </div>
           {!viewingTransformer && !viewingInspection && (
             <div className="flex bg-gray-200 rounded-lg p-1">
-              <button className="px-4 py-2 rounded-md bg-black text-white font-medium">
+              <button className="px-4 py-2 rounded-md disabledbutton font-medium mr-1">
                 Transformers
               </button>
               <button
                 onClick={() => router.push("/inspections")}
-                className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-300 font-medium"
+                className="px-4 py-2 rounded-md custombutton font-medium ml-1"
               >
                 Inspections
               </button>

@@ -170,7 +170,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     <>
       <button
         onClick={showSetTransformer}
-        className="bg-black hover:bg-black/80 text-white font-bold py-2 px-4 rounded mb-4"
+        className="custombutton font-bold py-2 px-4 rounded mb-4"
       >
         Add Transformer
       </button>
@@ -327,7 +327,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   accept="image/*"
                                   onChange={(e) => handleFileChange('sunny', e.target.files?.[0] || null)}
                                   className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
-                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
                                     ${sunnyImage ? 'text-black' : 'text-gray-400'}`}
                                 />
                                 {sunnyImage && (
@@ -356,7 +356,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   accept="image/*"
                                   onChange={(e) => handleFileChange('cloudy', e.target.files?.[0] || null)}
                                   className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
-                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
                                     ${cloudyImage ? 'text-black' : 'text-gray-400'}`}
                                 />
                                 {cloudyImage && (
@@ -385,7 +385,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   accept="image/*"
                                   onChange={(e) => handleFileChange('windy', e.target.files?.[0] || null)}
                                   className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
-                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black file:text-white file:hover:bg-black/80
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
                                     ${windyImage ? 'text-black' : 'text-gray-400'}`}
                                 />
                                 {windyImage && (
@@ -416,14 +416,14 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                       <>
                         <button
                           type="submit"
-                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black dark:bg-white text-base font-medium text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Next
                         </button>
                         <button
                           onClick={hideSetTransformer}
                           type="button"
-                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Cancel
                         </button>
@@ -433,7 +433,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                         <button
                           type="submit"
                           disabled={!hasAnyImage}
-                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black dark:bg-white text-base font-medium text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Confirm
                         </button>
@@ -441,14 +441,14 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                           onClick={handleSkip}
                           type="button"
                           disabled={hasAnyImage}
-                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Skip for now
                         </button>
                         <button
                           onClick={() => setStep(1)}
                           type="button"
-                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-gray-200 text-base font-medium text-black hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-gray-200 text-base font-medium text-black hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Back
                         </button>

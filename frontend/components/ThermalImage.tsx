@@ -60,13 +60,13 @@ const ProgressStep: React.FC<ProgressStepProps> = ({ title, status }) => {
   };
 
   return (
-    <div className="flex items-center space-x-3 p-3 border rounded-lg">
+  <div className="flex items-center space-x-3 p-3 border rounded-lg transition-colors">
       <div
         className={`w-4 h-4 rounded-full ${getStatusColor(status)}`}
         title={getStatusText(status)}
       ></div>
-      <span className="text-gray-700 font-medium">{title}</span>
-      <span className="text-sm text-gray-500 ml-auto">
+  <span className="font-medium">{title}</span>
+  <span className="text-sm text-gray-500 dark:text-gray-400 ml-auto">
         {getStatusText(status)}
       </span>
     </div>
@@ -225,13 +225,13 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
   }, [previewUrl]);
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+  <div className="max-w-2xl mx-auto p-6 rounded-lg shadow-lg transition-colors border dark:border-gray-700 ">
       {/* Title */}
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Thermal Image</h2>
+  <h2 className="text-2xl font-bold mb-6">Thermal Image</h2>
       
       {/* Upload Section */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+  <label className="block text-sm font-medium mb-2">
           Upload Thermal Image
         </label>
         <div className="flex items-center space-x-4">
@@ -240,12 +240,12 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
             accept="image/*"
             onChange={handleFileChange}
             ref={inputRef}
-            className={`block w-full text-sm ${selectedFile ? 'text-black' : 'text-gray-400'}
+            className={`block w-full text-sm ${selectedFile ? 'text-black dark:text-white' : 'text-gray-400 dark:text-gray-500'}
               file:mr-4 file:py-2 file:px-4
               file:rounded-full file:border-0
-              file:text-sm file:font-semibold
-              file:bg-blue-50 file:text-blue-700
+              file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-200
               hover:file:bg-blue-100
+              customfile
               cursor-pointer`}
           />
           <button
@@ -253,7 +253,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
               onAnalyze?.(weather);
               runAnalysis();
             }}
-            className="px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800 "
+            className="px-4 py-2 text-sm rounded transition-colors custombutton"
             disabled={!selectedFile || isAnalyzing}
             title="Run analysis"
           >
@@ -262,7 +262,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
           {selectedFile && (
             <button
               onClick={resetProgress}
-              className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+              className="px-4 py-2 text-sm rounded bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
             >
               Reset
             </button>
@@ -271,7 +271,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
         
         {/* Image Preview */}
         {previewUrl && (
-          <div className="mt-4 relative w-full h-48 border rounded-lg bg-white">
+          <div className="mt-4 relative w-full h-48 border rounded-lg bg-white dark:bg-[#111] border-gray-200 dark:border-gray-700">
             <Image
               src={previewUrl}
               alt="Thermal image preview"
@@ -284,14 +284,14 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
 
       {/* Weather Condition Dropdown */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium mb-2">
           Weather Condition
         </label>
         <select
           value={weather}
           onChange={handleWeatherChange}
           className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm
-            focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600"
         >
           <option value="sunny">Sunny</option>
           <option value="cloudy">Cloudy</option>
@@ -301,7 +301,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
 
       {/* Progress Section */}
       <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Progress</h3>
+        <h3 className="text-lg font-semibold mb-4">Progress</h3>
         <div className="space-y-3">
           <ProgressStep title="Thermal image upload" status={uploadStatus} />
           <ProgressStep title="AI analysis" status={analysisStatus} />

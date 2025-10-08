@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/api";
 import LoadingScreen from "@/components/LoadingScreen";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Home() {
   const router = useRouter();
@@ -43,12 +44,15 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
-      <div className="w-full max-w-sm bg-white rounded-lg shadow p-6">
-        <h1 className="text-xl font-semibold text-black mb-4 text-center">Sign in</h1>
+    <div className="min-h-screen flex items-center justify-center p-4 text-gray-900 transition-colors ">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      <div className="w-full max-w-sm rounded-lg shadow p-6 transition-colors signin">
+        <h1 className="text-xl font-semibold mb-4 text-center">Sign in</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-black mb-1">Username</label>
+            <label htmlFor="username" className="block text-sm font-medium mb-1">Username</label>
             <input
               id="username"
               type="text"
@@ -60,7 +64,7 @@ export default function Home() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-black mb-1">Password</label>
+            <label htmlFor="password" className="block text-sm font-medium mb-1">Password</label>
             <input
               id="password"
               type="password"
@@ -74,7 +78,7 @@ export default function Home() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
-            className="w-full inline-flex justify-center rounded-md bg-black px-4 py-2 text-white font-medium hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-60"
+            className="w-full inline-flex justify-center rounded-md bg-black px-4 py-2 text-white font-medium transition-colors hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-white/80 dark:focus:ring-white"
             disabled={loading}
           >
             {loading ? "Signing in…" : "Sign in"}

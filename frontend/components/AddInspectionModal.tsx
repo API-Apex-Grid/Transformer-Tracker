@@ -104,7 +104,7 @@ const AddInspectionModal = ({ addInspection, prefilledTransformerNumber }: AddIn
     <>
       <button
         onClick={showSetInspection}
-        className="bg-black hover:bg-black/80 text-white font-bold py-2 px-4 rounded mb-4"
+        className="custombutton font-bold py-2 px-4 rounded mb-4"
       >
         Add Inspection
       </button>

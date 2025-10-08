@@ -132,7 +132,7 @@ const InspectionsList = ({ inspections, onEdit, onDelete, onView, hideTransforme
               <td className="px-6 py-4 align-top border-b border-gray-200 text-center w-20">
                 <button
                   onClick={() => onView && onView(index)}
-                  className="bg-black hover:bg-black/80 text-white px-3 py-1 rounded text-sm font-medium"
+                  className="custombutton px-3 py-1 rounded text-sm font-medium"
                 >
                   View
                 </button>

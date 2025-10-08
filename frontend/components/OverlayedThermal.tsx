@@ -398,8 +398,6 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
             >
               Reset
             </button>
-            {/* Stage: fixed to natural pixel size, then transformed for zoom/pan */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={imgRef}
               onLoad={(e) => {

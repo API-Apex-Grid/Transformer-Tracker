@@ -7,10 +7,137 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Force light theme across the app */
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Dark mode: flip black/white and soften grays */
+.dark body {
+  --background: #000000;
+  --foreground: #ffffff;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Common elements palette in dark mode */
+.dark .bg-white:not(.details-panel) { background-color: #111111 !important; }
+.dark .text-black { color: #f5f5f5 !important; }
+.dark .border-gray-300 { border-color: #333333 !important; }
+.dark .bg-gray-100 { background-color: #1a1a1a !important; }
+.dark .bg-gray-200 { background-color: #222222 !important; }
+.dark .hover\:bg-gray-200:hover { background-color: #2a2a2a !important; }
+.dark .hover\:bg-gray-300:hover { background-color: #2f2f2f !important; }
+.dark .text-gray-700 { color: #d1d1d1 !important; }
+.dark .text-gray-600 { color: #b0b0b0 !important; }
+.dark .text-gray-900 { color: #cccccc !important; }
+.dark .hover\:ring-gray-300:hover { --tw-ring-color: #444444 !important; }
+.dark .bg-black { background-color: #000000 !important; }
+.dark .text-white { color: #ffffff !important; }
+.dark .bg-gray-50 { background-color: #1a1a1a !important; }
+
+/* Inputs */
+.dark input, .dark select, .dark textarea {
+  background-color: #0f0f0f;
+  color: #ffffff;
+  border-color: #333333;
+}
+.dark input::placeholder, .dark textarea::placeholder { color: #9ca3af; }
+
+/* Cards and panels using default bg-white */
+.dark .shadow { box-shadow: 0 1px 2px rgba(255,255,255,0.05), 0 1px 1px rgba(255,255,255,0.03); }
+
+/* Base (light mode) */
+.details-panel {
+  background-color: #ffffff !important;
+  color: #171717 !important;         /* default text color */
+  border-color: #e5e7eb !important;  /* gray-200 */
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+/* Dark mode */
+.dark .details-panel {
+  background-color: #101010 !important;
+  color: #ffffff !important;         /* text color in dark mode */
+  border-color: #333333 !important;
+}
+
+.grid{
+  color: var(--foreground);
+}
+
+.dark .grid{
+  color: var(--foreground);
+}
+
+.signin{
+  background-color: #ececec;
+  color: var(--foreground);
+  border-color: #e5e7eb !important;  /* gray-200 */
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.dark .signin{
+  background-color: #202020;
+  color: var(--foreground);
+  border-color: #333333 !important;
+}
+
+.custombutton{
+  background-color: #000000;
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.custombutton:hover{
+  background-color: #7e7e7e;
+  color: #1b1b1b;
+}
+
+.dark .custombutton{
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.dark .custombutton:hover{
+  background-color: #3d3d3d;
+  color: #c0c0c0;
+}
+
+/* File input button styled like .custombutton */
+.customfile::file-selector-button{
+  background-color: #000000;
+  color: #ffffff;
+  border: 0;
+  border-radius: 0.375rem; /* rounded-md */
+  padding: 0.5rem 1rem;   /* py-2 px-4 */
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+}
+.customfile:hover::file-selector-button{
+  background-color: #7e7e7e;
+  color: #1b1b1b;
+}
+.dark .customfile::file-selector-button{
+  background-color: #ffffff;
+  color: #000000;
+}
+.dark .customfile:hover::file-selector-button{
+  background-color: #3d3d3d;
+  color: #c0c0c0;
+}
+
+input::placeholder {
+  color: #555555; /* Light gray */
+}
+
+.dark input::placeholder {
+  color: #a8a8a8; /* Darker gray for dark mode */
+}
+
+.disabledbutton{
+  background-color: #a3a3a3;
+  color: #000000;
+  transition: background-color 0.3s, color 0.3s;
 }
