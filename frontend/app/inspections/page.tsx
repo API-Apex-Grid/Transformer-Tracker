@@ -143,7 +143,7 @@ const InspectionsPage = () => {
                                 } catch { }
                                 router.replace("/");
                             }}
-                            className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white hover:bg-black/80"
+                            className="inline-flex items-center rounded-md px-4 py-2 custombutton"
                         >
                             Log out
                         </button>
@@ -152,12 +152,13 @@ const InspectionsPage = () => {
                         <div className="flex bg-gray-200 rounded-lg p-1">
                             <button
                                 onClick={() => router.push("/transformer")}
-                                className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-300 font-medium"
+                                className="px-4 py-2 rounded-md custombutton font-medium mr-1"
                             >
                                 Transformers
                             </button>
                             <button
-                                className="px-4 py-2 rounded-md bg-black text-white font-medium"
+                                disabled ={true}
+                                className="px-4 py-2 rounded-md disabledbutton font-medium ml-1"
                             >
                                 Inspections
                             </button>

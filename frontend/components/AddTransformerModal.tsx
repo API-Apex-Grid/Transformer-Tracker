@@ -170,7 +170,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     <>
       <button
         onClick={showSetTransformer}
-        className="bg-black dark:bg-white hover:bg-black/80 dark:hover:bg-white/80 text-white dark:text-black font-bold py-2 px-4 rounded mb-4"
+        className="custombutton font-bold py-2 px-4 rounded mb-4"
       >
         Add Transformer
       </button>

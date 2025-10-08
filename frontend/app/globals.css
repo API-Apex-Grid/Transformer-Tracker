@@ -70,3 +70,74 @@ body {
 .dark .grid{
   color: var(--foreground);
 }
+
+.signin{
+  background-color: #ececec;
+  color: var(--foreground);
+  border-color: #e5e7eb !important;  /* gray-200 */
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.dark .signin{
+  background-color: #202020;
+  color: var(--foreground);
+  border-color: #333333 !important;
+}
+
+.custombutton{
+  background-color: #000000;
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.custombutton:hover{
+  background-color: #7e7e7e;
+  color: #1b1b1b;
+}
+
+.dark .custombutton{
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.dark .custombutton:hover{
+  background-color: #3d3d3d;
+  color: #c0c0c0;
+}
+
+/* File input button styled like .custombutton */
+.customfile::file-selector-button{
+  background-color: #000000;
+  color: #ffffff;
+  border: 0;
+  border-radius: 0.375rem; /* rounded-md */
+  padding: 0.5rem 1rem;   /* py-2 px-4 */
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+}
+.customfile:hover::file-selector-button{
+  background-color: #7e7e7e;
+  color: #1b1b1b;
+}
+.dark .customfile::file-selector-button{
+  background-color: #ffffff;
+  color: #000000;
+}
+.dark .customfile:hover::file-selector-button{
+  background-color: #3d3d3d;
+  color: #c0c0c0;
+}
+
+input::placeholder {
+  color: #555555; /* Light gray */
+}
+
+.dark input::placeholder {
+  color: #a8a8a8; /* Darker gray for dark mode */
+}
+
+.disabledbutton{
+  background-color: #a3a3a3;
+  color: #000000;
+  transition: background-color 0.3s, color 0.3s;
+}

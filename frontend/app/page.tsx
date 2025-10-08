@@ -44,11 +44,11 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 text-gray-900 transition-colors dark:bg-black dark:text-white">
+    <div className="min-h-screen flex items-center justify-center p-4 text-gray-900 transition-colors ">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-sm rounded-lg shadow p-6 bg-white text-gray-900 transition-colors dark:bg-[#111] dark:text-white">
+      <div className="w-full max-w-sm rounded-lg shadow p-6 transition-colors signin">
         <h1 className="text-xl font-semibold mb-4 text-center">Sign in</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -58,7 +58,7 @@ export default function Home() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-black focus:ring-black dark:border-[#333] dark:bg-[#0f0f0f]"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-black focus:ring-black"
               placeholder="Enter username"
               autoComplete="username"
             />
@@ -70,7 +70,7 @@ export default function Home() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-black focus:ring-black dark:border-[#333] dark:bg-[#0f0f0f]"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-black focus:ring-black"
               placeholder="Enter password"
               autoComplete="current-password"
             />

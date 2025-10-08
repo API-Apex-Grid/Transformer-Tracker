@@ -393,14 +393,11 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
             <button
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onResetView(); }}
-              style={{ position: 'absolute', right: 8, top: 8, zIndex: 5, padding: '6px 10px', borderRadius: 6, opacity: 0.9 }}
+              style={{ position: 'absolute', right: 8, top: 8, zIndex: 5, background: '#000', color: '#fff', padding: '6px 10px', borderRadius: 6, opacity: 0.85 }}
               title="Reset zoom"
-              className="bg-black text-white dark:bg-white dark:text-black"
             >
               Reset
             </button>
-            {/* Stage: fixed to natural pixel size, then transformed for zoom/pan */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={imgRef}
               onLoad={(e) => {

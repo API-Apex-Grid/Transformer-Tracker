@@ -131,13 +131,9 @@ export default function ProfilePage() {
             type="file"
             accept="image/*"
             onChange={onPickImage}
-            className={`
-              file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
-              border rounded px-3 py-2
-              ${hasPickedImage ? 'text-black dark:text-white' : 'text-gray-400'}
-            `}
+            className={`customfile border rounded px-3 py-2 ${hasPickedImage ? 'text-black dark:text-white' : 'text-gray-400'}`}
           />
-          <button onClick={saveImage} disabled={saving} className="ml-3 inline-flex items-center rounded-md bg-black dark:bg-white px-3 py-2 text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80">
+          <button onClick={saveImage} disabled={saving} className="ml-3 inline-flex items-center rounded-md custombutton px-4 py-2">
             Save image
           </button>
         </div>
@@ -152,7 +148,7 @@ export default function ProfilePage() {
           <span className="block text-sm font-medium mb-1">New password</span>
           <input type="password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="px-3 py-2 border rounded-md w-full" />
         </label>
-        <button onClick={changePassword} disabled={saving} className="inline-flex items-center rounded-md bg-black dark:bg-white px-4 py-2 text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80">Update password</button>
+        <button onClick={changePassword} disabled={saving} className="inline-flex items-center rounded-md px-4 py-2 custombutton">Update password</button>
       </div>
 
       {message && (
