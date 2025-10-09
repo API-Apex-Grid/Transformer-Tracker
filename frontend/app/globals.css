@@ -14,9 +14,12 @@ body {
 }
 
 /* Dark mode: flip black/white and soften grays */
-.dark body {
+.dark {
   --background: #000000;
   --foreground: #ffffff;
+}
+
+.dark body {
   background: var(--background);
   color: var(--foreground);
 }
@@ -139,5 +142,63 @@ input::placeholder {
 .disabledbutton{
   background-color: #a3a3a3;
   color: #000000;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.viewbutton{
+  background-color: oklch(47.642% 0.19989 260.516);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.updatebutton{
+  background-color: oklch(36.941% 0.02119 259.428);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.removebutton{
+  background-color: oklch(59.459% 0.29289 27.361);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.weatheravailable{
+  background-color: oklch(54.329% 0.12813 156.881);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+.weathernotavailable{
+  background-color: oklch(75.862% 0.17676 60.629);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.dark .viewbutton{
+  background-color: oklch(38.698% 0.11447 258.793);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.dark .updatebutton{
+  background-color: oklch(70.9% 0.00008 271.152);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.dark .removebutton{
+  background-color: oklch(69.889% 0.19186 23.45);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.dark .weatheravailable{
+  background-color: oklch(65.562% 0.12427 161.904);
+  color: #ffffff;
+  transition: background-color 0.3s, color 0.3s;
+}
+.dark .weathernotavailable{
+  background-color: oklch(82.983% 0.13749 71.048);
+  color: #ffffff;
   transition: background-color 0.3s, color 0.3s;
 }

@@ -579,9 +579,9 @@ const InspectionDetailsPanel = ({
                     className="w-full h-56 object-contain border border-gray-200 dark:border-gray-700 rounded"
                   />
                 ) : (
-                  <div className="w-full h-56 flex flex-col gap-2 items-center justify-center border border-gray-200 dark:border-gray-700 rounded text-gray-400">
+                  <div className="w-full h-56 flex flex-col gap-2 items-center justify-center border border-gray-200 dark:border-gray-700 rounded">
                     <span>No baseline</span>
-                    <label className="px-3 py-1 text-sm bg-black dark:bg-white text-white dark:text-black rounded cursor-pointer">
+                    <label className="px-3 py-1 text-sm rounded cursor-pointer custombutton">
                       <input
                         type="file"
                         accept="image/*"
