@@ -52,6 +52,24 @@ public class Inspection {
     @Column(name = "faulttypes", columnDefinition = "text")
     private String faultTypes;
 
+    // History of analyses: arrays of snapshots aligned by index.
+    // Each entry in boundingBoxHistory is a JSON array of boxes (same shape as boundingBoxes)
+    @Column(name = "boundingboxhistory", columnDefinition = "text")
+    private String boundingBoxHistory;
+
+    // Each entry in faultTypeHistory is a JSON array of strings (same order as its corresponding bounding boxes)
+    @Column(name = "faulttypehistory", columnDefinition = "text")
+    private String faultTypeHistory;
+
+    // Each entry in annotatedByHistory is a string: "AI" or the username who edited boxes
+    // Shape: outer array of snapshots, each inner array aligns 1:1 with faultTypes/boundingBoxes
+    @Column(name = "annotatedbyhistory", columnDefinition = "text")
+    private String annotatedByHistory;
+
+    // Current per-box annotation source aligned with faultTypes/boundingBoxes (e.g., ["AI", "john", ...])
+    @Column(name = "annotatedby", columnDefinition = "text")
+    private String annotatedBy;
+
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -104,4 +122,16 @@ public class Inspection {
     public void setFaultTypes(String faultTypes) { this.faultTypes = faultTypes; }
 
     // analyzed image dimensions removed; overlay will infer from image at runtime
+
+    public String getBoundingBoxHistory() { return boundingBoxHistory; }
+    public void setBoundingBoxHistory(String boundingBoxHistory) { this.boundingBoxHistory = boundingBoxHistory; }
+
+    public String getFaultTypeHistory() { return faultTypeHistory; }
+    public void setFaultTypeHistory(String faultTypeHistory) { this.faultTypeHistory = faultTypeHistory; }
+
+    public String getAnnotatedByHistory() { return annotatedByHistory; }
+    public void setAnnotatedByHistory(String annotatedByHistory) { this.annotatedByHistory = annotatedByHistory; }
+
+    public String getAnnotatedBy() { return annotatedBy; }
+    public void setAnnotatedBy(String annotatedBy) { this.annotatedBy = annotatedBy; }
 }

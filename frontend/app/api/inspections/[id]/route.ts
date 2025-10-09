@@ -48,6 +48,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       ...( _req.headers.get("authorization")
         ? { authorization: _req.headers.get("authorization") as string }
         : {}),
+      ...( _req.headers.get("x-username")
+        ? { "x-username": _req.headers.get("x-username") as string }
+        : {}),
     },
     cache: "no-store",
   });

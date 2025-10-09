@@ -173,6 +173,29 @@ const parseFaultTypes = (
   return normalized.slice(0, expectedLength);
 };
 
+const parseAnnotatedBy = (
+  raw: string | null | undefined,
+  expectedLength: number
+): string[] => {
+  if (!raw) return Array(expectedLength).fill("user");
+  let source: unknown = raw;
+  if (typeof source === "string") {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      return Array(expectedLength).fill("user");
+    }
+  }
+  if (!Array.isArray(source)) return Array(expectedLength).fill("user");
+  const arr = source.map((item) =>
+    typeof item === "string" ? item : "user"
+  );
+  if (arr.length < expectedLength) {
+    arr.push(...Array(expectedLength - arr.length).fill("user"));
+  }
+  return arr.slice(0, expectedLength);
+};
+
 const buildBoxInfo = (boxes: number[][], faults: string[]): OverlayBoxInfo[] =>
   boxes.map((box, index) => {
     const fault = faults[index] ?? "none";
@@ -241,6 +264,17 @@ const InspectionDetailsPanel = ({
   const [storedBoxes, setStoredBoxes] = useState<number[][]>([]);
   const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
   const [storedBoxInfo, setStoredBoxInfo] = useState<OverlayBoxInfo[]>([]);
+  const [storedAnnotatedBy, setStoredAnnotatedBy] = useState<string[]>([]);
+  // Queue changes to persist on close (X)
+  const [pendingAdds, setPendingAdds] = useState<
+    { x: number; y: number; w: number; h: number; faultType: string }[]
+  >([]);
+  const [pendingDeletes, setPendingDeletes] = useState<
+    { x: number; y: number; w: number; h: number }[]
+  >([]);
+  const [isClosing, setIsClosing] = useState(false);
+  const sameBox = (a: {x:number;y:number;w:number;h:number}, b: {x:number;y:number;w:number;h:number}) =>
+    a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
   // Drawing & modal state
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [drawTarget, setDrawTarget] = useState<"ai" | "stored" | null>(null);
@@ -344,14 +378,23 @@ const InspectionDetailsPanel = ({
         inspection.faultTypes,
         parsedBoxes.length
       );
+      const parsedAnnotatedBy = parseAnnotatedBy(
+        (inspection as any).annotatedBy,
+        parsedBoxes.length
+      );
       setStoredBoxes(parsedBoxes);
       setStoredFaultTypes(parsedFaults);
       setStoredBoxInfo(buildBoxInfo(parsedBoxes, parsedFaults));
+      setStoredAnnotatedBy(parsedAnnotatedBy);
     } catch {
       setStoredBoxes([]);
       setStoredFaultTypes([]);
       setStoredBoxInfo([]);
+      setStoredAnnotatedBy([]);
     }
+    // reset any queued changes when inspection changes or reloads
+    setPendingAdds([]);
+    setPendingDeletes([]);
     // Also update when boundingBoxes/faultTypes/imageUrl change on the same inspection id
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -407,6 +450,45 @@ const InspectionDetailsPanel = ({
     await reload();
   };
 
+  // Flush final local state to backend in one update, then reload and close
+  const flushAndClose = async () => {
+    if (!inspection.id) {
+      onClose();
+      return;
+    }
+    if (pendingAdds.length === 0 && pendingDeletes.length === 0) {
+      onClose();
+      return;
+    }
+    setIsClosing(true);
+    try {
+      const username =
+        typeof window !== "undefined" ? localStorage.getItem("username") || "" : "";
+      // Send the final local boxes, faultTypes, and annotatedBy as a single bulk update
+      const finalBoxes = storedBoxes.map((b) => [b[0], b[1], b[2], b[3]]);
+      const finalFaults = storedFaultTypes.slice();
+      const finalAnnotatedBy = storedAnnotatedBy.slice();
+      await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes/bulk`), {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          "x-username": username,
+        },
+        body: JSON.stringify({
+          boundingBoxes: finalBoxes,
+          faultTypes: finalFaults,
+          annotatedBy: finalAnnotatedBy,
+        }),
+      });
+      await reload();
+    } catch {
+      // best-effort; still close
+    } finally {
+      setIsClosing(false);
+      onClose();
+    }
+  };
+
   const uploadBaseline = async (file: File, weather: string) => {
     if (!transformer?.id) return;
     const form = new FormData();
@@ -441,7 +523,7 @@ const InspectionDetailsPanel = ({
     <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
       <div className="flex justify-between items-start mb-4">
         <h2 className="text-xl font-bold">Inspection Details</h2>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <button onClick={flushAndClose} className="text-gray-400 hover:text-gray-600" disabled={isClosing}>
           <svg
             className="w-6 h-6"
             fill="none"
@@ -533,6 +615,10 @@ const InspectionDetailsPanel = ({
                   setStoredBoxes([]);
                   setStoredFaultTypes([]);
                   setStoredBoxInfo([]);
+                  setStoredAnnotatedBy([]);
+                  // Also clear any pending changes
+                  setPendingAdds([]);
+                  setPendingDeletes([]);
                   await reload();
                   await reloadTransformers();
                 } catch {
@@ -571,6 +657,17 @@ const InspectionDetailsPanel = ({
                 overallSeverity: res.overallSeverity,
                 overallSeverityLabel: res.overallSeverityLabel,
               });
+              // Sync AI results into stored state so they are included on flush
+              const aiBoxes = res.boxes as number[][];
+              const aiBoxInfo = res.boxInfo || [];
+              if (Array.isArray(aiBoxes)) {
+                setStoredBoxes(aiBoxes);
+                const aiFaults = aiBoxInfo.map((bi: OverlayBoxInfo) => bi.boxFault || "none");
+                setStoredFaultTypes(aiFaults);
+                setStoredBoxInfo(aiBoxInfo);
+                // All AI-detected boxes are annotated by "AI"
+                setStoredAnnotatedBy(Array(aiBoxes.length).fill("AI"));
+              }
               // Persisted on backend; optimistically update local selected weather and image
               setSelectedWeather(selectedWeather);
               // Ensure the uploaded image remains the default shown after analysis
@@ -729,81 +826,75 @@ const InspectionDetailsPanel = ({
                     resetKey={`${inspection.id}-ai`}
                     onRemoveBox={async (idx, box) => {
                       if (!inspection.id) return;
-                      try {
-                        // Optimistically update local aiStats
-                        setAiStats((prev) => {
-                          if (!prev) return prev;
-                          const next = { ...prev };
-                          if (Array.isArray(next.boxes)) {
-                            const arr = (next.boxes as number[][]).slice();
-                            if (box) {
-                              const matchIdx = arr.findIndex(
-                                (b) =>
-                                  b &&
-                                  b.length >= 4 &&
-                                  b[0] === box.x &&
-                                  b[1] === box.y &&
-                                  b[2] === box.w &&
-                                  b[3] === box.h
-                              );
-                              if (matchIdx >= 0) arr.splice(matchIdx, 1);
-                              else arr.splice(idx, 1);
-                            } else {
-                              arr.splice(idx, 1);
-                            }
-                            next.boxes = arr;
-                          }
-                          if (Array.isArray(next.boxInfo)) {
-                            const info = (
-                              next.boxInfo as OverlayBoxInfo[]
-                            ).slice();
-                            if (box) {
-                              const matchInfoIdx = info.findIndex(
-                                (bi) =>
-                                  bi &&
-                                  bi.x === box.x &&
-                                  bi.y === box.y &&
-                                  bi.w === box.w &&
-                                  bi.h === box.h
-                              );
-                              if (matchInfoIdx >= 0)
-                                info.splice(matchInfoIdx, 1);
-                              else info.splice(idx, 1);
-                            } else {
-                              info.splice(idx, 1);
-                            }
-                            next.boxInfo = info;
-                          }
-                          return next;
-                        });
-                        // Call backend to persist removal in DB (both boundingBoxes and faultTypes) by value for precision
-                        if (box) {
-                          const params = new URLSearchParams({
-                            x: String(box.x),
-                            y: String(box.y),
-                            w: String(box.w),
-                            h: String(box.h),
-                          });
-                          await fetch(
-                            apiUrl(
-                              `/api/inspections/${
-                                inspection.id
-                              }/boxes?${params.toString()}`
-                            ),
-                            { method: "DELETE" }
-                          );
-                        } else {
-                          await fetch(
-                            apiUrl(
-                              `/api/inspections/${inspection.id}/boxes/${idx}`
-                            ),
-                            { method: "DELETE" }
-                          );
+                      // Determine coords to delete before mutating state
+                      const del = box || (() => {
+                        const info = aiStats?.boxInfo as OverlayBoxInfo[] | undefined;
+                        if (info && info[idx]) {
+                          const b = info[idx];
+                          return { x: b.x, y: b.y, w: b.w, h: b.h };
                         }
-                        // Reload to ensure context picks up latest persisted state
-                        await reload();
-                      } catch {
-                        // ignore errors for now; a full toast can be added later
+                        const arr = aiStats?.boxes as number[][] | undefined;
+                        if (arr && arr[idx]) {
+                          const b = arr[idx];
+                          return { x: b[0], y: b[1], w: b[2], h: b[3] };
+                        }
+                        return undefined;
+                      })();
+                      // Optimistically update local aiStats only; queue deletion to persist on close
+                      setAiStats((prev) => {
+                        if (!prev) return prev;
+                        const next = { ...prev };
+                        if (Array.isArray(next.boxes)) {
+                          const arr = (next.boxes as number[][]).slice();
+                          if (del) {
+                            const matchIdx = arr.findIndex(
+                              (b) =>
+                                b &&
+                                b.length >= 4 &&
+                                b[0] === del.x &&
+                                b[1] === del.y &&
+                                b[2] === del.w &&
+                                b[3] === del.h
+                            );
+                            if (matchIdx >= 0) arr.splice(matchIdx, 1);
+                            else arr.splice(idx, 1);
+                          } else {
+                            arr.splice(idx, 1);
+                          }
+                          next.boxes = arr;
+                        }
+                        if (Array.isArray(next.boxInfo)) {
+                          const info = (next.boxInfo as OverlayBoxInfo[]).slice();
+                          if (del) {
+                            const matchInfoIdx = info.findIndex(
+                              (bi) =>
+                                bi &&
+                                bi.x === del.x &&
+                                bi.y === del.y &&
+                                bi.w === del.w &&
+                                bi.h === del.h
+                            );
+                            if (matchInfoIdx >= 0) info.splice(matchInfoIdx, 1);
+                            else info.splice(idx, 1);
+                          } else {
+                            info.splice(idx, 1);
+                          }
+                          next.boxInfo = info;
+                        }
+                        return next;
+                      });
+                      if (del) {
+                        setPendingDeletes((prev) => {
+                          // if this box was added in this session, cancel the add instead of enqueueing delete
+                          const addIdx = pendingAdds.findIndex((a) => sameBox(a, del));
+                          if (addIdx >= 0) {
+                            const na = pendingAdds.slice();
+                            na.splice(addIdx, 1);
+                            setPendingAdds(na);
+                            return prev;
+                          }
+                          return [...prev, del];
+                        });
                       }
                     }}
                     containerClassName="w-full border rounded overflow-hidden"
@@ -939,59 +1030,52 @@ const InspectionDetailsPanel = ({
                         resetKey={`${inspection.id}-stored`}
                         onRemoveBox={async (idx, box) => {
                           if (!inspection.id) return;
-                          try {
-                            let matchIdx = idx;
-                            if (box && Array.isArray(storedBoxes)) {
-                              const found = storedBoxes.findIndex(
-                                (b) =>
-                                  b &&
-                                  b.length >= 4 &&
-                                  b[0] === box.x &&
-                                  b[1] === box.y &&
-                                  b[2] === box.w &&
-                                  b[3] === box.h
-                              );
-                              if (found >= 0) matchIdx = found;
+                          // determine the box coords to delete, capture before mutating state
+                          let matchIdx = idx;
+                          let del = box as {x:number;y:number;w:number;h:number} | undefined;
+                          if (!del && Array.isArray(storedBoxes)) {
+                            if (storedBoxes[idx]) {
+                              const b = storedBoxes[idx];
+                              del = { x: b[0], y: b[1], w: b[2], h: b[3] };
                             }
-                            const newBoxes = Array.isArray(storedBoxes)
-                              ? storedBoxes.slice()
-                              : [];
-                            if (matchIdx >= 0 && matchIdx < newBoxes.length)
-                              newBoxes.splice(matchIdx, 1);
-                            const newFaults = Array.isArray(storedFaultTypes)
-                              ? storedFaultTypes.slice()
-                              : [];
-                            if (matchIdx >= 0 && matchIdx < newFaults.length)
-                              newFaults.splice(matchIdx, 1);
-                            setStoredBoxes(newBoxes);
-                            setStoredFaultTypes(newFaults);
-                            setStoredBoxInfo(buildBoxInfo(newBoxes, newFaults));
-                            if (box) {
-                              const params = new URLSearchParams({
-                                x: String(box.x),
-                                y: String(box.y),
-                                w: String(box.w),
-                                h: String(box.h),
-                              });
-                              await fetch(
-                                apiUrl(
-                                  `/api/inspections/${
-                                    inspection.id
-                                  }/boxes?${params.toString()}`
-                                ),
-                                { method: "DELETE" }
-                              );
-                            } else {
-                              await fetch(
-                                apiUrl(
-                                  `/api/inspections/${inspection.id}/boxes/${idx}`
-                                ),
-                                { method: "DELETE" }
-                              );
-                            }
-                            void reload();
-                          } catch {
-                            // no-op
+                          }
+                          if (del && Array.isArray(storedBoxes)) {
+                            const found = storedBoxes.findIndex(
+                              (b) => b && b.length >= 4 && b[0] === del!.x && b[1] === del!.y && b[2] === del!.w && b[3] === del!.h
+                            );
+                            if (found >= 0) matchIdx = found;
+                          }
+                          const newBoxes = Array.isArray(storedBoxes)
+                            ? storedBoxes.slice()
+                            : [];
+                          if (matchIdx >= 0 && matchIdx < newBoxes.length)
+                            newBoxes.splice(matchIdx, 1);
+                          const newFaults = Array.isArray(storedFaultTypes)
+                            ? storedFaultTypes.slice()
+                            : [];
+                          if (matchIdx >= 0 && matchIdx < newFaults.length)
+                            newFaults.splice(matchIdx, 1);
+                          const newAnnotatedBy = Array.isArray(storedAnnotatedBy)
+                            ? storedAnnotatedBy.slice()
+                            : [];
+                          if (matchIdx >= 0 && matchIdx < newAnnotatedBy.length)
+                            newAnnotatedBy.splice(matchIdx, 1);
+                          setStoredBoxes(newBoxes);
+                          setStoredFaultTypes(newFaults);
+                          setStoredBoxInfo(buildBoxInfo(newBoxes, newFaults));
+                          setStoredAnnotatedBy(newAnnotatedBy);
+                          // queue the delete if we have coords; also cancel out any pending add for same box
+                          if (del) {
+                            setPendingDeletes((prev) => {
+                              const addIdx = pendingAdds.findIndex((a) => sameBox(a, del!));
+                              if (addIdx >= 0) {
+                                const na = pendingAdds.slice();
+                                na.splice(addIdx, 1);
+                                setPendingAdds(na);
+                                return prev;
+                              }
+                              return [...prev, del!];
+                            });
                           }
                         }}
                         containerClassName="w-full border rounded overflow-hidden"
@@ -1094,6 +1178,7 @@ const InspectionDetailsPanel = ({
                     if (!inspection.id || !pendingRect) return;
                     const ft = faultSelection;
                     const rect = pendingRect; // capture before clearing state
+                    const username = typeof window !== "undefined" ? localStorage.getItem("username") || "user" : "user";
                     // Optimistically update UI so the new box appears immediately
                     setStoredBoxes((prev) => [
                       ...prev,
@@ -1110,6 +1195,12 @@ const InspectionDetailsPanel = ({
                         boxFault: ft,
                       },
                     ]);
+                    setStoredAnnotatedBy((prev) => [...prev, username]);
+                          // Queue add to persist on close
+                          setPendingAdds((prev) => [
+                            ...prev,
+                            { x: rect.x, y: rect.y, w: rect.w, h: rect.h, faultType: ft },
+                          ]);
                     const key = faultToToggleKey(ft);
                     if (key)
                       setOverlayToggles(
@@ -1141,33 +1232,6 @@ const InspectionDetailsPanel = ({
                     setPendingRect(null);
                     setIsDrawMode(false);
                     setDrawTarget(null);
-                    // Persist in background
-                    try {
-                      const res = await fetch(
-                        `/api/inspections/${inspection.id}/boxes`,
-                        {
-                          method: "POST",
-                          headers: { "content-type": "application/json" },
-                          body: JSON.stringify({
-                            x: rect.x,
-                            y: rect.y,
-                            w: rect.w,
-                            h: rect.h,
-                            faultType: ft,
-                          }),
-                        }
-                      );
-                      if (!res.ok) {
-                        alert(
-                          "Failed to save box. The overlay was added locally, but did not persist."
-                        );
-                        await reload();
-                      }
-                    } catch {
-                      alert(
-                        "Network error saving box. The overlay was added locally, but did not persist."
-                      );
-                    }
                   }}
                 >
                   Save

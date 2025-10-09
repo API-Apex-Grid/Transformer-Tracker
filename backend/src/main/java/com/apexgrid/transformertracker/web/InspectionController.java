@@ -116,6 +116,10 @@ public class InspectionController {
                                      @RequestParam("weather") String weather) {
         return repo.findById(id).map(i -> {
             try {
+                // Before performing a new AI analysis, archive any existing analysis to history with annotatedBy = "AI"
+                try {
+                    archivePreviousAnalysis(i, "AI");
+                } catch (Exception ignore) { }
                 // Find baseline image from transformer based on weather
                 Transformer t = i.getTransformer();
                 if (t == null) {
@@ -178,19 +182,29 @@ public class InspectionController {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[');
                 boolean first = true;
+                StringBuilder ann = new StringBuilder();
+                ann.append('[');
+                boolean firstAnn = true;
                 for (var bi : boxInfoNode) {
                     String label = bi.path("boxFault").asText("none");
                     if (!first) sb.append(',');
                     first = false;
                     // JSON-escape minimal (labels are simple)
                     sb.append('"').append(label.replace("\"", "\\\"")).append('"');
+                    // Per-box annotatedBy: analysis-generated boxes are attributed to AI
+                    String who = "AI";
+                    if (!firstAnn) ann.append(',');
+                    firstAnn = false;
+                    ann.append('"').append(who).append('"');
                 }
                 sb.append(']');
                 i.setFaultTypes(sb.toString());
+                ann.append(']');
+                i.setAnnotatedBy(ann.toString());
             }
             // analyzed image dimensions no longer persisted
         } catch (Exception ignore) { }
-        repo.save(i);
+    repo.save(i);
 
         // Pass through fields as-is from Python, including fault classification
     return ResponseEntity.ok(Map.of(
@@ -211,6 +225,124 @@ public class InspectionController {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Analysis failed"));
             }
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Append the current analysis (boundingBoxes + faultTypes) to history arrays,
+     * and add an aligned annotatedByHistory entry.
+     */
+    private void archivePreviousAnalysis(Inspection i, String annotatedBy) throws Exception {
+        String boxesJson = i.getBoundingBoxes();
+        String faultsJson = i.getFaultTypes();
+        if ((boxesJson == null || boxesJson.isBlank()) && (faultsJson == null || faultsJson.isBlank())) {
+            return; // nothing to archive
+        }
+        ObjectMapper mapper = new ObjectMapper();
+
+        // boundingBoxHistory as array of snapshots
+        ArrayNode boxHist;
+        String boxHistJson = i.getBoundingBoxHistory();
+        if (boxHistJson != null && !boxHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(boxHistJson);
+                boxHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                boxHist = mapper.createArrayNode();
+            }
+        } else {
+            boxHist = mapper.createArrayNode();
+        }
+        // push a snapshot (or null placeholder if empty)
+        if (boxesJson != null && !boxesJson.isBlank()) {
+            try {
+                boxHist.add(mapper.readTree(boxesJson));
+            } catch (Exception ex) {
+                boxHist.addNull();
+            }
+        } else {
+            boxHist.addNull();
+        }
+
+        // faultTypeHistory as array of snapshots
+        ArrayNode faultHist;
+        String faultHistJson = i.getFaultTypeHistory();
+        if (faultHistJson != null && !faultHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(faultHistJson);
+                faultHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                faultHist = mapper.createArrayNode();
+            }
+        } else {
+            faultHist = mapper.createArrayNode();
+        }
+        if (faultsJson != null && !faultsJson.isBlank()) {
+            try {
+                faultHist.add(mapper.readTree(faultsJson));
+            } catch (Exception ex) {
+                faultHist.addNull();
+            }
+        } else {
+            faultHist.addNull();
+        }
+
+        // annotatedByHistory as array of snapshots (each snapshot is an array aligned with boxes/faults)
+        ArrayNode annotatedHist;
+        String annotatedHistJson = i.getAnnotatedByHistory();
+        if (annotatedHistJson != null && !annotatedHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(annotatedHistJson);
+                annotatedHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                annotatedHist = mapper.createArrayNode();
+            }
+        } else {
+            annotatedHist = mapper.createArrayNode();
+        }
+        // Prefer current per-box annotatedBy array if present; otherwise, fallback to filling with provided actor
+        String currentAnn = i.getAnnotatedBy();
+        if (currentAnn != null && !currentAnn.isBlank()) {
+            try {
+                JsonNode annNode = mapper.readTree(currentAnn);
+                if (annNode instanceof ArrayNode) {
+                    // Store a snapshot of the existing per-box attribution
+                    annotatedHist.add(annNode);
+                } else {
+                    // Fallback: build by repeating actor to match faultTypes length
+                    ArrayNode snap = mapper.createArrayNode();
+                    JsonNode ftNode = (faultsJson != null && !faultsJson.isBlank()) ? mapper.readTree(faultsJson) : null;
+                    int n = (ftNode instanceof ArrayNode) ? ftNode.size() : 0;
+                    for (int k = 0; k < n; k++) snap.add(annotatedBy == null || annotatedBy.isBlank() ? "AI" : annotatedBy);
+                    if (n == 0) snap.add(annotatedBy == null || annotatedBy.isBlank() ? "AI" : annotatedBy);
+                    annotatedHist.add(snap);
+                }
+            } catch (Exception ex) {
+                ArrayNode snap = mapper.createArrayNode();
+                JsonNode ftNode;
+                try { ftNode = (faultsJson != null && !faultsJson.isBlank()) ? mapper.readTree(faultsJson) : null; } catch (Exception e2) { ftNode = null; }
+                int n = (ftNode instanceof ArrayNode) ? ftNode.size() : 0;
+                for (int k = 0; k < n; k++) snap.add(annotatedBy == null || annotatedBy.isBlank() ? "AI" : annotatedBy);
+                if (n == 0) snap.add(annotatedBy == null || annotatedBy.isBlank() ? "AI" : annotatedBy);
+                annotatedHist.add(snap);
+            }
+        } else {
+            // No current annotatedBy array; build snapshot by repeating actor to match faultTypes
+            ArrayNode snap = mapper.createArrayNode();
+            try {
+                JsonNode ftNode = (faultsJson != null && !faultsJson.isBlank()) ? mapper.readTree(faultsJson) : null;
+                int n = (ftNode instanceof ArrayNode) ? ftNode.size() : 0;
+                for (int k = 0; k < n; k++) snap.add(annotatedBy == null || annotatedBy.isBlank() ? "AI" : annotatedBy);
+                if (n == 0) snap.add(annotatedBy == null || annotatedBy.isBlank() ? "AI" : annotatedBy);
+            } catch (Exception ex) {
+                snap.add(annotatedBy == null || annotatedBy.isBlank() ? "AI" : annotatedBy);
+            }
+            annotatedHist.add(snap);
+        }
+
+        // Persist updated histories ensuring alignment/order
+        i.setBoundingBoxHistory(boxHist.toString());
+        i.setFaultTypeHistory(faultHist.toString());
+        i.setAnnotatedByHistory(annotatedHist.toString());
     }
 
     @PostMapping("/{id}/clear-analysis")
@@ -251,9 +383,13 @@ public class InspectionController {
     }
 
     @DeleteMapping("/{id}/boxes/{index}")
-    public ResponseEntity<?> removeBox(@PathVariable String id, @PathVariable int index) {
+    public ResponseEntity<?> removeBox(@PathVariable String id,
+                                       @PathVariable int index,
+                                       @RequestHeader(value = "x-username", required = false) String username) {
         return repo.findById(id).map(i -> {
             try {
+                // Archive current analysis before modification by user
+                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
                 String boxesJson = i.getBoundingBoxes();
                 if (boxesJson == null || boxesJson.isBlank()) {
                     return ResponseEntity.badRequest().body(Map.of("error", "No bounding boxes to modify"));
@@ -286,6 +422,21 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed faultTypes */ }
                 }
 
+                // Update annotatedBy array to maintain alignment
+                String annJson = i.getAnnotatedBy();
+                if (annJson != null && !annJson.isBlank()) {
+                    try {
+                        JsonNode annNode = mapper.readTree(annJson);
+                        if (annNode instanceof ArrayNode) {
+                            ArrayNode annArr = (ArrayNode) annNode;
+                            if (index >= 0 && index < annArr.size()) {
+                                annArr.remove(index);
+                                i.setAnnotatedBy(annArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed annotatedBy */ }
+                }
+
                 repo.save(i);
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
             } catch (Exception e) {
@@ -299,9 +450,12 @@ public class InspectionController {
                                               @RequestParam("x") double x,
                                               @RequestParam("y") double y,
                                               @RequestParam("w") double w,
-                                              @RequestParam("h") double h) {
+                                              @RequestParam("h") double h,
+                                              @RequestHeader(value = "x-username", required = false) String username) {
         return repo.findById(id).map(i -> {
             try {
+                // Archive current analysis before modification by user
+                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
                 String boxesJson = i.getBoundingBoxes();
                 if (boxesJson == null || boxesJson.isBlank()) {
                     return ResponseEntity.badRequest().body(Map.of("error", "No bounding boxes to modify"));
@@ -347,6 +501,21 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed faultTypes */ }
                 }
 
+                // Update annotatedBy alignment
+                String annJson = i.getAnnotatedBy();
+                if (annJson != null && !annJson.isBlank()) {
+                    try {
+                        JsonNode annNode = mapper.readTree(annJson);
+                        if (annNode instanceof ArrayNode) {
+                            ArrayNode annArr = (ArrayNode) annNode;
+                            if (matchIdx >= 0 && matchIdx < annArr.size()) {
+                                annArr.remove(matchIdx);
+                                i.setAnnotatedBy(annArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed annotatedBy */ }
+                }
+
                 repo.save(i);
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
             } catch (Exception e) {
@@ -356,9 +525,13 @@ public class InspectionController {
     }
 
     @PostMapping("/{id}/boxes")
-    public ResponseEntity<?> addBox(@PathVariable String id, @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<?> addBox(@PathVariable String id,
+                                    @RequestBody Map<String, Object> payload,
+                                    @RequestHeader(value = "x-username", required = false) String username) {
         return repo.findById(id).map(i -> {
             try {
+                // Archive current analysis before modification by user
+                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
                 double x = ((Number)payload.getOrDefault("x", 0)).doubleValue();
                 double y = ((Number)payload.getOrDefault("y", 0)).doubleValue();
                 double w = ((Number)payload.getOrDefault("w", 0)).doubleValue();
@@ -399,6 +572,23 @@ public class InspectionController {
                 ftArr.add(faultType);
                 i.setFaultTypes(ftArr.toString());
 
+                // Update per-box annotatedBy aligned with boxes
+                ArrayNode annArr;
+                String annJson = i.getAnnotatedBy();
+                if (annJson != null && !annJson.isBlank()) {
+                    try {
+                        var node = mapper.readTree(annJson);
+                        annArr = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+                    } catch (Exception ex) {
+                        annArr = mapper.createArrayNode();
+                    }
+                } else {
+                    annArr = mapper.createArrayNode();
+                }
+                String who = username == null || username.isBlank() ? "user" : username;
+                annArr.add(who);
+                i.setAnnotatedBy(annArr.toString());
+
                 repo.save(i);
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", boxesArr, "faultTypes", ftArr));
             } catch (Exception e) {
@@ -406,4 +596,73 @@ public class InspectionController {
             }
         }).orElse(ResponseEntity.notFound().build());
     }
+
+    @PutMapping("/{id}/boxes/bulk")
+    public ResponseEntity<?> bulkUpdateBoxes(@PathVariable String id,
+                                             @RequestBody Map<String, Object> payload,
+                                             @RequestHeader(value = "x-username", required = false) String username) {
+        return repo.findById(id).map(i -> {
+            try {
+                // Archive previous analysis once before bulk update
+                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
+
+                ObjectMapper mapper = new ObjectMapper();
+                
+                // Parse incoming boxes, faultTypes, and annotatedBy from request
+                var boxesPayload = payload.get("boundingBoxes");
+                var faultsPayload = payload.get("faultTypes");
+                var annotatedByPayload = payload.get("annotatedBy");
+
+                ArrayNode finalBoxes = mapper.createArrayNode();
+                if (boxesPayload instanceof List) {
+                    for (Object boxObj : (List<?>) boxesPayload) {
+                        if (boxObj instanceof List) {
+                            List<?> boxList = (List<?>) boxObj;
+                            if (boxList.size() >= 4) {
+                                ArrayNode boxNode = mapper.createArrayNode();
+                                boxNode.add(((Number) boxList.get(0)).doubleValue());
+                                boxNode.add(((Number) boxList.get(1)).doubleValue());
+                                boxNode.add(((Number) boxList.get(2)).doubleValue());
+                                boxNode.add(((Number) boxList.get(3)).doubleValue());
+                                finalBoxes.add(boxNode);
+                            }
+                        }
+                    }
+                }
+
+                ArrayNode finalFaults = mapper.createArrayNode();
+                if (faultsPayload instanceof List) {
+                    for (Object ft : (List<?>) faultsPayload) {
+                        finalFaults.add(ft != null ? ft.toString() : "none");
+                    }
+                }
+
+                // Use annotatedBy from request if provided; otherwise fill with username
+                ArrayNode finalAnnotated = mapper.createArrayNode();
+                if (annotatedByPayload instanceof List) {
+                    for (Object ann : (List<?>) annotatedByPayload) {
+                        finalAnnotated.add(ann != null ? ann.toString() : (username == null || username.isBlank() ? "user" : username));
+                    }
+                } else {
+                    // Fallback: fill with username for all boxes
+                    String who = username == null || username.isBlank() ? "user" : username;
+                    for (int k = 0; k < finalFaults.size(); k++) {
+                        finalAnnotated.add(who);
+                    }
+                }
+
+                // Persist final state
+                i.setBoundingBoxes(finalBoxes.toString());
+                i.setFaultTypes(finalFaults.toString());
+                i.setAnnotatedBy(finalAnnotated.toString());
+                repo.save(i);
+
+                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", finalBoxes, "faultTypes", finalFaults));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Bulk update failed"));
+            }
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    // No-op
 }
