@@ -27,6 +27,7 @@ const TransformerPage = () => {
     deleteTransformer: deleteFromCtx,
     fetchTransformerById,
     reload: reloadTransformersList,
+    loading: transformersLoading,
   } = useTransformers();
   const {
     inspections,
@@ -35,6 +36,7 @@ const TransformerPage = () => {
     deleteInspection,
     fetchInspectionById,
     reload: reloadInspectionsList,
+    loading: inspectionsLoading,
   } = useInspections();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -77,23 +79,11 @@ const TransformerPage = () => {
           setProfileSrc(stored);
         }
       }
-      // Load summary lists on first entry after login
-      if (loggedIn && transformers.length === 0) {
-        void reloadTransformersList();
-      }
-      if (loggedIn && inspections.length === 0) {
-        void reloadInspectionsList();
-      }
+      // Contexts handle initial loading automatically - no need to reload here
     } catch {
       router.replace("/");
     }
-  }, [
-    router,
-    transformers.length,
-    inspections.length,
-    reloadTransformersList,
-    reloadInspectionsList,
-  ]);
+  }, [router]);
 
   const addTransformer = (transformer: Transformer) => {
     addFromCtx(transformer);
@@ -247,8 +237,7 @@ const TransformerPage = () => {
     );
   });
 
-  const initialListsLoading =
-    transformers.length === 0 && inspections.length === 0;
+  const initialListsLoading = transformersLoading || inspectionsLoading;
 
   return (
     <>
