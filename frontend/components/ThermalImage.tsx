@@ -240,10 +240,9 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
             accept="image/*"
             onChange={handleFileChange}
             ref={inputRef}
-            className={`block w-full text-sm ${selectedFile ? 'text-black dark:text-white' : 'text-gray-400 dark:text-gray-500'}
+            className={`block w-full text-sm
               file:mr-4 file:py-2 file:px-4
               file:rounded-full file:border-0
-              file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-200
               hover:file:bg-blue-100
               customfile
               cursor-pointer`}
@@ -262,7 +261,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
           {selectedFile && (
             <button
               onClick={resetProgress}
-              className="px-4 py-2 text-sm rounded bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+              className="px-4 py-2 text-sm rounded custombutton"
             >
               Reset
             </button>
@@ -271,7 +270,7 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
         
         {/* Image Preview */}
         {previewUrl && (
-          <div className="mt-4 relative w-full h-48 border rounded-lg bg-white dark:bg-[#111] border-gray-200 dark:border-gray-700">
+          <div className="mt-4 relative w-full h-48 border filepreview rounded-lg border-gray-200">
             <Image
               src={previewUrl}
               alt="Thermal image preview"

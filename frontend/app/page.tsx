@@ -18,7 +18,7 @@ export default function Home() {
     setError("");
     try {
       setLoading(true);
-  const res = await fetch(apiUrl("/api/login"), {
+      const res = await fetch(apiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -36,7 +36,7 @@ export default function Home() {
         localStorage.setItem("userImage", data.image || "");
       } catch {}
       router.push("/transformer");
-  } catch {
+    } catch {
       setError("Login failed");
     } finally {
       setLoading(false);
@@ -52,7 +52,12 @@ export default function Home() {
         <h1 className="text-xl font-semibold mb-4 text-center">Sign in</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-1">Username</label>
+            <label
+              htmlFor="username"
+              className="block text-sm font-medium mb-1"
+            >
+              Username
+            </label>
             <input
               id="username"
               type="text"
@@ -64,7 +69,12 @@ export default function Home() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">Password</label>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium mb-1"
+            >
+              Password
+            </label>
             <input
               id="password"
               type="password"

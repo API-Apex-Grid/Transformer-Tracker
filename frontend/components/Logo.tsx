@@ -9,7 +9,11 @@ interface LogoProps {
   className?: string;
 }
 
-export default function Logo({ width = 36, height = 36, className = "" }: LogoProps) {
+export default function Logo({
+  width = 36,
+  height = 36,
+  className = "",
+}: LogoProps) {
   const [isDark, setIsDark] = useState<boolean>(false);
 
   useEffect(() => {
@@ -17,7 +21,9 @@ export default function Logo({ width = 36, height = 36, className = "" }: LogoPr
     const checkTheme = () => {
       try {
         const stored = localStorage.getItem("theme");
-        const dark = stored === "dark" || document.documentElement.classList.contains("dark");
+        const dark =
+          stored === "dark" ||
+          document.documentElement.classList.contains("dark");
         setIsDark(dark);
       } catch {}
     };

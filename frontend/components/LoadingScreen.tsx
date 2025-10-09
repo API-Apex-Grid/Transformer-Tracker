@@ -7,7 +7,10 @@ interface LoadingScreenProps {
   message?: string;
 }
 
-const LoadingScreen: React.FC<LoadingScreenProps> = ({ show, message = "Signing you in…" }) => {
+const LoadingScreen: React.FC<LoadingScreenProps> = ({
+  show,
+  message = "Signing you in…",
+}) => {
   if (!show) return null;
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -16,7 +19,9 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ show, message = "Signing 
           className="h-10 w-10 animate-spin rounded-full border-4 border-black border-t-transparent"
           aria-hidden="true"
         />
-        <p className="text-gray-700 font-medium" aria-live="polite">{message}</p>
+        <p className="text-gray-700 font-medium" aria-live="polite">
+          {message}
+        </p>
       </div>
     </div>
   );

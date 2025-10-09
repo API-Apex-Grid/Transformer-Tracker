@@ -87,7 +87,13 @@ const TransformerPage = () => {
     } catch {
       router.replace("/");
     }
-  }, [router, transformers.length, inspections.length, reloadTransformersList, reloadInspectionsList]);
+  }, [
+    router,
+    transformers.length,
+    inspections.length,
+    reloadTransformersList,
+    reloadInspectionsList,
+  ]);
 
   const addTransformer = (transformer: Transformer) => {
     addFromCtx(transformer);
@@ -192,7 +198,8 @@ const TransformerPage = () => {
       const originalIndex = inspections.findIndex(
         (inspection) => inspection.inspectionNumber === item.inspectionNumber
       );
-      const byId = originalIndex >= 0 ? inspections[originalIndex]?.id : item.id;
+      const byId =
+        originalIndex >= 0 ? inspections[originalIndex]?.id : item.id;
       const full = byId ? await fetchInspectionById(byId) : null;
       setViewingInspection(full || item);
     } finally {
@@ -235,206 +242,224 @@ const TransformerPage = () => {
     const matchesRegion = regionFilter === "" || t.region === regionFilter;
     const matchesType = typeFilter === "" || t.type === typeFilter;
     const matchesFav = !favOnly || !!t.favourite;
-    return matchesTf && matchesPole && matchesRegion && matchesType && matchesFav;
+    return (
+      matchesTf && matchesPole && matchesRegion && matchesType && matchesFav
+    );
   });
 
-  const initialListsLoading = transformers.length === 0 && inspections.length === 0;
+  const initialListsLoading =
+    transformers.length === 0 && inspections.length === 0;
 
   return (
     <>
-    <div className="p-4 pb-24">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex flex-col items-start gap-2">
-          <div className="flex items-center gap-3">
-            <Logo width={36} height={36} />
-            <span className="font-semibold text-2xl tracking-wider" style={{ fontFamily: 'var(--font-orbitron)' }}>APEX-GRID</span>
+      <div className="p-4 pb-24">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex flex-col items-start gap-2">
+            <div className="flex items-center gap-3">
+              <Logo width={36} height={36} />
+              <span
+                className="font-semibold text-2xl tracking-wider"
+                style={{ fontFamily: "var(--font-orbitron)" }}
+              >
+                APEX-GRID
+              </span>
+            </div>
+            {viewingInspection ? (
+              <h1 className="text-2xl font-bold">
+                Inspection {viewingInspection.inspectionNumber}
+              </h1>
+            ) : viewingTransformer ? (
+              <h1 className="text-2xl font-bold">
+                Transformer {viewingTransformer.transformerNumber}
+              </h1>
+            ) : (
+              <h1 className="text-2xl font-bold">All Transformers</h1>
+            )}
           </div>
-          {viewingInspection ? (
-            <h1 className="text-2xl font-bold">
-              Inspection {viewingInspection.inspectionNumber}
-            </h1>
-          ) : viewingTransformer ? (
-            <h1 className="text-2xl font-bold">
-              Transformer {viewingTransformer.transformerNumber}
-            </h1>
-          ) : (
-            <h1 className="text-2xl font-bold">All Transformers</h1>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <span className="text-sm text-gray-700">
-              Logged in as: <span className="font-medium">{username || "unknown"}</span>
-            </span>
-            <button
-              onClick={() => router.push("/profile")}
-              className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 border hover:ring-2 hover:ring-gray-300"
-              title="Profile Settings"
-            >
-              <Image
-                src={profileSrc}
-                alt="Profile"
-                width={32}
-                height={32}
-                loading="lazy"
-                unoptimized={profileSrc.startsWith("data:")}
-                className="w-full h-full object-cover"
-              />
-            </button>
-            <button
-              onClick={() => {
-                try {
-                  localStorage.removeItem("isLoggedIn");
-                  localStorage.removeItem("username");
-                  localStorage.removeItem("userImage");
-                } catch {}
-                router.replace("/");
-              }}
-              className="inline-flex items-center rounded-md px-4 py-2 custombutton"
-            >
-              Log out
-            </button>
-          </div>
-          {!viewingTransformer && !viewingInspection && (
-            <div className="flex bg-gray-200 rounded-lg p-1">
-              <button className="px-4 py-2 rounded-md disabledbutton font-medium mr-1">
-                Transformers
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <span className="text-sm text-gray-700">
+                Logged in as:{" "}
+                <span className="font-medium">{username || "unknown"}</span>
+              </span>
+              <button
+                onClick={() => router.push("/profile")}
+                className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 border hover:ring-2 hover:ring-gray-300"
+                title="Profile Settings"
+              >
+                <Image
+                  src={profileSrc}
+                  alt="Profile"
+                  width={32}
+                  height={32}
+                  loading="lazy"
+                  unoptimized={profileSrc.startsWith("data:")}
+                  className="w-full h-full object-cover"
+                />
               </button>
               <button
-                onClick={() => router.push("/inspections")}
-                className="px-4 py-2 rounded-md custombutton font-medium ml-1"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("isLoggedIn");
+                    localStorage.removeItem("username");
+                    localStorage.removeItem("userImage");
+                  } catch {}
+                  router.replace("/");
+                }}
+                className="inline-flex items-center rounded-md px-4 py-2 custombutton"
               >
-                Inspections
+                Log out
               </button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {!viewingTransformer && (
-        <AddTransformerModal addTransformer={addTransformer} />
-      )}
-
-      {/* Filters for Transformers main list */}
-      {!viewingTransformer && !viewingInspection && (
-  <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
-          <input
-            value={tfNumberQuery}
-            onChange={(e) => setTfNumberQuery(e.target.value)}
-            placeholder="Search transformer no."
-            className="px-3 py-2 border rounded-md"
-          />
-          <input
-            value={poleQuery}
-            onChange={(e) => setPoleQuery(e.target.value)}
-            placeholder="Search pole no."
-            className="px-3 py-2 border rounded-md"
-          />
-          <select
-            value={regionFilter}
-            onChange={(e) => setRegionFilter(e.target.value)}
-            className="px-3 py-2 border rounded-md"
-          >
-            <option value="">All regions</option>
-            {regionOptions.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border rounded-md"
-          >
-            <option value="">All types</option>
-            {typeOptions.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <label className="inline-flex items-center gap-2 text-sm text-black px-3 py-2">
-            <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} />
-            Favourites
-          </label>
-          <button
-            onClick={() => {
-              setTfNumberQuery("");
-              setPoleQuery("");
-              setRegionFilter("");
-              setTypeFilter("");
-              setFavOnly(false);
-            }}
-            className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
-          >
-            Clear
-          </button>
-        </div>
-      )}
-
-      {viewingTransformer && !viewingInspection && (
-        <TransformerDetailsPanel
-          transformer={viewingTransformer}
-          onClose={closeView}
-          onUpdateTransformer={updateViewingTransformer}
-        />
-      )}
-
-      {viewingInspection && (
-        <InspectionDetailsPanel
-          inspection={viewingInspection}
-          onClose={closeViewInspection}
-        />
-      )}
-
-      {viewingTransformer && !viewingInspection ? (
-        <>
-          <h1 className="text-xl font-bold mb-4">Transformer Inspections</h1>
-          <AddInspectionModal
-            addInspection={addInspection}
-            prefilledTransformerNumber={viewingTransformer.transformerNumber}
-          />
-          <InspectionsList
-            inspections={getRelatedInspections(
-              viewingTransformer.transformerNumber
+            {!viewingTransformer && !viewingInspection && (
+              <div className="flex bg-gray-200 rounded-lg p-1">
+                <button className="px-4 py-2 rounded-md disabledbutton font-medium mr-1">
+                  Transformers
+                </button>
+                <button
+                  onClick={() => router.push("/inspections")}
+                  className="px-4 py-2 rounded-md custombutton font-medium ml-1"
+                >
+                  Inspections
+                </button>
+              </div>
             )}
-            hideTransformerColumn={true}
-            onEdit={openEditInspection}
-            onDelete={deleteInspectionHandler}
-            onView={openViewInspection}
-          />
-        </>
-      ) : !viewingInspection ? (
-        <TransformerList
-          transformers={filteredTransformers}
-          onEdit={openEdit}
-          onDelete={deleteTransformer}
-          onView={openView}
-        />
-      ) : null}
+          </div>
+        </div>
 
-      <EditTransformerModal
-        isOpen={isEditOpen}
-        initial={editingIndex !== null ? transformers[editingIndex] : null}
-        onClose={closeEdit}
-        onSave={saveEdit}
-      />
-      <EditInspectionModal
-        isOpen={isEditInspectionOpen}
-        initial={
-          editingInspectionIndex !== null && viewingTransformer
-            ? getRelatedInspections(viewingTransformer.transformerNumber)[
-                editingInspectionIndex
-              ]
-            : null
+        {!viewingTransformer && (
+          <AddTransformerModal addTransformer={addTransformer} />
+        )}
+
+        {/* Filters for Transformers main list */}
+        {!viewingTransformer && !viewingInspection && (
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+            <input
+              value={tfNumberQuery}
+              onChange={(e) => setTfNumberQuery(e.target.value)}
+              placeholder="Search transformer no."
+              className="px-3 py-2 border rounded-md"
+            />
+            <input
+              value={poleQuery}
+              onChange={(e) => setPoleQuery(e.target.value)}
+              placeholder="Search pole no."
+              className="px-3 py-2 border rounded-md"
+            />
+            <select
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value)}
+              className="px-3 py-2 border rounded-md"
+            >
+              <option value="">All regions</option>
+              {regionOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-2 border rounded-md"
+            >
+              <option value="">All types</option>
+              {typeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <label className="inline-flex items-center gap-2 text-sm text-black px-3 py-2">
+              <input
+                type="checkbox"
+                checked={favOnly}
+                onChange={(e) => setFavOnly(e.target.checked)}
+              />
+              Favourites
+            </label>
+            <button
+              onClick={() => {
+                setTfNumberQuery("");
+                setPoleQuery("");
+                setRegionFilter("");
+                setTypeFilter("");
+                setFavOnly(false);
+              }}
+              className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {viewingTransformer && !viewingInspection && (
+          <TransformerDetailsPanel
+            transformer={viewingTransformer}
+            onClose={closeView}
+            onUpdateTransformer={updateViewingTransformer}
+          />
+        )}
+
+        {viewingInspection && (
+          <InspectionDetailsPanel
+            inspection={viewingInspection}
+            onClose={closeViewInspection}
+          />
+        )}
+
+        {viewingTransformer && !viewingInspection ? (
+          <>
+            <h1 className="text-xl font-bold mb-4">Transformer Inspections</h1>
+            <AddInspectionModal
+              addInspection={addInspection}
+              prefilledTransformerNumber={viewingTransformer.transformerNumber}
+            />
+            <InspectionsList
+              inspections={getRelatedInspections(
+                viewingTransformer.transformerNumber
+              )}
+              hideTransformerColumn={true}
+              onEdit={openEditInspection}
+              onDelete={deleteInspectionHandler}
+              onView={openViewInspection}
+            />
+          </>
+        ) : !viewingInspection ? (
+          <TransformerList
+            transformers={filteredTransformers}
+            onEdit={openEdit}
+            onDelete={deleteTransformer}
+            onView={openView}
+          />
+        ) : null}
+
+        <EditTransformerModal
+          isOpen={isEditOpen}
+          initial={editingIndex !== null ? transformers[editingIndex] : null}
+          onClose={closeEdit}
+          onSave={saveEdit}
+        />
+        <EditInspectionModal
+          isOpen={isEditInspectionOpen}
+          initial={
+            editingInspectionIndex !== null && viewingTransformer
+              ? getRelatedInspections(viewingTransformer.transformerNumber)[
+                  editingInspectionIndex
+                ]
+              : null
+          }
+          onClose={closeEditInspection}
+          onSave={saveEditInspection}
+        />
+      </div>
+      <LoadingScreen
+        show={isLoading || initialListsLoading}
+        message={
+          loadingMessage || (initialListsLoading ? "Loading data…" : "Loading…")
         }
-        onClose={closeEditInspection}
-        onSave={saveEditInspection}
       />
-    </div>
-    <LoadingScreen show={isLoading || initialListsLoading} message={loadingMessage || (initialListsLoading ? "Loading data…" : "Loading…")} />
     </>
   );
 };

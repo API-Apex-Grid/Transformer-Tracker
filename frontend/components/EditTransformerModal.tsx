@@ -10,7 +10,12 @@ interface EditTransformerModalProps {
   onSave: (updated: Transformer) => void;
 }
 
-const EditTransformerModal = ({ isOpen, initial, onClose, onSave }: EditTransformerModalProps) => {
+const EditTransformerModal = ({
+  isOpen,
+  initial,
+  onClose,
+  onSave,
+}: EditTransformerModalProps) => {
   const [region, setRegion] = useState("");
   const [transformerNumber, setTransformerNumber] = useState("");
   const [poleNumber, setPoleNumber] = useState("");
@@ -32,7 +37,8 @@ const EditTransformerModal = ({ isOpen, initial, onClose, onSave }: EditTransfor
     e.preventDefault();
     const newErrors: { [k: string]: string } = {};
     if (!region) newErrors.region = "Region is required";
-    if (!transformerNumber) newErrors.transformerNumber = "Transformer number is required";
+    if (!transformerNumber)
+      newErrors.transformerNumber = "Transformer number is required";
     if (!poleNumber) newErrors.poleNumber = "Pole number is required";
     if (!type) newErrors.type = "Type is required";
     setErrors(newErrors);
@@ -49,17 +55,22 @@ const EditTransformerModal = ({ isOpen, initial, onClose, onSave }: EditTransfor
       <div className="fixed inset-0 bg-gray-500/75" onClick={onClose} />
       <div className="fixed inset-0 z-50 w-screen overflow-y-auto">
         <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-          <div
-            className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
-          >
+          <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
             <form onSubmit={handleSubmit}>
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="sm:flex sm:items-start">
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-black">Edit Transformer</h3>
+                    <h3 className="text-lg leading-6 font-medium text-black">
+                      Edit Transformer
+                    </h3>
                     <div className="mt-2">
                       <div className="mb-4">
-                        <label htmlFor="region" className="block text-black text-sm font-bold mb-2">Region</label>
+                        <label
+                          htmlFor="region"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
+                          Region
+                        </label>
                         <select
                           id="region"
                           value={region}
@@ -81,11 +92,18 @@ const EditTransformerModal = ({ isOpen, initial, onClose, onSave }: EditTransfor
                           <option>Galle</option>
                         </select>
                         {errors.region && (
-                          <p className="mt-1 text-sm text-red-600">{errors.region}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.region}
+                          </p>
                         )}
                       </div>
                       <div className="mb-4">
-                        <label htmlFor="transformerNumber" className="block text-black text-sm font-bold mb-2">Transformer Number</label>
+                        <label
+                          htmlFor="transformerNumber"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
+                          Transformer Number
+                        </label>
                         <input
                           type="text"
                           id="transformerNumber"
@@ -94,11 +112,18 @@ const EditTransformerModal = ({ isOpen, initial, onClose, onSave }: EditTransfor
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
                         {errors.transformerNumber && (
-                          <p className="mt-1 text-sm text-red-600">{errors.transformerNumber}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.transformerNumber}
+                          </p>
                         )}
                       </div>
                       <div className="mb-4">
-                        <label htmlFor="poleNumber" className="block text-black text-sm font-bold mb-2">Pole Number</label>
+                        <label
+                          htmlFor="poleNumber"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
+                          Pole Number
+                        </label>
                         <input
                           type="text"
                           id="poleNumber"
@@ -107,11 +132,18 @@ const EditTransformerModal = ({ isOpen, initial, onClose, onSave }: EditTransfor
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
                         {errors.poleNumber && (
-                          <p className="mt-1 text-sm text-red-600">{errors.poleNumber}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.poleNumber}
+                          </p>
                         )}
                       </div>
                       <div className="mb-4">
-                        <label htmlFor="type" className="block text-black text-sm font-bold mb-2">Type</label>
+                        <label
+                          htmlFor="type"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
+                          Type
+                        </label>
                         <select
                           id="type"
                           value={type}
@@ -129,11 +161,18 @@ const EditTransformerModal = ({ isOpen, initial, onClose, onSave }: EditTransfor
                           <option>Bulk</option>
                         </select>
                         {errors.type && (
-                          <p className="mt-1 text-sm text-red-600">{errors.type}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.type}
+                          </p>
                         )}
                       </div>
                       <div className="mb-4">
-                        <label htmlFor="location" className="block text-black text-sm font-bold mb-2">Location Details</label>
+                        <label
+                          htmlFor="location"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
+                          Location Details
+                        </label>
                         <textarea
                           id="location"
                           value={location}

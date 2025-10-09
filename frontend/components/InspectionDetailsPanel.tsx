@@ -211,6 +211,9 @@ const InspectionDetailsPanel = ({
     inspection.imageUploadedBy || null
   );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [baselinePreviewUrl, setBaselinePreviewUrl] = useState<string | null>(
+    null
+  );
   const [aiStats, setAiStats] = useState<{
     prob?: number;
     histDistance?: number;
@@ -420,7 +423,19 @@ const InspectionDetailsPanel = ({
       },
     });
     await reloadTransformers();
+    // After successful upload and reload, clear local preview to show persisted baseline
+    setBaselinePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
   };
+
+  // Revoke preview object URL on unmount or when changed
+  useEffect(() => {
+    return () => {
+      if (baselinePreviewUrl) URL.revokeObjectURL(baselinePreviewUrl);
+    };
+  }, [baselinePreviewUrl]);
 
   return (
     <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
@@ -571,10 +586,13 @@ const InspectionDetailsPanel = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm mb-1">Baseline ({selectedWeather})</p>
-                {baselineForWeather(selectedWeather) ? (
+                {baselinePreviewUrl || baselineForWeather(selectedWeather) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={baselineForWeather(selectedWeather) as string}
+                    src={
+                      (baselinePreviewUrl ||
+                        baselineForWeather(selectedWeather)) as string
+                    }
                     alt="Baseline"
                     className="w-full h-56 object-contain border border-gray-200 dark:border-gray-700 rounded"
                   />
@@ -588,7 +606,11 @@ const InspectionDetailsPanel = ({
                         className="hidden"
                         onChange={(e) => {
                           const f = e.target.files?.[0];
-                          if (f) uploadBaseline(f, selectedWeather);
+                          if (f) {
+                            const url = URL.createObjectURL(f);
+                            setBaselinePreviewUrl(url);
+                            uploadBaseline(f, selectedWeather);
+                          }
                         }}
                       />
                       Add baseline
@@ -864,9 +886,7 @@ const InspectionDetailsPanel = ({
               )}
               {!aiStats && storedImageUrl && (
                 <div className="mt-4">
-                  <h5 className="font-semibold mb-2 ">
-                    Stored analysis
-                  </h5>
+                  <h5 className="font-semibold mb-2 ">Stored analysis</h5>
                   {storedBoxInfo.length > 0 ? (
                     <div className="overscroll-none overflow-hidden">
                       {(storedFaultSummary.length > 0 ||

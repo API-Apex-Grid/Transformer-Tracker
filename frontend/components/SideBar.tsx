@@ -15,7 +15,9 @@ const Sidebar = ({ children }: Props) => {
 
   const checkLoginStatus = () => {
     try {
-      const loggedIn = typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
+      const loggedIn =
+        typeof window !== "undefined" &&
+        localStorage.getItem("isLoggedIn") === "true";
       setIsLoggedIn(!!loggedIn);
     } catch {
       setIsLoggedIn(false);
@@ -84,7 +86,11 @@ const Sidebar = ({ children }: Props) => {
       )}
 
       {/* Page content */}
-      <div className={isLoggedIn && isOpen ? "ml-64 transition-all duration-300" : "ml-0"}>
+      <div
+        className={
+          isLoggedIn && isOpen ? "ml-64 transition-all duration-300" : "ml-0"
+        }
+      >
         {children}
       </div>
     </div>

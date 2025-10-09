@@ -375,7 +375,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   return (
     <div
       ref={containerRef}
-      className={containerClassName}
+      className={`${containerClassName ?? ""} bg-white dark:bg-[#111]`}
       style={{ position: "relative", width: "100%", height: "28rem", overflow: "hidden", cursor: isPanningRef.current ? "grabbing" : "grab", overscrollBehavior: "contain" }}
       onWheel={onWheel}
       onMouseDown={onMouseDown}

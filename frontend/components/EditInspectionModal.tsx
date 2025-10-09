@@ -11,7 +11,12 @@ interface EditInspectionModalProps {
   onSave: (updated: Inspection) => void;
 }
 
-const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectionModalProps) => {
+const EditInspectionModal = ({
+  isOpen,
+  initial,
+  onClose,
+  onSave,
+}: EditInspectionModalProps) => {
   const [transformerNumber, setTransformerNumber] = useState("");
   const [maintainanceDate, setMaintainanceDate] = useState("");
   const [status, setStatus] = useState("Pending");
@@ -20,7 +25,9 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
   const [time, setTime] = useState("");
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
   const [submitting, setSubmitting] = useState(false);
-  const todayLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+  const todayLocal = new Date(
+    Date.now() - new Date().getTimezoneOffset() * 60000
+  )
     .toISOString()
     .split("T")[0];
 
@@ -40,10 +47,14 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
     e.preventDefault();
     const newErrors: { [k: string]: string } = {};
     if (!branch) newErrors.branch = "Branch is required";
-    if (!transformerNumber) newErrors.transformerNumber = "Transformer number is required";
-    if (!dateOfInspection) newErrors.dateOfInspection = "Date of inspection is required";
+    if (!transformerNumber)
+      newErrors.transformerNumber = "Transformer number is required";
+    if (!dateOfInspection)
+      newErrors.dateOfInspection = "Date of inspection is required";
     if (!time) newErrors.time = "Time is required";
-    if (status === 'Completed' && !maintainanceDate) newErrors.maintainanceDate = "Maintenance date is required if status is Completed";
+    if (status === "Completed" && !maintainanceDate)
+      newErrors.maintainanceDate =
+        "Maintenance date is required if status is Completed";
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
@@ -51,7 +62,10 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
 
     // Ensure transformer exists before saving
     try {
-  const res = await fetch(apiUrl(`/api/transformers?tf=${encodeURIComponent(transformerNumber)}`), { cache: "no-store" });
+      const res = await fetch(
+        apiUrl(`/api/transformers?tf=${encodeURIComponent(transformerNumber)}`),
+        { cache: "no-store" }
+      );
       let exists = false;
       if (res.ok) {
         const list: Array<{ transformerNumber?: string }> = await res.json();
@@ -60,12 +74,18 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
         }
       }
       if (!exists) {
-        setErrors(prev => ({ ...prev, transformerNumber: "Transformer does not exist" }));
+        setErrors((prev) => ({
+          ...prev,
+          transformerNumber: "Transformer does not exist",
+        }));
         setSubmitting(false);
         return;
       }
     } catch {
-      setErrors(prev => ({ ...prev, transformerNumber: "Could not verify transformer. Try again." }));
+      setErrors((prev) => ({
+        ...prev,
+        transformerNumber: "Could not verify transformer. Try again.",
+      }));
       setSubmitting(false);
       return;
     }
@@ -77,7 +97,7 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
         inspectionNumber: initial?.inspectionNumber || "",
         transformerNumber,
         inspectedDate: combinedInspectedDate,
-        maintainanceDate: status === 'Completed' ? maintainanceDate : "",
+        maintainanceDate: status === "Completed" ? maintainanceDate : "",
         status,
         branch,
       });
@@ -99,10 +119,15 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="sm:flex sm:items-start">
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-black">Edit Inspection</h3>
+                    <h3 className="text-lg leading-6 font-medium text-black">
+                      Edit Inspection
+                    </h3>
                     <div className="mt-2">
                       <div className="mb-4">
-                        <label htmlFor="branch" className="block text-black text-sm font-bold mb-2">
+                        <label
+                          htmlFor="branch"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
                           Branch
                         </label>
                         <input
@@ -112,7 +137,11 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           onChange={(e) => setBranch(e.target.value)}
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
-                        {errors.branch && <p className="mt-1 text-sm text-red-600">{errors.branch}</p>}
+                        {errors.branch && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.branch}
+                          </p>
+                        )}
                       </div>
                       <div className="mb-4">
                         <label
@@ -130,7 +159,9 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white cursor-not-allowed"
                         />
                         {errors.transformerNumber && (
-                          <p className="mt-1 text-sm text-red-600">{errors.transformerNumber}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.transformerNumber}
+                          </p>
                         )}
                       </div>
                       <div className="mb-4">
@@ -149,11 +180,16 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
                         {errors.dateOfInspection && (
-                          <p className="mt-1 text-sm text-red-600">{errors.dateOfInspection}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.dateOfInspection}
+                          </p>
                         )}
                       </div>
                       <div className="mb-4">
-                        <label htmlFor="time" className="block text-black text-sm font-bold mb-2">
+                        <label
+                          htmlFor="time"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
                           Time
                         </label>
                         <input
@@ -163,7 +199,11 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           onChange={(e) => setTime(e.target.value)}
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
-                        {errors.time && <p className="mt-1 text-sm text-red-600">{errors.time}</p>}
+                        {errors.time && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.time}
+                          </p>
+                        )}
                       </div>
                       <div className="mb-4">
                         <label
@@ -181,11 +221,16 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                           className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                         />
                         {errors.maintainanceDate && (
-                          <p className="mt-1 text-sm text-red-600">{errors.maintainanceDate}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.maintainanceDate}
+                          </p>
                         )}
                       </div>
                       <div className="mb-4">
-                        <label htmlFor="status" className="block text-black text-sm font-bold mb-2">
+                        <label
+                          htmlFor="status"
+                          className="block text-black text-sm font-bold mb-2"
+                        >
                           Status
                         </label>
                         <select
@@ -204,11 +249,15 @@ const EditInspectionModal = ({ isOpen, initial, onClose, onSave }: EditInspectio
                         </select>
                         <div className="mt-2">
                           <span
-                            className={`inline-block px-2 py-1 text-xs font-semibold rounded ${status === 'Pending' ? 'bg-red-100 text-red-800 border border-red-300' :
-                              status === 'In Progress' ? 'bg-green-100 text-green-800 border border-green-300' :
-                                status === 'Completed' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
-                                  'bg-gray-100 text-gray-800 border border-gray-300'
-                              }`}
+                            className={`inline-block px-2 py-1 text-xs font-semibold rounded ${
+                              status === "Pending"
+                                ? "bg-red-100 text-red-800 border border-red-300"
+                                : status === "In Progress"
+                                ? "bg-green-100 text-green-800 border border-green-300"
+                                : status === "Completed"
+                                ? "bg-purple-100 text-purple-800 border border-purple-300"
+                                : "bg-gray-100 text-gray-800 border border-gray-300"
+                            }`}
                           >
                             {status}
                           </span>

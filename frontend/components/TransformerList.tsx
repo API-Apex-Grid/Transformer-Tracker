@@ -11,7 +11,12 @@ interface TransformerListProps {
   onView?: (index: number) => void;
 }
 
-const TransformerList = ({ transformers, onEdit, onDelete, onView }: TransformerListProps) => {
+const TransformerList = ({
+  transformers,
+  onEdit,
+  onDelete,
+  onView,
+}: TransformerListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   const toggleMenu = (index: number) => {
@@ -67,17 +72,35 @@ const TransformerList = ({ transformers, onEdit, onDelete, onView }: Transformer
             <tr key={index}>
               <td className="px-3 py-4 align-top border-b border-gray-200 w-10">
                 <button
-                  aria-label={transformer.favourite ? "Unfavourite" : "Favourite"}
+                  aria-label={
+                    transformer.favourite ? "Unfavourite" : "Favourite"
+                  }
                   onClick={() => toggleFavourite(index)}
                   className="text-yellow-500 hover:text-yellow-600"
-                  title={transformer.favourite ? "Remove from favourites" : "Add to favourites"}
+                  title={
+                    transformer.favourite
+                      ? "Remove from favourites"
+                      : "Add to favourites"
+                  }
                 >
                   {transformer.favourite ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-5 h-5"
+                    >
                       <path d="M12 .587l3.668 7.431 8.2 1.193-5.934 5.787 1.401 8.168L12 18.896l-7.335 3.87 1.401-8.168L.132 9.211l8.2-1.193L12 .587z" />
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="w-5 h-5"
+                    >
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.77 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z" />
                     </svg>
                   )}

@@ -32,7 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} ${orbitron.variable} antialiased bg-white text-black`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${orbitron.variable} antialiased bg-white text-black`}
+      >
         {/* Initialize theme before UI paints to avoid flash */}
         <script
           dangerouslySetInnerHTML={{
@@ -41,9 +43,7 @@ export default function RootLayout({
           }}
         />
         <TransformersProvider>
-          <InspectionsProvider>
-            {children}
-          </InspectionsProvider>
+          <InspectionsProvider>{children}</InspectionsProvider>
         </TransformersProvider>
       </body>
     </html>
