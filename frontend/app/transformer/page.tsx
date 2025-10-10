@@ -26,7 +26,6 @@ const TransformerPage = () => {
     updateTransformer,
     deleteTransformer: deleteFromCtx,
     fetchTransformerById,
-    reload: reloadTransformersList,
     loading: transformersLoading,
   } = useTransformers();
   const {
@@ -35,7 +34,6 @@ const TransformerPage = () => {
     updateInspection,
     deleteInspection,
     fetchInspectionById,
-    reload: reloadInspectionsList,
     loading: inspectionsLoading,
   } = useInspections();
   const [isEditOpen, setIsEditOpen] = useState(false);

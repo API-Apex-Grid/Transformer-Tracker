@@ -70,6 +70,11 @@ public class Inspection {
     @Column(name = "annotatedby", columnDefinition = "text")
     private String annotatedBy;
 
+    // Per-box severity scores aligned with boundingBoxes order. JSON array of numbers (e.g., [0.75, 0.32, null, ...])
+    // Only faults annotated by AI have severity values; user-added faults have null severity
+    @Column(name = "severity", columnDefinition = "text")
+    private String severity;
+
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -134,4 +139,7 @@ public class Inspection {
 
     public String getAnnotatedBy() { return annotatedBy; }
     public void setAnnotatedBy(String annotatedBy) { this.annotatedBy = annotatedBy; }
+
+    public String getSeverity() { return severity; }
+    public void setSeverity(String severity) { this.severity = severity; }
 }

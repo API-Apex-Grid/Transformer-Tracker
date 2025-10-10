@@ -46,8 +46,13 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
           if (typeof faultTypes === 'string') {
             try { faultTypes = JSON.parse(faultTypes); } catch { /* keep as string if invalid */ }
           }
+          // Parse severity if provided as string
+          let severity: unknown = (obj as any).severity;
+          if (typeof severity === 'string') {
+            try { severity = JSON.parse(severity); } catch { /* keep as string if invalid */ }
+          }
           // faultType (string) comes straight from the API; include via spread
-          return { ...(obj as object), transformerNumber, boundingBoxes, faultTypes } as Inspection;
+          return { ...(obj as object), transformerNumber, boundingBoxes, faultTypes, severity } as Inspection;
         }
         return {
           transformerNumber: "",
@@ -109,7 +114,11 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
           if (typeof faultTypes === 'string') {
             try { faultTypes = JSON.parse(faultTypes); } catch {}
           }
-          return { ...(obj as object), transformerNumber, boundingBoxes, faultTypes } as Inspection;
+          let severity: unknown = (obj as any).severity;
+          if (typeof severity === 'string') {
+            try { severity = JSON.parse(severity); } catch {}
+          }
+          return { ...(obj as object), transformerNumber, boundingBoxes, faultTypes, severity } as Inspection;
         }
         return raw as Inspection;
       })();

@@ -185,6 +185,9 @@ public class InspectionController {
                 StringBuilder ann = new StringBuilder();
                 ann.append('[');
                 boolean firstAnn = true;
+                StringBuilder sev = new StringBuilder();
+                sev.append('[');
+                boolean firstSev = true;
                 for (var bi : boxInfoNode) {
                     String label = bi.path("boxFault").asText("none");
                     if (!first) sb.append(',');
@@ -196,11 +199,22 @@ public class InspectionController {
                     if (!firstAnn) ann.append(',');
                     firstAnn = false;
                     ann.append('"').append(who).append('"');
+                    // Per-box severity: extract from AI results (only AI-annotated faults have severity)
+                    if (!firstSev) sev.append(',');
+                    firstSev = false;
+                    var severityNode = bi.path("severity");
+                    if (severityNode != null && !severityNode.isMissingNode() && severityNode.isNumber()) {
+                        sev.append(severityNode.asDouble());
+                    } else {
+                        sev.append("null");
+                    }
                 }
                 sb.append(']');
                 i.setFaultTypes(sb.toString());
                 ann.append(']');
                 i.setAnnotatedBy(ann.toString());
+                sev.append(']');
+                i.setSeverity(sev.toString());
             }
             // analyzed image dimensions no longer persisted
         } catch (Exception ignore) { }
@@ -357,6 +371,12 @@ public class InspectionController {
                 i.setFaultTypes(null);
                 // Clear the last analysis weather since analysis has been cleared
                 i.setLastAnalysisWeather(null);
+                // Clear history fields as requested
+                i.setFaultTypeHistory(null);
+                i.setBoundingBoxHistory(null);
+                i.setAnnotatedBy(null);
+                i.setAnnotatedByHistory(null);
+                i.setSeverity(null);
                 // analyzed image dimensions removed; nothing to clear
             } catch (Exception ignore) { }
             repo.save(i);
@@ -435,6 +455,21 @@ public class InspectionController {
                             }
                         }
                     } catch (Exception ignore) { /* ignore malformed annotatedBy */ }
+                }
+
+                // Update severity array to maintain alignment
+                String sevJson = i.getSeverity();
+                if (sevJson != null && !sevJson.isBlank()) {
+                    try {
+                        JsonNode sevNode = mapper.readTree(sevJson);
+                        if (sevNode instanceof ArrayNode) {
+                            ArrayNode sevArr = (ArrayNode) sevNode;
+                            if (index >= 0 && index < sevArr.size()) {
+                                sevArr.remove(index);
+                                i.setSeverity(sevArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed severity */ }
                 }
 
                 repo.save(i);
@@ -516,6 +551,21 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed annotatedBy */ }
                 }
 
+                // Update severity alignment
+                String sevJson = i.getSeverity();
+                if (sevJson != null && !sevJson.isBlank()) {
+                    try {
+                        JsonNode sevNode = mapper.readTree(sevJson);
+                        if (sevNode instanceof ArrayNode) {
+                            ArrayNode sevArr = (ArrayNode) sevNode;
+                            if (matchIdx >= 0 && matchIdx < sevArr.size()) {
+                                sevArr.remove(matchIdx);
+                                i.setSeverity(sevArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed severity */ }
+                }
+
                 repo.save(i);
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
             } catch (Exception e) {
@@ -588,6 +638,22 @@ public class InspectionController {
                 String who = username == null || username.isBlank() ? "user" : username;
                 annArr.add(who);
                 i.setAnnotatedBy(annArr.toString());
+
+                // Update severity array aligned with boxes (user-added boxes have null severity)
+                ArrayNode sevArr;
+                String sevJson = i.getSeverity();
+                if (sevJson != null && !sevJson.isBlank()) {
+                    try {
+                        var node = mapper.readTree(sevJson);
+                        sevArr = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+                    } catch (Exception ex) {
+                        sevArr = mapper.createArrayNode();
+                    }
+                } else {
+                    sevArr = mapper.createArrayNode();
+                }
+                sevArr.addNull(); // User-added boxes have null severity
+                i.setSeverity(sevArr.toString());
 
                 repo.save(i);
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", boxesArr, "faultTypes", ftArr));

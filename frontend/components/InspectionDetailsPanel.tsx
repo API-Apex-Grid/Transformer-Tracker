@@ -196,6 +196,41 @@ const parseAnnotatedBy = (
   return arr.slice(0, expectedLength);
 };
 
+const parseSeverities = (
+  raw: Inspection["severity"],
+  expectedLength: number
+): (number | null)[] => {
+  if (raw == null) return Array(expectedLength).fill(null);
+  let source: unknown = raw;
+  if (typeof source === "string") {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = (source as string)
+        .split(/[,;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => {
+          const n = Number.parseFloat(s);
+          return Number.isFinite(n) ? n : null;
+        });
+    }
+  }
+  if (!Array.isArray(source)) return Array(expectedLength).fill(null);
+  const arr = (source as unknown[]).map((v) => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    if (typeof v === "string") {
+      const n = Number.parseFloat(v);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  });
+  if (arr.length < expectedLength) {
+    arr.push(...Array(expectedLength - arr.length).fill(null));
+  }
+  return arr.slice(0, expectedLength);
+};
+
 const buildBoxInfo = (boxes: number[][], faults: string[]): OverlayBoxInfo[] =>
   boxes.map((box, index) => {
     const fault = faults[index] ?? "none";
@@ -265,6 +300,7 @@ const InspectionDetailsPanel = ({
   const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
   const [storedBoxInfo, setStoredBoxInfo] = useState<OverlayBoxInfo[]>([]);
   const [storedAnnotatedBy, setStoredAnnotatedBy] = useState<string[]>([]);
+  const [storedSeverity, setStoredSeverity] = useState<(number | null)[]>([]);
   // Queue changes to persist on close (X)
   const [pendingAdds, setPendingAdds] = useState<
     { x: number; y: number; w: number; h: number; faultType: string }[]
@@ -379,18 +415,24 @@ const InspectionDetailsPanel = ({
         parsedBoxes.length
       );
       const parsedAnnotatedBy = parseAnnotatedBy(
-        (inspection as any).annotatedBy,
+        inspection.annotatedBy as string | null | undefined,
+        parsedBoxes.length
+      );
+      const parsedSeverity = parseSeverities(
+        inspection.severity,
         parsedBoxes.length
       );
       setStoredBoxes(parsedBoxes);
       setStoredFaultTypes(parsedFaults);
       setStoredBoxInfo(buildBoxInfo(parsedBoxes, parsedFaults));
       setStoredAnnotatedBy(parsedAnnotatedBy);
+      setStoredSeverity(parsedSeverity);
     } catch {
       setStoredBoxes([]);
       setStoredFaultTypes([]);
       setStoredBoxInfo([]);
       setStoredAnnotatedBy([]);
+      setStoredSeverity([]);
     }
     // reset any queued changes when inspection changes or reloads
     setPendingAdds([]);
@@ -616,6 +658,7 @@ const InspectionDetailsPanel = ({
                   setStoredFaultTypes([]);
                   setStoredBoxInfo([]);
                   setStoredAnnotatedBy([]);
+                  setStoredSeverity([]);
                   // Also clear any pending changes
                   setPendingAdds([]);
                   setPendingDeletes([]);
@@ -667,6 +710,11 @@ const InspectionDetailsPanel = ({
                 setStoredBoxInfo(aiBoxInfo);
                 // All AI-detected boxes are annotated by "AI"
                 setStoredAnnotatedBy(Array(aiBoxes.length).fill("AI"));
+                setStoredSeverity(
+                  aiBoxInfo.map((bi: OverlayBoxInfo & { severity?: number | null }) =>
+                    typeof bi?.severity === "number" ? bi.severity : null
+                  )
+                );
               }
               // Persisted on backend; optimistically update local selected weather and image
               setSelectedWeather(selectedWeather);
@@ -953,6 +1001,7 @@ const InspectionDetailsPanel = ({
                         </span>
                         <span>
                           {fault}
+                         {" · Annotated by AI"}
                           {sevPct !== undefined ? ` · Severity ${sevPct}%` : ""}
                         </span>
                       </li>
@@ -1060,10 +1109,16 @@ const InspectionDetailsPanel = ({
                             : [];
                           if (matchIdx >= 0 && matchIdx < newAnnotatedBy.length)
                             newAnnotatedBy.splice(matchIdx, 1);
+                          const newSeverity = Array.isArray(storedSeverity)
+                            ? storedSeverity.slice()
+                            : [];
+                          if (matchIdx >= 0 && matchIdx < newSeverity.length)
+                            newSeverity.splice(matchIdx, 1);
                           setStoredBoxes(newBoxes);
                           setStoredFaultTypes(newFaults);
                           setStoredBoxInfo(buildBoxInfo(newBoxes, newFaults));
                           setStoredAnnotatedBy(newAnnotatedBy);
+                          setStoredSeverity(newSeverity);
                           // queue the delete if we have coords; also cancel out any pending add for same box
                           if (del) {
                             setPendingDeletes((prev) => {
@@ -1112,21 +1167,32 @@ const InspectionDetailsPanel = ({
                       </div>
                       {storedBoxInfo.length > 0 && (
                         <ol className="mt-2 text-xs text-gray-700 dark:text-gray-300 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-                          {storedBoxInfo.map((bi, i) => (
-                            <li
-                              key={`stored-legend-${i}`}
-                              className="flex items-center gap-2"
-                            >
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">
-                                {i + 1}
-                              </span>
-                              <span>
-                                {toDisplayLabel(
-                                  canonicalizeFault(bi.boxFault || "none")
-                                )}
-                              </span>
-                            </li>
-                          ))}
+                          {storedBoxInfo.map((bi, i) => {
+                            const who = storedAnnotatedBy[i] || "user";
+                            const label = toDisplayLabel(
+                              canonicalizeFault(bi.boxFault || "none")
+                            );
+                            const sev = storedSeverity[i];
+                            const sevPct =
+                              who.toLowerCase() === "ai" && typeof sev === "number"
+                                ? Math.round(sev * 100)
+                                : undefined;
+                            return (
+                              <li
+                                key={`stored-legend-${i}`}
+                                className="flex items-center gap-2"
+                              >
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">
+                                  {i + 1}
+                                </span>
+                                <span>
+                                  {label}
+                                  {` · Annotated by ${who}`}
+                                  {sevPct !== undefined ? ` · Severity ${sevPct}%` : ""}
+                                </span>
+                              </li>
+                            );
+                          })}
                         </ol>
                       )}
                     </div>
@@ -1196,7 +1262,8 @@ const InspectionDetailsPanel = ({
                       },
                     ]);
                     setStoredAnnotatedBy((prev) => [...prev, username]);
-                          // Queue add to persist on close
+                    setStoredSeverity((prev) => [...prev, null]);
+                           // Queue add to persist on close
                           setPendingAdds((prev) => [
                             ...prev,
                             { x: rect.x, y: rect.y, w: rect.w, h: rect.h, faultType: ft },

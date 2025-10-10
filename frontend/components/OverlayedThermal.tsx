@@ -1,3 +1,11 @@
+/*
+  We intentionally use a raw <img> tag here to enable custom zoom/pan via CSS transforms.
+  next/image imposes layout constraints and intercepts intrinsic sizing that conflict with
+  our zoom math (scale and translate based on the image's natural dimensions). If we migrate
+  this component to next/image in the future, we must preserve exact pixel sizing and prevent
+  layout shifts under transforms.
+*/
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
@@ -486,8 +494,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
             show = toggles.looseJoint || toggles.pointOverload || toggles.wireOverload;
           }
           
-          console.log(`Box ${idx}: fault="${normalizedFault}", show=${show}, effW=${effW}, effH=${effH}, coords=[${b.x},${b.y},${b.w},${b.h}]`);
-          
+          // debug trace removed for production
+
           if (!show) return null;
                   return (
                     <div key={`${b.x}-${b.y}-${idx}`}
