@@ -75,14 +75,31 @@ export default function ThemeToggle() {
     } catch {}
   }, [isDark, initialized]);
 
+  // During SSR and before hydration completes, render a stable, neutral button to avoid mismatches
+  const computedTitle = initialized
+    ? isDark
+      ? "Switch to light mode"
+      : "Switch to dark mode"
+    : "Toggle theme";
+  const computedAria = computedTitle;
+
   return (
     <button
       onClick={() => setIsDark((v) => !v)}
       className="inline-flex items-center justify-center w-9 h-9 rounded-md border-2 border-black transition-colors custombutton"
-      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      title={computedTitle}
+      aria-label={computedAria}
     >
-      {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+      {initialized ? (
+        isDark ? (
+          <Sun className="w-5 h-5" />
+        ) : (
+          <Moon className="w-5 h-5" />
+        )
+      ) : (
+        // Render a placeholder icon during SSR to keep markup deterministic
+        <Sun className="w-5 h-5 opacity-0" />
+      )}
     </button>
   );
 }

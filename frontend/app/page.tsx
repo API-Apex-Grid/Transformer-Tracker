@@ -34,6 +34,8 @@ export default function Home() {
         localStorage.setItem("isLoggedIn", "true");
         localStorage.setItem("username", username);
         localStorage.setItem("userImage", data.image || "");
+        // Notify app that login succeeded so data contexts can reload immediately
+        window.dispatchEvent(new Event("app:logged-in"));
       } catch {}
       router.push("/transformer");
     } catch {

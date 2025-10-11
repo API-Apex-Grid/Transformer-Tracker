@@ -95,6 +95,24 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     }
   }, []);
 
+  // Reload when the app signals a successful login, or when the window regains focus while logged in
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onLoggedIn = () => { void load(); };
+    const onFocus = () => {
+      try {
+        const logged = localStorage.getItem('isLoggedIn') === 'true';
+        if (logged) void load();
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('app:logged-in', onLoggedIn as EventListener);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('app:logged-in', onLoggedIn as EventListener);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
   // Do not refetch on route change to avoid unnecessary reloads
 
   const fetchInspectionById = async (id: string): Promise<Inspection | null> => {

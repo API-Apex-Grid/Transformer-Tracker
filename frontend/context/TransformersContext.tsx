@@ -67,6 +67,24 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  // Reload when app signals login or when window regains focus while logged in
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onLoggedIn = () => { void load(); };
+    const onFocus = () => {
+      try {
+        const logged = localStorage.getItem('isLoggedIn') === 'true';
+        if (logged) void load();
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('app:logged-in', onLoggedIn as EventListener);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('app:logged-in', onLoggedIn as EventListener);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
   // Do not refetch on route change; list is cached in memory and can be refreshed explicitly
 
   const fetchTransformerById = async (id: string): Promise<Transformer | null> => {

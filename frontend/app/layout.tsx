@@ -31,17 +31,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} ${orbitron.variable} antialiased bg-white text-black`}
       >
-        {/* Initialize theme before UI paints to avoid flash */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');document.body.classList.remove('bg-white','text-black');document.body.classList.add('bg-black','text-white');}}catch(e){}})();",
-          }}
-        />
         <TransformersProvider>
           <InspectionsProvider>{children}</InspectionsProvider>
         </TransformersProvider>
