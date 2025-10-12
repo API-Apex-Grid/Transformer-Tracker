@@ -730,6 +730,13 @@ public class InspectionController {
                 var boxesPayload = payload.get("boundingBoxes");
                 var faultsPayload = payload.get("faultTypes");
                 var annotatedByPayload = payload.get("annotatedBy");
+                var tuneModelPayload = payload.get("tuneModel");
+                boolean tuneModel = true;
+                if (tuneModelPayload instanceof Boolean) {
+                    tuneModel = (Boolean) tuneModelPayload;
+                } else if (tuneModelPayload instanceof String) {
+                    tuneModel = Boolean.parseBoolean((String) tuneModelPayload);
+                }
 
                 ArrayNode finalBoxes = mapper.createArrayNode();
                 if (boxesPayload instanceof List) {
@@ -779,15 +786,17 @@ public class InspectionController {
         i.setAnnotatedBy(finalAnnotatedJson);
                 repo.save(i);
 
-        parameterTuningService.processBulkUpdateFeedback(
-            i,
-            previousBoxes,
-            previousFaults,
-            previousAnnotated,
-            finalBoxesJson,
-            finalFaultsJson,
-            finalAnnotatedJson
-        );
+        if (tuneModel) {
+            parameterTuningService.processBulkUpdateFeedback(
+                i,
+                previousBoxes,
+                previousFaults,
+                previousAnnotated,
+                finalBoxesJson,
+                finalFaultsJson,
+                finalAnnotatedJson
+            );
+        }
 
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", finalBoxes, "faultTypes", finalFaults));
             } catch (Exception e) {

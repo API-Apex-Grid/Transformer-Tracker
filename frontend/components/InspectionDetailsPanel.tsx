@@ -9,9 +9,8 @@ import OverlayedThermal, {
 } from "@/components/OverlayedThermal";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { apiUrl } from "@/lib/api";
-import { useEffect } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
 
 const toFinite = (value: unknown): number | null => {
@@ -298,6 +297,17 @@ const buildSnapshotLabel = (snapshot: HistorySnapshot, index: number, total: num
   return label;
 };
 
+const cloneBoxes = (boxes: number[][]): number[][] =>
+  boxes.map((box) => box.slice() as number[]);
+
+const cloneStrings = (values: string[]): string[] => values.slice();
+
+const cloneSeverities = (values: (number | null)[]): (number | null)[] =>
+  values.slice();
+
+const jsonEqual = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(a) === JSON.stringify(b);
+
 interface InspectionDetailsPanelProps {
   inspection: Inspection;
   onClose: () => void;
@@ -354,6 +364,13 @@ const InspectionDetailsPanel = ({
   const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
   const [storedAnnotatedBy, setStoredAnnotatedBy] = useState<string[]>([]);
   const [storedSeverity, setStoredSeverity] = useState<(number | null)[]>([]);
+  const initialStoredRef = useRef<{
+    boxes: number[][];
+    faults: string[];
+    annotatedBy: string[];
+    severity: (number | null)[];
+  }>({ boxes: [], faults: [], annotatedBy: [], severity: [] });
+  const [tuneModelEnabled, setTuneModelEnabled] = useState(true);
   const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[]>([]);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
   // Queue changes to persist on close (X)
@@ -504,8 +521,49 @@ const InspectionDetailsPanel = ({
     setSelectedSnapshotIndex(idx);
   };
 
+  const hasSessionChanges = useMemo(() => {
+    const initialSnapshot = initialStoredRef.current;
+    const boxesChanged = !jsonEqual(storedBoxes, initialSnapshot.boxes);
+    const faultsChanged = !jsonEqual(storedFaultTypes, initialSnapshot.faults);
+    const annotatedChanged = !jsonEqual(
+      storedAnnotatedBy,
+      initialSnapshot.annotatedBy
+    );
+    const severityChanged = !jsonEqual(storedSeverity, initialSnapshot.severity);
+    return (
+      boxesChanged ||
+      faultsChanged ||
+      annotatedChanged ||
+      severityChanged ||
+      pendingAdds.length > 0 ||
+      pendingDeletes.length > 0
+    );
+  }, [
+    storedBoxes,
+    storedFaultTypes,
+    storedAnnotatedBy,
+    storedSeverity,
+    pendingAdds,
+    pendingDeletes,
+  ]);
+
+  const resetSessionChanges = () => {
+    const initialSnapshot = initialStoredRef.current;
+    setStoredBoxes(cloneBoxes(initialSnapshot.boxes));
+    setStoredFaultTypes(cloneStrings(initialSnapshot.faults));
+    setStoredAnnotatedBy(cloneStrings(initialSnapshot.annotatedBy));
+    setStoredSeverity(cloneSeverities(initialSnapshot.severity));
+    setPendingAdds([]);
+    setPendingDeletes([]);
+    setSelectedSnapshotIndex(null);
+    setIsDrawMode(false);
+    setDrawTarget(null);
+    setPendingRect(null);
+  };
+
   // When switching to a different inspection, reinitialize weather and image state
   useEffect(() => {
+    setTuneModelEnabled(true);
     setSelectedWeather(
       (inspection.lastAnalysisWeather as string) ||
         inspection.weather ||
@@ -531,15 +589,31 @@ const InspectionDetailsPanel = ({
         inspection.severity,
         parsedBoxes.length
       );
-      setStoredBoxes(parsedBoxes);
-      setStoredFaultTypes(parsedFaults);
-      setStoredAnnotatedBy(parsedAnnotatedBy);
-      setStoredSeverity(parsedSeverity);
+      const clonedBoxes = cloneBoxes(parsedBoxes);
+      const clonedFaults = cloneStrings(parsedFaults);
+      const clonedAnnotated = cloneStrings(parsedAnnotatedBy);
+      const clonedSeverity = cloneSeverities(parsedSeverity);
+      setStoredBoxes(clonedBoxes);
+      setStoredFaultTypes(clonedFaults);
+      setStoredAnnotatedBy(clonedAnnotated);
+      setStoredSeverity(clonedSeverity);
+      initialStoredRef.current = {
+        boxes: cloneBoxes(clonedBoxes),
+        faults: cloneStrings(clonedFaults),
+        annotatedBy: cloneStrings(clonedAnnotated),
+        severity: cloneSeverities(clonedSeverity),
+      };
     } catch {
       setStoredBoxes([]);
       setStoredFaultTypes([]);
       setStoredAnnotatedBy([]);
       setStoredSeverity([]);
+      initialStoredRef.current = {
+        boxes: [],
+        faults: [],
+        annotatedBy: [],
+        severity: [],
+      };
     }
     try {
       const boxHistoryEntries = parseHistoryEntries(
@@ -708,7 +782,7 @@ const InspectionDetailsPanel = ({
       onClose();
       return;
     }
-    if (pendingAdds.length === 0 && pendingDeletes.length === 0) {
+    if (!hasSessionChanges) {
       onClose();
       return;
     }
@@ -730,8 +804,17 @@ const InspectionDetailsPanel = ({
           boundingBoxes: finalBoxes,
           faultTypes: finalFaults,
           annotatedBy: finalAnnotatedBy,
+          tuneModel: tuneModelEnabled,
         }),
       });
+      initialStoredRef.current = {
+        boxes: cloneBoxes(storedBoxes),
+        faults: cloneStrings(storedFaultTypes),
+        annotatedBy: cloneStrings(storedAnnotatedBy),
+        severity: cloneSeverities(storedSeverity),
+      };
+      setPendingAdds([]);
+      setPendingDeletes([]);
       await reload();
     } catch {
       // best-effort; still close
@@ -776,21 +859,36 @@ const InspectionDetailsPanel = ({
       <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
       <div className="flex justify-between items-start mb-4">
         <h2 className="text-xl font-bold">Inspection Details</h2>
-        <button onClick={flushAndClose} className="text-gray-400 hover:text-gray-600" disabled={isClosing}>
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span>Tune model</span>
+            <span className="relative inline-flex h-5 w-10 items-center">
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={tuneModelEnabled}
+                onChange={(event) => setTuneModelEnabled(event.target.checked)}
+              />
+              <span className="pointer-events-none absolute inset-0 rounded-full bg-gray-400 transition-colors peer-checked:bg-green-500" />
+              <span className="pointer-events-none absolute left-1 top-1 h-3 w-3 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
+            </span>
+          </label>
+          <button onClick={flushAndClose} className="text-gray-400 hover:text-gray-600" disabled={isClosing}>
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
@@ -869,6 +967,12 @@ const InspectionDetailsPanel = ({
                   setStoredFaultTypes([]);
                   setStoredAnnotatedBy([]);
                   setStoredSeverity([]);
+                  initialStoredRef.current = {
+                    boxes: [],
+                    faults: [],
+                    annotatedBy: [],
+                    severity: [],
+                  };
                   // Also clear any pending changes
                   setPendingAdds([]);
                   setPendingDeletes([]);
@@ -914,16 +1018,27 @@ const InspectionDetailsPanel = ({
               const aiBoxes = res.boxes as number[][];
               const aiBoxInfo = res.boxInfo || [];
               if (Array.isArray(aiBoxes)) {
-                setStoredBoxes(aiBoxes);
+                const clonedBoxes = cloneBoxes(aiBoxes);
                 const aiFaults = aiBoxInfo.map((bi: OverlayBoxInfo) => bi.boxFault || "none");
-                setStoredFaultTypes(aiFaults);
-                // All AI-detected boxes are annotated by "AI"
-                setStoredAnnotatedBy(Array(aiBoxes.length).fill("AI"));
-                setStoredSeverity(
-                  aiBoxInfo.map((bi: OverlayBoxInfo & { severity?: number | null }) =>
+                const clonedFaults = cloneStrings(aiFaults);
+                const aiAnnotated = Array(aiBoxes.length).fill("AI");
+                const severityValues = aiBoxInfo.map(
+                  (bi: OverlayBoxInfo & { severity?: number | null }) =>
                     typeof bi?.severity === "number" ? bi.severity : null
-                  )
                 );
+                setStoredBoxes(clonedBoxes);
+                setStoredFaultTypes(clonedFaults);
+                // All AI-detected boxes are annotated by "AI"
+                setStoredAnnotatedBy(aiAnnotated);
+                setStoredSeverity(severityValues);
+                initialStoredRef.current = {
+                  boxes: cloneBoxes(clonedBoxes),
+                  faults: cloneStrings(clonedFaults),
+                  annotatedBy: cloneStrings(aiAnnotated),
+                  severity: cloneSeverities(severityValues),
+                };
+                setPendingAdds([]);
+                setPendingDeletes([]);
               }
               // Persisted on backend; optimistically update local selected weather and image
               setSelectedWeather(selectedWeather);
@@ -1236,38 +1351,52 @@ const InspectionDetailsPanel = ({
               {!aiStats && storedImageUrl && (
                 <div className="mt-4">
                   <h5 className="font-semibold mb-2 ">Stored analysis</h5>
-                  {historySnapshots.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
-                      <label className="font-semibold text-gray-700 dark:text-gray-300">
-                        Version
-                      </label>
-                      <select
-                        className="details-panel border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
-                        value={
-                          selectedSnapshotIndex === null
-                            ? "current"
-                            : String(selectedSnapshotIndex)
-                        }
-                        onChange={(event) => handleHistorySelect(event.target.value)}
-                      >
-                        <option value="current">{currentVersionLabel}</option>
-                        {historyOptionsDesc.map(({ index, label }) => (
-                          <option key={index} value={index}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedSnapshotIndex !== null && (
-                        <button
-                          type="button"
-                          className="details-panel inline-flex items-center gap-1 rounded border border-gray-300 hover:bg-gray-50 px-2 py-1"
-                          onClick={() => setSelectedSnapshotIndex(null)}
+                  <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+                    {historySnapshots.length > 0 && (
+                      <>
+                        <label className="font-semibold text-gray-700 dark:text-gray-300">
+                          Version
+                        </label>
+                        <select
+                          className="details-panel border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
+                          value={
+                            selectedSnapshotIndex === null
+                              ? "current"
+                              : String(selectedSnapshotIndex)
+                          }
+                          onChange={(event) => handleHistorySelect(event.target.value)}
                         >
-                          Return to latest
-                        </button>
-                      )}
-                    </div>
-                  )}
+                          <option value="current">{currentVersionLabel}</option>
+                          {historyOptionsDesc.map(({ index, label }) => (
+                            <option key={index} value={index}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedSnapshotIndex !== null && (
+                          <button
+                            type="button"
+                            className="details-panel inline-flex items-center gap-1 rounded border border-gray-300 hover:bg-gray-50 px-2 py-1"
+                            onClick={() => setSelectedSnapshotIndex(null)}
+                          >
+                            Return to latest
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className={`details-panel inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 transition-colors ${
+                        editingDisabled || !hasSessionChanges
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-gray-50"
+                      }`}
+                      onClick={resetSessionChanges}
+                      disabled={editingDisabled || !hasSessionChanges}
+                    >
+                      Reset boxes
+                    </button>
+                  </div>
                   {selectedSnapshotIndex !== null && (
                     <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
                       Viewing archived snapshot from {" "}
@@ -1547,7 +1676,10 @@ const InspectionDetailsPanel = ({
           </div>
         )}
       </div>
-      <LoadingScreen show={isClosing} message="Tuning AI model…" />
+      <LoadingScreen
+        show={isClosing}
+        message={tuneModelEnabled ? "Tuning AI model…" : "Loading inspections…"}
+      />
       </div>
     </>
   );
