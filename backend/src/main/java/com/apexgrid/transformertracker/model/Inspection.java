@@ -75,6 +75,14 @@ public class Inspection {
     @Column(name = "severity", columnDefinition = "text")
     private String severity;
 
+    // History of per-box severity arrays aligned with boundingBoxHistory/faultTypeHistory snapshots
+    @Column(name = "severityhistory", columnDefinition = "text")
+    private String severityHistory;
+
+    // History of timestamps (ISO-8601 strings) when each snapshot was archived
+    @Column(name = "timestamphistory", columnDefinition = "text")
+    private String timestampHistory;
+
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -142,4 +150,10 @@ public class Inspection {
 
     public String getSeverity() { return severity; }
     public void setSeverity(String severity) { this.severity = severity; }
+
+    public String getSeverityHistory() { return severityHistory; }
+    public void setSeverityHistory(String severityHistory) { this.severityHistory = severityHistory; }
+
+    public String getTimestampHistory() { return timestampHistory; }
+    public void setTimestampHistory(String timestampHistory) { this.timestampHistory = timestampHistory; }
 }

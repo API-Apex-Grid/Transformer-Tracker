@@ -254,6 +254,7 @@ public class InspectionController {
     private void archivePreviousAnalysis(Inspection i, String annotatedBy) throws Exception {
         String boxesJson = i.getBoundingBoxes();
         String faultsJson = i.getFaultTypes();
+        String severityJson = i.getSeverity();
         if ((boxesJson == null || boxesJson.isBlank()) && (faultsJson == null || faultsJson.isBlank())) {
             return; // nothing to archive
         }
@@ -359,10 +360,50 @@ public class InspectionController {
             annotatedHist.add(snap);
         }
 
+        // severityHistory as array of snapshots aligned with boxes/faults
+        ArrayNode severityHist;
+        String severityHistJson = i.getSeverityHistory();
+        if (severityHistJson != null && !severityHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(severityHistJson);
+                severityHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                severityHist = mapper.createArrayNode();
+            }
+        } else {
+            severityHist = mapper.createArrayNode();
+        }
+        if (severityJson != null && !severityJson.isBlank()) {
+            try {
+                severityHist.add(mapper.readTree(severityJson));
+            } catch (Exception ex) {
+                severityHist.addNull();
+            }
+        } else {
+            severityHist.addNull();
+        }
+
+        // timestampHistory records when each snapshot was archived
+        ArrayNode timestampHist;
+        String timestampHistJson = i.getTimestampHistory();
+        if (timestampHistJson != null && !timestampHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(timestampHistJson);
+                timestampHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                timestampHist = mapper.createArrayNode();
+            }
+        } else {
+            timestampHist = mapper.createArrayNode();
+        }
+        timestampHist.add(Instant.now().toString());
+
         // Persist updated histories ensuring alignment/order
         i.setBoundingBoxHistory(boxHist.toString());
         i.setFaultTypeHistory(faultHist.toString());
         i.setAnnotatedByHistory(annotatedHist.toString());
+        i.setSeverityHistory(severityHist.toString());
+        i.setTimestampHistory(timestampHist.toString());
     }
 
     @PostMapping("/{id}/clear-analysis")
@@ -383,6 +424,8 @@ public class InspectionController {
                 i.setAnnotatedBy(null);
                 i.setAnnotatedByHistory(null);
                 i.setSeverity(null);
+                i.setSeverityHistory(null);
+                i.setTimestampHistory(null);
                 // analyzed image dimensions removed; nothing to clear
             } catch (Exception ignore) { }
             repo.save(i);

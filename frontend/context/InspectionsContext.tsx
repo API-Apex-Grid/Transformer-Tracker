@@ -4,6 +4,15 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import { Inspection } from "@/types/inspection";
 import { apiUrl } from "@/lib/api";
 
+const parseMaybeJson = (value: unknown): unknown => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
 type InspectionsContextValue = {
   inspections: Inspection[];
   addInspection: (i: Inspection) => void;
@@ -51,8 +60,24 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
           if (typeof severity === 'string') {
             try { severity = JSON.parse(severity); } catch { /* keep as string if invalid */ }
           }
+          const boundingBoxHistory = parseMaybeJson((obj as any).boundingBoxHistory);
+          const faultTypeHistory = parseMaybeJson((obj as any).faultTypeHistory);
+          const annotatedByHistory = parseMaybeJson((obj as any).annotatedByHistory);
+          const severityHistory = parseMaybeJson((obj as any).severityHistory);
+          const timestampHistory = parseMaybeJson((obj as any).timestampHistory);
           // faultType (string) comes straight from the API; include via spread
-          return { ...(obj as object), transformerNumber, boundingBoxes, faultTypes, severity } as Inspection;
+          return {
+            ...(obj as object),
+            transformerNumber,
+            boundingBoxes,
+            faultTypes,
+            severity,
+            boundingBoxHistory,
+            faultTypeHistory,
+            annotatedByHistory,
+            severityHistory,
+            timestampHistory,
+          } as Inspection;
         }
         return {
           transformerNumber: "",
@@ -136,7 +161,23 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
           if (typeof severity === 'string') {
             try { severity = JSON.parse(severity); } catch {}
           }
-          return { ...(obj as object), transformerNumber, boundingBoxes, faultTypes, severity } as Inspection;
+          const boundingBoxHistory = parseMaybeJson((obj as any).boundingBoxHistory);
+          const faultTypeHistory = parseMaybeJson((obj as any).faultTypeHistory);
+          const annotatedByHistory = parseMaybeJson((obj as any).annotatedByHistory);
+          const severityHistory = parseMaybeJson((obj as any).severityHistory);
+          const timestampHistory = parseMaybeJson((obj as any).timestampHistory);
+          return {
+            ...(obj as object),
+            transformerNumber,
+            boundingBoxes,
+            faultTypes,
+            severity,
+            boundingBoxHistory,
+            faultTypeHistory,
+            annotatedByHistory,
+            severityHistory,
+            timestampHistory,
+          } as Inspection;
         }
         return raw as Inspection;
       })();

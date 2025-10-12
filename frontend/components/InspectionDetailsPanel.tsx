@@ -175,7 +175,7 @@ const parseFaultTypes = (
 };
 
 const parseAnnotatedBy = (
-  raw: string | null | undefined,
+  raw: string | string[] | null | undefined,
   expectedLength: number
 ): string[] => {
   if (!raw) return Array(expectedLength).fill("user");
@@ -245,6 +245,59 @@ const buildBoxInfo = (boxes: number[][], faults: string[]): OverlayBoxInfo[] =>
     };
   });
 
+const parseHistoryEntries = (raw: unknown): unknown[] => {
+  if (raw == null) return [];
+  let source: unknown = raw;
+  if (typeof source === "string") {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(source) ? (source as unknown[]) : [];
+};
+
+type HistorySnapshot = {
+  boxes: number[][];
+  faults: string[];
+  annotatedBy: string[];
+  severity: (number | null)[];
+  timestamp: string | null;
+};
+
+const formatTimestamp = (timestamp: string | null | undefined): string => {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleString();
+};
+
+const summarizeAnnotators = (annotatedBy: string[]): string | null => {
+  const cleaned = annotatedBy
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+  if (cleaned.length === 0) return null;
+  const normalized = cleaned.map((val) => val.toLowerCase());
+  const unique = Array.from(new Set(normalized));
+  if (unique.length === 1) {
+    const original = cleaned.find((val) => val.toLowerCase() === unique[0]) ?? cleaned[0];
+    if (unique[0] === "ai") return "AI";
+    return original;
+  }
+  return "multiple annotators";
+};
+
+const buildSnapshotLabel = (snapshot: HistorySnapshot, index: number, total: number): string => {
+  const ordinal = total - index;
+  const ts = formatTimestamp(snapshot.timestamp);
+  const actor = summarizeAnnotators(snapshot.annotatedBy);
+  let label = `Snapshot ${ordinal}`;
+  if (ts) label += ` · ${ts}`;
+  if (actor) label += ` · ${actor}`;
+  return label;
+};
+
 interface InspectionDetailsPanelProps {
   inspection: Inspection;
   onClose: () => void;
@@ -299,9 +352,10 @@ const InspectionDetailsPanel = ({
   // Local states for stored analysis so we can update immediately after delete
   const [storedBoxes, setStoredBoxes] = useState<number[][]>([]);
   const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
-  const [storedBoxInfo, setStoredBoxInfo] = useState<OverlayBoxInfo[]>([]);
   const [storedAnnotatedBy, setStoredAnnotatedBy] = useState<string[]>([]);
   const [storedSeverity, setStoredSeverity] = useState<(number | null)[]>([]);
+  const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[]>([]);
+  const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
   // Queue changes to persist on close (X)
   const [pendingAdds, setPendingAdds] = useState<
     { x: number; y: number; w: number; h: number; faultType: string }[]
@@ -323,34 +377,6 @@ const InspectionDetailsPanel = ({
   } | null>(null);
   const [showFaultModal, setShowFaultModal] = useState(false);
   const [faultSelection, setFaultSelection] = useState<string>("loose joint");
-
-  const storedFaultSummary = useMemo(() => {
-    if (!storedBoxInfo.length)
-      return [] as Array<{ fault: string; label: string; count: number }>;
-    const counts = storedBoxInfo.reduce<Record<string, number>>((acc, box) => {
-      const key = canonicalizeFault(box.boxFault ?? "none");
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    }, {});
-    return Object.entries(counts)
-      .map(([fault, count]) => ({ fault, label: toDisplayLabel(fault), count }))
-      .sort((a, b) => b.count - a.count);
-  }, [storedBoxInfo]);
-
-  const storedVisibleBoxCount = useMemo(() => {
-    if (!storedBoxInfo.length) return 0;
-    const anyToggleEnabled =
-      overlayToggles.looseJoint ||
-      overlayToggles.pointOverload ||
-      overlayToggles.wireOverload;
-    return storedBoxInfo.reduce((count, box) => {
-      const toggleKey = faultToToggleKey(box.boxFault);
-      if (toggleKey) {
-        return overlayToggles[toggleKey] ? count + 1 : count;
-      }
-      return anyToggleEnabled ? count + 1 : count;
-    }, 0);
-  }, [overlayToggles, storedBoxInfo]);
 
   const transformer = useMemo(
     () =>
@@ -396,6 +422,88 @@ const InspectionDetailsPanel = ({
     }
   };
 
+  const displaySnapshot =
+    selectedSnapshotIndex === null
+      ? null
+      : historySnapshots[selectedSnapshotIndex] ?? null;
+
+  const visibleBoxes = displaySnapshot ? displaySnapshot.boxes : storedBoxes;
+  const visibleFaultTypes = displaySnapshot
+    ? displaySnapshot.faults
+    : storedFaultTypes;
+  const visibleAnnotatedBy = displaySnapshot
+    ? displaySnapshot.annotatedBy
+    : storedAnnotatedBy;
+  const visibleSeverity = displaySnapshot
+    ? displaySnapshot.severity
+    : storedSeverity;
+
+  const visibleBoxInfo = useMemo(
+    () => buildBoxInfo(visibleBoxes, visibleFaultTypes),
+    [visibleBoxes, visibleFaultTypes]
+  );
+
+  const editingDisabled = selectedSnapshotIndex !== null;
+
+  const visibleFaultSummary = useMemo(() => {
+    if (!visibleBoxInfo.length)
+      return [] as Array<{ fault: string; label: string; count: number }>;
+    const counts = visibleBoxInfo.reduce<Record<string, number>>((acc, box) => {
+      const key = canonicalizeFault(box.boxFault ?? "none");
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(counts)
+      .map(([fault, count]) => ({ fault, label: toDisplayLabel(fault), count }))
+      .sort((a, b) => b.count - a.count);
+  }, [visibleBoxInfo]);
+
+  const visibleBoxCount = useMemo(() => {
+    if (!visibleBoxInfo.length) return 0;
+    const anyToggleEnabled =
+      overlayToggles.looseJoint ||
+      overlayToggles.pointOverload ||
+      overlayToggles.wireOverload;
+    return visibleBoxInfo.reduce((count, box) => {
+      const toggleKey = faultToToggleKey(box.boxFault);
+      if (toggleKey) {
+        return overlayToggles[toggleKey] ? count + 1 : count;
+      }
+      return anyToggleEnabled ? count + 1 : count;
+    }, 0);
+  }, [overlayToggles, visibleBoxInfo]);
+
+  const historyOptions = useMemo(
+    () =>
+      historySnapshots.map((snapshot, index) => ({
+        index,
+        label: buildSnapshotLabel(snapshot, index, historySnapshots.length),
+      })),
+    [historySnapshots]
+  );
+
+  const historyOptionsDesc = useMemo(
+    () => historyOptions.slice().reverse(),
+    [historyOptions]
+  );
+
+  const currentVersionLabel = useMemo(() => {
+    const ts = uploadedAt || inspection.imageUploadedAt || null;
+    const formatted = formatTimestamp(ts);
+    return formatted ? `Latest · ${formatted}` : "Latest (current)";
+  }, [uploadedAt, inspection.imageUploadedAt]);
+
+  const handleHistorySelect = (value: string) => {
+    if (value === "current") {
+      setSelectedSnapshotIndex(null);
+      return;
+    }
+    const idx = Number.parseInt(value, 10);
+    if (Number.isNaN(idx)) return;
+    if (idx < 0 || idx >= historySnapshots.length) return;
+    setSelectedSnapshotIndex(idx);
+  };
+
   // When switching to a different inspection, reinitialize weather and image state
   useEffect(() => {
     setSelectedWeather(
@@ -425,16 +533,98 @@ const InspectionDetailsPanel = ({
       );
       setStoredBoxes(parsedBoxes);
       setStoredFaultTypes(parsedFaults);
-      setStoredBoxInfo(buildBoxInfo(parsedBoxes, parsedFaults));
       setStoredAnnotatedBy(parsedAnnotatedBy);
       setStoredSeverity(parsedSeverity);
     } catch {
       setStoredBoxes([]);
       setStoredFaultTypes([]);
-      setStoredBoxInfo([]);
       setStoredAnnotatedBy([]);
       setStoredSeverity([]);
     }
+    try {
+      const boxHistoryEntries = parseHistoryEntries(
+        inspection.boundingBoxHistory
+      );
+      const faultHistoryEntries = parseHistoryEntries(
+        inspection.faultTypeHistory
+      );
+      const annotatedHistoryEntries = parseHistoryEntries(
+        inspection.annotatedByHistory
+      );
+      const severityHistoryEntries = parseHistoryEntries(
+        inspection.severityHistory
+      );
+      const timestampHistoryEntries = parseHistoryEntries(
+        inspection.timestampHistory
+      );
+      const maxSnapshots = Math.max(
+        boxHistoryEntries.length,
+        faultHistoryEntries.length,
+        annotatedHistoryEntries.length,
+        severityHistoryEntries.length,
+        timestampHistoryEntries.length
+      );
+      const snapshots: HistorySnapshot[] = [];
+      for (let idx = 0; idx < maxSnapshots; idx += 1) {
+        const boxesRaw = boxHistoryEntries[idx] as Inspection["boundingBoxes"];
+        const faultsRaw = faultHistoryEntries[idx] as Inspection["faultTypes"];
+        const annotatedRaw = annotatedHistoryEntries[idx] as
+          | string
+          | string[]
+          | null
+          | undefined;
+        const severityRaw = severityHistoryEntries[idx] as Inspection["severity"];
+        const boxes = parseBoundingBoxes(boxesRaw);
+        const faultsFallbackLength = Array.isArray(faultsRaw)
+          ? (faultsRaw as unknown[]).length
+          : 0;
+        const annotatedFallbackLength = Array.isArray(annotatedRaw)
+          ? (annotatedRaw as unknown[]).length
+          : 0;
+        const severityFallbackLength = Array.isArray(severityRaw)
+          ? (severityRaw as unknown[]).length
+          : 0;
+        const targetLength = Math.max(
+          boxes.length,
+          faultsFallbackLength,
+          annotatedFallbackLength,
+          severityFallbackLength
+        );
+        const effectiveLength = targetLength > 0 ? targetLength : boxes.length;
+        const faults = parseFaultTypes(faultsRaw, effectiveLength);
+        const annotated = parseAnnotatedBy(annotatedRaw, effectiveLength);
+        const severitySnapshot = parseSeverities(severityRaw, effectiveLength);
+        const timestampEntry = timestampHistoryEntries[idx];
+        const timestamp =
+          typeof timestampEntry === "string"
+            ? timestampEntry
+            : timestampEntry != null
+            ? String(timestampEntry)
+            : null;
+        const hasBoxes = boxes.length > 0;
+        const hasTimestamp = typeof timestamp === "string" && timestamp.length > 0;
+        const hasFaultData = faults.some(
+          (fault) => canonicalizeFault(fault) !== "none"
+        );
+        if (!hasBoxes && !hasFaultData && !hasTimestamp) {
+          continue;
+        }
+        snapshots.push({
+          boxes,
+          faults,
+          annotatedBy: annotated,
+          severity: severitySnapshot,
+          timestamp,
+        });
+      }
+      setHistorySnapshots(snapshots);
+    } catch {
+      setHistorySnapshots([]);
+    }
+    setSelectedSnapshotIndex(null);
+  setIsDrawMode(false);
+  setDrawTarget(null);
+  setPendingRect(null);
     // reset any queued changes when inspection changes or reloads
     setPendingAdds([]);
     setPendingDeletes([]);
@@ -445,14 +635,19 @@ const InspectionDetailsPanel = ({
     inspection.boundingBoxes,
     inspection.faultTypes,
     inspection.imageUrl,
+    inspection.boundingBoxHistory,
+    inspection.faultTypeHistory,
+    inspection.annotatedByHistory,
+    inspection.severityHistory,
+    inspection.timestampHistory,
   ]);
 
   useEffect(() => {
-    if (aiStats || storedBoxInfo.length === 0) return;
+    if (aiStats || visibleBoxInfo.length === 0) return;
     setOverlayToggles((prev) => {
       const next = { ...prev } as OverlayToggles;
       let changed = false;
-      for (const box of storedBoxInfo) {
+      for (const box of visibleBoxInfo) {
         const key = faultToToggleKey(box.boxFault);
         if (key && !next[key]) {
           next[key] = true;
@@ -461,7 +656,21 @@ const InspectionDetailsPanel = ({
       }
       return changed ? next : prev;
     });
-  }, [aiStats, storedBoxInfo]);
+  }, [aiStats, visibleBoxInfo]);
+
+  useEffect(() => {
+    if (selectedSnapshotIndex !== null) {
+      setIsDrawMode(false);
+      setDrawTarget(null);
+      setPendingRect(null);
+    }
+  }, [selectedSnapshotIndex]);
+
+  useEffect(() => {
+    if (historySnapshots.length === 0 && selectedSnapshotIndex !== null) {
+      setSelectedSnapshotIndex(null);
+    }
+  }, [historySnapshots.length, selectedSnapshotIndex]);
 
   const handleUpload = async (file: File, weather: string) => {
     if (!inspection.id) return;
@@ -658,7 +867,6 @@ const InspectionDetailsPanel = ({
                   // Clear local stored analysis immediately
                   setStoredBoxes([]);
                   setStoredFaultTypes([]);
-                  setStoredBoxInfo([]);
                   setStoredAnnotatedBy([]);
                   setStoredSeverity([]);
                   // Also clear any pending changes
@@ -709,7 +917,6 @@ const InspectionDetailsPanel = ({
                 setStoredBoxes(aiBoxes);
                 const aiFaults = aiBoxInfo.map((bi: OverlayBoxInfo) => bi.boxFault || "none");
                 setStoredFaultTypes(aiFaults);
-                setStoredBoxInfo(aiBoxInfo);
                 // All AI-detected boxes are annotated by "AI"
                 setStoredAnnotatedBy(Array(aiBoxes.length).fill("AI"));
                 setStoredSeverity(
@@ -1029,24 +1236,61 @@ const InspectionDetailsPanel = ({
               {!aiStats && storedImageUrl && (
                 <div className="mt-4">
                   <h5 className="font-semibold mb-2 ">Stored analysis</h5>
-                  {storedBoxInfo.length > 0 ? (
+                  {historySnapshots.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+                      <label className="font-semibold text-gray-700 dark:text-gray-300">
+                        Version
+                      </label>
+                      <select
+                        className="details-panel border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
+                        value={
+                          selectedSnapshotIndex === null
+                            ? "current"
+                            : String(selectedSnapshotIndex)
+                        }
+                        onChange={(event) => handleHistorySelect(event.target.value)}
+                      >
+                        <option value="current">{currentVersionLabel}</option>
+                        {historyOptionsDesc.map(({ index, label }) => (
+                          <option key={index} value={index}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedSnapshotIndex !== null && (
+                        <button
+                          type="button"
+                          className="details-panel inline-flex items-center gap-1 rounded border border-gray-300 hover:bg-gray-50 px-2 py-1"
+                          onClick={() => setSelectedSnapshotIndex(null)}
+                        >
+                          Return to latest
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {selectedSnapshotIndex !== null && (
+                    <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
+                      Viewing archived snapshot from {" "}
+                      {formatTimestamp(displaySnapshot?.timestamp) || "unknown time"}
+                      ; editing disabled.
+                    </p>
+                  )}
+                  {visibleBoxInfo.length > 0 ? (
                     <div className="overscroll-none overflow-hidden">
-                      {(storedFaultSummary.length > 0 ||
-                        storedVisibleBoxCount === 0) && (
+                      {(visibleFaultSummary.length > 0 ||
+                        visibleBoxCount === 0) && (
                         <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
-                          {storedFaultSummary.map((item) => (
+                          {visibleFaultSummary.map(({ fault, label, count }) => (
                             <span
-                              key={item.fault}
+                              key={fault}
                               className="details-panel inline-flex items-center gap-1 rounded-full border border-gray-300"
                             >
-                              <span className="font-semibold">
-                                {item.count}
-                              </span>
-                              <span>{item.label}</span>
+                              <span className="font-semibold">{count}</span>
+                              <span>{label}</span>
                             </span>
                           ))}
-                          {storedVisibleBoxCount === 0 &&
-                            storedBoxInfo.length > 0 && (
+                          {visibleBoxCount === 0 &&
+                            visibleBoxInfo.length > 0 && (
                               <button
                                 type="button"
                                 className="details-panel ml-auto inline-flex items-center gap-1 rounded border border-gray-300 hover:bg-gray-50"
@@ -1067,19 +1311,21 @@ const InspectionDetailsPanel = ({
                         imageUrl={storedImageUrl as string}
                         // No persisted dims; component infers automatically from the image element
                         // Boxes are stored as natural image pixel coordinates (same space as analyze output)
-                        boxes={storedBoxes}
-                        boxInfo={storedBoxInfo.map((bi, idx) => ({
+                        boxes={visibleBoxes}
+                        boxInfo={visibleBoxInfo.map((bi, idx) => ({
                           ...bi,
                           label: String(idx + 1),
                         }))}
                         toggles={overlayToggles}
-                        allowDraw={isDrawMode && drawTarget === "stored"}
+                        allowDraw={!editingDisabled && isDrawMode && drawTarget === "stored"}
                         onDrawComplete={(rect) => {
+                          if (editingDisabled) return;
                           setPendingRect(rect);
                           setShowFaultModal(true);
                         }}
                         resetKey={`${inspection.id}-stored`}
                         onRemoveBox={async (idx, box) => {
+                          if (editingDisabled) return;
                           if (!inspection.id) return;
                           // determine the box coords to delete, capture before mutating state
                           let matchIdx = idx;
@@ -1118,7 +1364,6 @@ const InspectionDetailsPanel = ({
                             newSeverity.splice(matchIdx, 1);
                           setStoredBoxes(newBoxes);
                           setStoredFaultTypes(newFaults);
-                          setStoredBoxInfo(buildBoxInfo(newBoxes, newFaults));
                           setStoredAnnotatedBy(newAnnotatedBy);
                           setStoredSeverity(newSeverity);
                           // queue the delete if we have coords; also cancel out any pending add for same box
@@ -1144,8 +1389,10 @@ const InspectionDetailsPanel = ({
                             isDrawMode && drawTarget === "stored"
                               ? "bg-black dark:bg-white text-white dark:text-black"
                               : "text-gray-900 dark:text-white"
-                          }`}
+                          } ${editingDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                          disabled={editingDisabled}
                           onClick={() => {
+                            if (editingDisabled) return;
                             setIsDrawMode(true);
                             setDrawTarget("stored");
                           }}
@@ -1167,14 +1414,14 @@ const InspectionDetailsPanel = ({
                           </button>
                         )}
                       </div>
-                      {storedBoxInfo.length > 0 && (
+                      {visibleBoxInfo.length > 0 && (
                         <ol className="mt-2 text-xs text-gray-700 dark:text-gray-300 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-                          {storedBoxInfo.map((bi, i) => {
-                            const who = storedAnnotatedBy[i] || "user";
+                          {visibleBoxInfo.map((bi, i) => {
+                            const who = visibleAnnotatedBy[i] || "user";
                             const label = toDisplayLabel(
                               canonicalizeFault(bi.boxFault || "none")
                             );
-                            const sev = storedSeverity[i];
+                            const sev = visibleSeverity[i];
                             const sevPct =
                               who.toLowerCase() === "ai" && typeof sev === "number"
                                 ? Math.round(sev * 100)
@@ -1253,16 +1500,6 @@ const InspectionDetailsPanel = ({
                       [rect.x, rect.y, rect.w, rect.h],
                     ]);
                     setStoredFaultTypes((prev) => [...prev, ft]);
-                    setStoredBoxInfo((prev) => [
-                      ...prev,
-                      {
-                        x: rect.x,
-                        y: rect.y,
-                        w: rect.w,
-                        h: rect.h,
-                        boxFault: ft,
-                      },
-                    ]);
                     setStoredAnnotatedBy((prev) => [...prev, username]);
                     setStoredSeverity((prev) => [...prev, null]);
                            // Queue add to persist on close

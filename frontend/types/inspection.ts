@@ -24,4 +24,10 @@ export interface Inspection {
     // Only AI-annotated faults have severity; user-added faults have null severity
     severity?: string | (number | null)[] | null;
     favourite?: boolean;
+    // History snapshots stored as JSON strings or parsed arrays
+    boundingBoxHistory?: string | (number[][] | null)[] | null;
+    faultTypeHistory?: string | (string[] | null)[] | null;
+    annotatedByHistory?: string | (string[] | null)[] | null;
+    severityHistory?: string | ((number | null)[] | null)[] | null;
+    timestampHistory?: string | (string | null)[] | null;
 }
