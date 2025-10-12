@@ -12,6 +12,7 @@ import { useInspections } from "@/context/InspectionsContext";
 import { useState, useMemo } from "react";
 import { apiUrl } from "@/lib/api";
 import { useEffect } from "react";
+import LoadingScreen from "@/components/LoadingScreen";
 
 const toFinite = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -562,7 +563,8 @@ const InspectionDetailsPanel = ({
   }, [baselinePreviewUrl]);
 
   return (
-    <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
+    <>
+      <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
       <div className="flex justify-between items-start mb-4">
         <h2 className="text-xl font-bold">Inspection Details</h2>
         <button onClick={flushAndClose} className="text-gray-400 hover:text-gray-600" disabled={isClosing}>
@@ -1308,7 +1310,9 @@ const InspectionDetailsPanel = ({
           </div>
         )}
       </div>
-    </div>
+      <LoadingScreen show={isClosing} message="Tuning AI model…" />
+      </div>
+    </>
   );
 };
 
