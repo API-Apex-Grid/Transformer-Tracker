@@ -5,6 +5,7 @@ import com.apexgrid.transformertracker.model.Transformer;
 import com.apexgrid.transformertracker.repo.InspectionRepo;
 import com.apexgrid.transformertracker.repo.TransformerRepo;
 import com.apexgrid.transformertracker.ai.PythonAnalyzerService;
+import com.apexgrid.transformertracker.ai.ParameterTuningService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,11 +29,16 @@ public class InspectionController {
     private final InspectionRepo repo;
     private final TransformerRepo transformerRepo;
     private final PythonAnalyzerService pythonAnalyzerService;
+    private final ParameterTuningService parameterTuningService;
 
-    public InspectionController(InspectionRepo repo, TransformerRepo transformerRepo, PythonAnalyzerService pythonAnalyzerService) {
+    public InspectionController(InspectionRepo repo,
+                                TransformerRepo transformerRepo,
+                                PythonAnalyzerService pythonAnalyzerService,
+                                ParameterTuningService parameterTuningService) {
         this.repo = repo;
         this.transformerRepo = transformerRepo;
         this.pythonAnalyzerService = pythonAnalyzerService;
+        this.parameterTuningService = parameterTuningService;
     }
 
     @GetMapping
@@ -669,6 +675,9 @@ public class InspectionController {
                                              @RequestHeader(value = "x-username", required = false) String username) {
         return repo.findById(id).map(i -> {
             try {
+                String previousBoxes = i.getBoundingBoxes();
+                String previousFaults = i.getFaultTypes();
+                String previousAnnotated = i.getAnnotatedBy();
                 // Archive previous analysis once before bulk update
                 try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
 
@@ -717,11 +726,25 @@ public class InspectionController {
                     }
                 }
 
-                // Persist final state
-                i.setBoundingBoxes(finalBoxes.toString());
-                i.setFaultTypes(finalFaults.toString());
-                i.setAnnotatedBy(finalAnnotated.toString());
+        String finalBoxesJson = finalBoxes.toString();
+        String finalFaultsJson = finalFaults.toString();
+        String finalAnnotatedJson = finalAnnotated.toString();
+
+        // Persist final state
+        i.setBoundingBoxes(finalBoxesJson);
+        i.setFaultTypes(finalFaultsJson);
+        i.setAnnotatedBy(finalAnnotatedJson);
                 repo.save(i);
+
+        parameterTuningService.processBulkUpdateFeedback(
+            i,
+            previousBoxes,
+            previousFaults,
+            previousAnnotated,
+            finalBoxesJson,
+            finalFaultsJson,
+            finalAnnotatedJson
+        );
 
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", finalBoxes, "faultTypes", finalFaults));
             } catch (Exception e) {

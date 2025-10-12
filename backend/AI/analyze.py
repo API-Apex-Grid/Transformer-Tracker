@@ -6,9 +6,63 @@ Output: JSON to stdout with keys: prob, histDistance, dv95, warmFraction, boxes,
 """
 import sys
 import json
+import os
 from PIL import Image
 import numpy as np
 import cv2
+
+DEFAULT_PARAMS = {
+    "h_bins": 30,
+    "s_bins": 32,
+    "sample_every": 10,
+    "warm_hue_low": 0.17,
+    "warm_hue_high": 0.95,
+    "warm_sat_threshold": 0.30,
+    "warm_val_threshold": 0.40,
+    "contrast_threshold": 0.15,
+    "min_area_ratio": 0.001,
+    "min_area_pixels": 32,
+    "hist_distance_scale": 0.5,
+    "warm_fraction_scale": 2.0,
+    "dv95_scale": 1.0,
+    "dv95_percentile": 0.95,
+    "loose_area_threshold": 0.10,
+    "large_area_threshold": 0.30,
+    "center_overlap_threshold": 0.40,
+    "rectangular_aspect_threshold": 2.0,
+    "severity_lower_delta": 0.15,
+    "severity_upper_delta": 0.50,
+    "severity_floor": 0.05,
+    "crop_margin_pct": 0.05,
+}
+
+
+def load_params(config_path=None):
+    params = DEFAULT_PARAMS.copy()
+
+    env_payload = os.environ.get("TT_PARAMS")
+    if env_payload:
+        try:
+            data = json.loads(env_payload)
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if key in params and isinstance(value, (int, float)):
+                        params[key] = value
+        except Exception:
+            pass
+
+    if config_path and config_path not in ("", "__NO_PARAMS__"):
+        try:
+            with open(config_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+                if isinstance(data, dict):
+                    for key, value in data.items():
+                        if key in params and isinstance(value, (int, float)):
+                            params[key] = value
+        except Exception:
+            pass
+
+    return params
 
 def rgb_to_hsv(r, g, b):
     r_, g_, b_ = r/255.0, g/255.0, b/255.0
@@ -28,24 +82,53 @@ def rgb_to_hsv(r, g, b):
     return h/360.0, s, v
 
 
-def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
+def analyze_pair(base_img: Image.Image, cand_img: Image.Image, params, valid_mask=None):
     W, H = cand_img.size
-    # Hist parameters
-    h_bins, s_bins = 30, 32
-    hist_base = [0.0]*(h_bins*s_bins)
-    hist_cand = [0.0]*(h_bins*s_bins)
 
-    # Prepare pixel access
+    h_bins = max(1, int(round(params.get("h_bins", DEFAULT_PARAMS["h_bins"]))))
+    s_bins = max(1, int(round(params.get("s_bins", DEFAULT_PARAMS["s_bins"]))))
+    hist_base = [0.0] * (h_bins * s_bins)
+    hist_cand = [0.0] * (h_bins * s_bins)
+
     base_px = base_img.convert('RGB').load()
     cand_px = cand_img.convert('RGB').load()
 
-    # dv95 sampling approx 10% pixels
-    sample_every = 10
+    sample_every = max(1, int(round(params.get("sample_every", DEFAULT_PARAMS["sample_every"]))))
     dv_vals = []
 
-    # Warm mask
-    mask = [[False]*W for _ in range(H)]
-    # Count of valid pixels for normalization when valid_mask provided
+    warm_hue_low = max(0.0, min(1.0, float(params.get("warm_hue_low", DEFAULT_PARAMS["warm_hue_low"]))))
+    warm_hue_high = max(0.0, min(1.0, float(params.get("warm_hue_high", DEFAULT_PARAMS["warm_hue_high"]))))
+    if warm_hue_high < warm_hue_low:
+        warm_hue_high = warm_hue_low
+
+    warm_sat_thr = max(0.0, min(1.0, float(params.get("warm_sat_threshold", DEFAULT_PARAMS["warm_sat_threshold"]))))
+    warm_val_thr = max(0.0, min(1.0, float(params.get("warm_val_threshold", DEFAULT_PARAMS["warm_val_threshold"]))))
+    contrast_thr = max(0.0, min(1.0, float(params.get("contrast_threshold", DEFAULT_PARAMS["contrast_threshold"]))))
+
+    min_area_ratio = max(0.0, float(params.get("min_area_ratio", DEFAULT_PARAMS["min_area_ratio"])))
+    min_area_pixels = max(1, int(round(params.get("min_area_pixels", DEFAULT_PARAMS["min_area_pixels"]))))
+
+    hist_scale = float(params.get("hist_distance_scale", DEFAULT_PARAMS["hist_distance_scale"]))
+    if hist_scale <= 1e-6:
+        hist_scale = DEFAULT_PARAMS["hist_distance_scale"]
+    warm_scale = float(params.get("warm_fraction_scale", DEFAULT_PARAMS["warm_fraction_scale"]))
+    dv95_scale = float(params.get("dv95_scale", DEFAULT_PARAMS["dv95_scale"]))
+
+    percentile = float(params.get("dv95_percentile", DEFAULT_PARAMS["dv95_percentile"]))
+    percentile = min(0.999, max(0.5, percentile))
+
+    loose_area_thresh = max(0.0, float(params.get("loose_area_threshold", DEFAULT_PARAMS["loose_area_threshold"])))
+    large_area_thresh = max(loose_area_thresh, float(params.get("large_area_threshold", DEFAULT_PARAMS["large_area_threshold"])))
+    center_overlap_thresh = max(0.0, min(1.0, float(params.get("center_overlap_threshold", DEFAULT_PARAMS["center_overlap_threshold"]))))
+    rectangular_aspect = max(1.0, float(params.get("rectangular_aspect_threshold", DEFAULT_PARAMS["rectangular_aspect_threshold"])))
+
+    severity_lo = float(params.get("severity_lower_delta", DEFAULT_PARAMS["severity_lower_delta"]))
+    severity_hi = float(params.get("severity_upper_delta", DEFAULT_PARAMS["severity_upper_delta"]))
+    if severity_hi <= severity_lo:
+        severity_hi = severity_lo + 1e-6
+    severity_floor = max(0.0, float(params.get("severity_floor", DEFAULT_PARAMS["severity_floor"])))
+
+    mask = [[False] * W for _ in range(H)]
     if valid_mask is not None:
         valid_total = sum(1 for y in range(H) for x in range(W) if valid_mask[y][x])
         if valid_total <= 0:
@@ -55,30 +138,28 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
 
     for y in range(H):
         for x in range(W):
-            if valid_mask is not None:
-                # Skip pixels outside valid warped baseline region
-                if not valid_mask[y][x]:
-                    continue
+            if valid_mask is not None and not valid_mask[y][x]:
+                continue
             rB, gB, bB = base_px[x, y]
             rC, gC, bC = cand_px[x, y]
             hB, sB, vB = rgb_to_hsv(rB, gB, bB)
             hC, sC, vC = rgb_to_hsv(rC, gC, bC)
 
-            hBinB = min(h_bins-1, max(0, int(hB*h_bins)))
-            sBinB = min(s_bins-1, max(0, int(sB*s_bins)))
-            hist_base[hBinB*s_bins + sBinB] += 1.0
+            hBinB = min(h_bins - 1, max(0, int(hB * h_bins)))
+            sBinB = min(s_bins - 1, max(0, int(sB * s_bins)))
+            hist_base[hBinB * s_bins + sBinB] += 1.0
 
-            hBinC = min(h_bins-1, max(0, int(hC*h_bins)))
-            sBinC = min(s_bins-1, max(0, int(sC*s_bins)))
-            hist_cand[hBinC*s_bins + sBinC] += 1.0
+            hBinC = min(h_bins - 1, max(0, int(hC * h_bins)))
+            sBinC = min(s_bins - 1, max(0, int(sC * s_bins)))
+            hist_cand[hBinC * s_bins + sBinC] += 1.0
 
-            if ((x + y*W) % sample_every) == 0:
+            if ((x + y * W) % sample_every) == 0:
                 dv_vals.append(max(0.0, vC - vB))
 
-            warm_hue = (hC <= 0.17) or (hC >= 0.95)
-            warm_sat = sC >= 0.3
-            warm_val = vC >= 0.4
-            contrast = (vC - vB) >= 0.15
+            warm_hue = (hC <= warm_hue_low) or (hC >= warm_hue_high)
+            warm_sat = sC >= warm_sat_thr
+            warm_val = vC >= warm_val_thr
+            contrast = (vC - vB) >= contrast_thr
             mask[y][x] = warm_hue and warm_sat and warm_val and contrast
 
     def normalize(hist):
@@ -96,7 +177,8 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
 
     dv_vals.sort()
     if dv_vals:
-        idx = round(0.95*(len(dv_vals)-1))
+        idx = int(round(percentile * (len(dv_vals) - 1)))
+        idx = max(0, min(len(dv_vals) - 1, idx))
         dv95 = dv_vals[idx]
     else:
         dv95 = 0.0
@@ -108,7 +190,10 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
     visited = [[False]*W for _ in range(H)]
     dirs = [(1,0),(-1,0),(0,1),(0,-1)]
     boxes = []
-    min_area = max(32, int((valid_total if valid_total > 0 else (W*H)) * 0.001))
+    min_area = int((valid_total if valid_total > 0 else (W * H)) * min_area_ratio)
+    min_area = max(min_area_pixels, min_area)
+    if min_area < 1:
+        min_area = 1
 
     from collections import deque
     for y in range(H):
@@ -168,19 +253,19 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
 
             # Track maxima and shapes
             max_area_frac = max(max_area_frac, area_frac)
-            if aspect >= 2.0:
+            if aspect >= rectangular_aspect:
                 has_rectangular = True
 
             # Per-box label for annotation
-            if area_frac >= 0.10:
+            if area_frac >= loose_area_thresh:
                 box_label = 'Loose joint'
-            elif aspect >= 2.0:
+            elif aspect >= rectangular_aspect:
                 box_label = 'Wire overload'
             else:
                 box_label = 'Point overload'
 
-            # Large central if box covers >=30% and overlaps center meaningfully
-            if area_frac >= 0.30 and overlap_frac >= 0.4:
+            # Large central if box covers target fraction and overlaps center meaningfully
+            if area_frac >= large_area_thresh and overlap_frac >= center_overlap_thresh:
                 has_large_central = True
 
             info.append({
@@ -192,7 +277,7 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
         # Decide fault in specified order
         if has_large_central:
             return "loose joint", info
-        if max_area_frac < 0.30:
+        if max_area_frac < large_area_thresh:
             return "point overload", info
         if has_rectangular:
             return "wire overload", info
@@ -228,7 +313,7 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
     filtered = [b for b, k in zip(boxes, keep) if k]
 
     # Score and prob
-    score = (hist_dist/0.5) + dv95 + (warm_frac*2.0)
+    score = (hist_dist / hist_scale) + (dv95 * dv95_scale) + (warm_frac * warm_scale)
     prob = 1.0 / (1.0 + pow(2.718281828, -score))
 
     # Now label each remaining (filtered) box and return their info
@@ -261,8 +346,7 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
 
     # Severity mapping: normalize brightness delta to [0,1] where 0.15 is minimal noticeable contrast
     def delta_to_severity(delta):
-        # Treat 0.15 as threshold to start severity, and 0.50 as strong signal
-        lo, hi = 0.15, 0.50
+        lo, hi = severity_lo, severity_hi
         if delta <= lo:
             return 0.0
         if delta >= hi:
@@ -283,9 +367,9 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
         overlap_center = bi['overlapCenterFrac']
 
         # Classify per-box fault type
-        if area_frac >= 0.10 and (overlap_center >= 0.4 or area_frac >= 0.30):
+        if area_frac >= loose_area_thresh and (overlap_center >= center_overlap_thresh or area_frac >= large_area_thresh):
             box_fault = 'loose joint'
-        elif aspect >= 2.0:
+        elif aspect >= rectangular_aspect:
             box_fault = 'wire overload'
         else:  # Default to point overload for other warm regions
             box_fault = 'point overload'
@@ -310,7 +394,7 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
 
         bi2 = dict(bi)
         bi2['boxFault'] = box_fault
-        bi2['severity'] = max(sev, 0.05)
+        bi2['severity'] = max(sev, severity_floor)
         bi2['severityLabel'] = severity_label(sev)
         # Maintain previous API expected by frontend: brightness deltas in V channel
         bi2['avgDeltaV'] = float(avg_dv)
@@ -338,18 +422,23 @@ def analyze_pair(base_img: Image.Image, cand_img: Image.Image, valid_mask=None):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print(json.dumps({'error': 'usage: analyze.py BASELINE CANDIDATE'}))
+    if len(sys.argv) not in (3, 4):
+        print(json.dumps({'error': 'usage: analyze.py BASELINE CANDIDATE [PARAMS_JSON]'}))
         sys.exit(2)
     base_path, cand_path = sys.argv[1], sys.argv[2]
+    config_path = sys.argv[3] if len(sys.argv) == 4 else None
     try:
         base_img = Image.open(base_path).convert('RGB')
         cand_img = Image.open(cand_path).convert('RGB')
+        params = load_params(config_path)
 
         # 1) Center crop by removing 5% from left and right (horizontal crop), keep full height
-        def crop_remove_5pct_lr(img: Image.Image) -> Image.Image:
+        margin_pct = float(params.get("crop_margin_pct", DEFAULT_PARAMS["crop_margin_pct"]))
+        margin_pct = max(0.0, min(0.2, margin_pct))
+
+        def crop_remove_lr(img: Image.Image) -> Image.Image:
             w, h = img.size
-            margin = int(round(w * 0.05))
+            margin = int(round(w * margin_pct))
             left = margin
             right = w - margin
             if right <= left:
@@ -357,8 +446,8 @@ def main():
                 return img
             return img.crop((left, 0, right, h))
 
-        base_img = crop_remove_5pct_lr(base_img)
-        cand_img = crop_remove_5pct_lr(cand_img)
+        base_img = crop_remove_lr(base_img)
+        cand_img = crop_remove_lr(cand_img)
 
         # 2) Color-invariant keypoints via SIFT (use grayscale) and align baseline to candidate
         def pil_to_cv_rgb(img: Image.Image) -> np.ndarray:
@@ -418,7 +507,7 @@ def main():
         aligned_base, valid_mask = align_by_sift_homography(base_img, cand_img)
 
         # Continue with the remaining comparison using the aligned baseline and the candidate
-        res = analyze_pair(aligned_base, cand_img, valid_mask=valid_mask)
+        res = analyze_pair(aligned_base, cand_img, params, valid_mask=valid_mask)
         print(json.dumps(res, separators=(',', ':')))
         sys.exit(0)
     except Exception as e:
