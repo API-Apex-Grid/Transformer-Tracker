@@ -11,10 +11,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,10 +26,13 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -99,6 +104,9 @@ public class InspectionController {
                 } else {
                     inspectionNode.putNull("transformer");
                 }
+                BaselineSelection baselineSelection = resolveBaselineSelection(inspection);
+                putNullable(inspectionNode, "baselineWeather",
+                        baselineSelection != null ? baselineSelection.weatherLabel() : null);
 
                 JsonNode currentBoxes = parseJsonNode(mapper, inspection.getBoundingBoxes());
                 JsonNode currentFaults = parseJsonNode(mapper, inspection.getFaultTypes());
@@ -185,6 +193,26 @@ public class InspectionController {
                         zos.write(imageBytes);
                         zos.closeEntry();
                     }
+
+                    if (baselineSelection != null) {
+                        byte[] baselineBytes = decodeDataUrl(baselineSelection.dataUrl());
+                        if (baselineBytes != null && baselineBytes.length > 0) {
+                            String baselineExt = guessImageExtension(baselineSelection.dataUrl());
+                            String weatherLabel = baselineSelection.weatherLabel() != null
+                                    ? sanitizeFilename(baselineSelection.weatherLabel())
+                                    : "baseline";
+                            if (weatherLabel.isBlank()) {
+                                weatherLabel = "baseline";
+                            }
+                            ZipEntry baselineEntry = new ZipEntry("baseline-" + weatherLabel + "." + baselineExt);
+                            zos.putNextEntry(baselineEntry);
+                            zos.write(baselineBytes);
+                            zos.closeEntry();
+                        }
+                    }
+
+                    writeResourceToZip(zos, "export/plot_bounding_boxes.py", "tools/plot_bounding_boxes.py");
+                    writeResourceToZip(zos, "export/README.md", "tools/README.md");
                 }
 
                 byte[] zipBytes = baos.toByteArray();
@@ -673,6 +701,71 @@ public class InspectionController {
         String sanitized = value.replaceAll("[^A-Za-z0-9._-]", "_");
         return sanitized.isBlank() ? "inspection" : sanitized;
     }
+
+    private static BaselineSelection resolveBaselineSelection(Inspection inspection) {
+        if (inspection == null) {
+            return null;
+        }
+        Transformer transformer = inspection.getTransformer();
+        if (transformer == null) {
+            return null;
+        }
+        String preferredWeather = determinePreferredWeather(inspection);
+        if (StringUtils.hasText(preferredWeather)) {
+            String candidate = lookupBaselineForWeather(transformer, preferredWeather);
+            if (StringUtils.hasText(candidate)) {
+                return new BaselineSelection(candidate, preferredWeather.toLowerCase(Locale.ROOT));
+            }
+        }
+        if (StringUtils.hasText(transformer.getSunnyImage())) {
+            return new BaselineSelection(transformer.getSunnyImage(), "sunny");
+        }
+        if (StringUtils.hasText(transformer.getCloudyImage())) {
+            return new BaselineSelection(transformer.getCloudyImage(), "cloudy");
+        }
+        if (StringUtils.hasText(transformer.getWindyImage())) {
+            return new BaselineSelection(transformer.getWindyImage(), "windy");
+        }
+        return null;
+    }
+
+    private static String determinePreferredWeather(Inspection inspection) {
+        String weather = inspection.getLastAnalysisWeather();
+        if (!StringUtils.hasText(weather)) {
+            weather = inspection.getWeather();
+        }
+        if (!StringUtils.hasText(weather)) {
+            return null;
+        }
+        return weather.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String lookupBaselineForWeather(Transformer transformer, String weather) {
+        if (!StringUtils.hasText(weather) || transformer == null) {
+            return null;
+        }
+        return switch (weather.toLowerCase(Locale.ROOT)) {
+            case "sunny" -> transformer.getSunnyImage();
+            case "cloudy" -> transformer.getCloudyImage();
+            case "rainy", "windy" -> transformer.getWindyImage();
+            default -> null;
+        };
+    }
+
+    private static void writeResourceToZip(ZipOutputStream zos, String resourcePath, String entryName) throws IOException {
+        ClassPathResource resource = new ClassPathResource(resourcePath);
+        if (!resource.exists()) {
+            return;
+        }
+        ZipEntry entry = new ZipEntry(entryName);
+        zos.putNextEntry(entry);
+        try (InputStream is = resource.getInputStream()) {
+            is.transferTo(zos);
+        }
+        zos.closeEntry();
+    }
+
+    private record BaselineSelection(String dataUrl, String weatherLabel) {}
 
     @PostMapping("/{id}/clear-analysis")
     public ResponseEntity<?> clearAnalysis(@PathVariable String id) {
