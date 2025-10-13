@@ -381,6 +381,7 @@ const InspectionDetailsPanel = ({
     { x: number; y: number; w: number; h: number }[]
   >([]);
   const [isClosing, setIsClosing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const sameBox = (a: {x:number;y:number;w:number;h:number}, b: {x:number;y:number;w:number;h:number}) =>
     a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
   // Drawing & modal state
@@ -824,6 +825,39 @@ const InspectionDetailsPanel = ({
     }
   };
 
+  const handleExport = async () => {
+    if (!inspection.id || isExporting) return;
+    setIsExporting(true);
+    try {
+      const response = await fetch(
+        apiUrl(`/api/inspections/${inspection.id}/export`)
+      );
+      if (!response.ok) {
+        throw new Error(`Export failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      const safeBase = (inspection.inspectionNumber || inspection.id)
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .trim() || "inspection";
+      const filename = `${safeBase}-export.zip`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export inspection metadata", error);
+      if (typeof window !== "undefined") {
+        window.alert("Unable to export inspection metadata. Please try again.");
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const uploadBaseline = async (file: File, weather: string) => {
     if (!transformer?.id) return;
     const form = new FormData();
@@ -860,6 +894,28 @@ const InspectionDetailsPanel = ({
       <div className="flex justify-between items-start mb-4">
         <h2 className="text-xl font-bold">Inspection Details</h2>
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={!inspection.id || isExporting}
+            className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Download inspection metadata and history"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 3v12" />
+              <path d="M6 11l6 6 6-6" />
+              <path d="M5 21h14" />
+            </svg>
+            <span>{isExporting ? "Preparing…" : "Export data"}</span>
+          </button>
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
             <span>Tune model</span>
             <span className="relative inline-flex h-5 w-10 items-center">
@@ -1677,8 +1733,14 @@ const InspectionDetailsPanel = ({
         )}
       </div>
       <LoadingScreen
-        show={isClosing}
-        message={tuneModelEnabled ? "Tuning AI model…" : "Loading inspections…"}
+        show={isClosing || isExporting}
+        message={
+          isExporting
+            ? "Preparing export…"
+            : tuneModelEnabled
+            ? "Tuning AI model…"
+            : "Loading inspections…"
+        }
       />
       </div>
     </>

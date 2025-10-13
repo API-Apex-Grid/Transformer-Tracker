@@ -1,27 +1,36 @@
 package com.apexgrid.transformertracker.web;
 
+import com.apexgrid.transformertracker.ai.ParameterTuningService;
+import com.apexgrid.transformertracker.ai.PythonAnalyzerService;
 import com.apexgrid.transformertracker.model.Inspection;
 import com.apexgrid.transformertracker.model.Transformer;
 import com.apexgrid.transformertracker.repo.InspectionRepo;
 import com.apexgrid.transformertracker.repo.TransformerRepo;
-import com.apexgrid.transformertracker.ai.PythonAnalyzerService;
-import com.apexgrid.transformertracker.ai.ParameterTuningService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.Instant;
+import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.util.List;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
-import javax.imageio.ImageIO;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/inspections")
@@ -52,6 +61,149 @@ public class InspectionController {
         return repo.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/export")
+    public ResponseEntity<?> exportInspection(@PathVariable String id) {
+        return repo.findById(id).map(inspection -> {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                Instant generatedAt = Instant.now();
+
+                ObjectNode root = mapper.createObjectNode();
+                root.put("exportGeneratedAt", generatedAt.toString());
+
+                ObjectNode inspectionNode = root.putObject("inspection");
+                putNullable(inspectionNode, "id", inspection.getId());
+                putNullable(inspectionNode, "inspectionNumber", inspection.getInspectionNumber());
+                putNullable(inspectionNode, "branch", inspection.getBranch());
+                putNullable(inspectionNode, "status", inspection.getStatus());
+                putNullable(inspectionNode, "inspectedDate", inspection.getInspectedDate());
+                putNullable(inspectionNode, "maintainanceDate", inspection.getMaintainanceDate());
+                putNullable(inspectionNode, "uploadedBy", inspection.getUploadedBy());
+                putNullable(inspectionNode, "imageUploadedBy", inspection.getImageUploadedBy());
+                putNullable(inspectionNode, "imageUploadedAt",
+                        inspection.getImageUploadedAt() != null ? inspection.getImageUploadedAt().toString() : null);
+                putNullable(inspectionNode, "weather", inspection.getWeather());
+                putNullable(inspectionNode, "lastAnalysisWeather", inspection.getLastAnalysisWeather());
+                inspectionNode.put("favourite", inspection.isFavourite());
+
+                Transformer transformer = inspection.getTransformer();
+                if (transformer != null) {
+                    ObjectNode transformerNode = inspectionNode.putObject("transformer");
+                    putNullable(transformerNode, "id", transformer.getId());
+                    putNullable(transformerNode, "transformerNumber", transformer.getTransformerNumber());
+                    putNullable(transformerNode, "poleNumber", transformer.getPoleNumber());
+                    putNullable(transformerNode, "region", transformer.getRegion());
+                    putNullable(transformerNode, "type", transformer.getType());
+                } else {
+                    inspectionNode.putNull("transformer");
+                }
+
+                JsonNode currentBoxes = parseJsonNode(mapper, inspection.getBoundingBoxes());
+                JsonNode currentFaults = parseJsonNode(mapper, inspection.getFaultTypes());
+                JsonNode currentAnnotated = parseJsonNode(mapper, inspection.getAnnotatedBy());
+                JsonNode currentSeverity = parseJsonNode(mapper, inspection.getSeverity());
+
+                ObjectNode currentNode = root.putObject("current");
+                putNullable(currentNode, "timestamp",
+                        inspection.getImageUploadedAt() != null ? inspection.getImageUploadedAt().toString() : generatedAt.toString());
+                currentNode.set("boundingBoxes", cloneNode(currentBoxes));
+                currentNode.set("faultTypes", cloneNode(currentFaults));
+                currentNode.set("annotatedBy", cloneNode(currentAnnotated));
+                currentNode.set("severity", cloneNode(currentSeverity));
+
+                ArrayNode boxHistory = asArrayNode(parseJsonNode(mapper, inspection.getBoundingBoxHistory()));
+                ArrayNode faultHistory = asArrayNode(parseJsonNode(mapper, inspection.getFaultTypeHistory()));
+                ArrayNode annotatedHistory = asArrayNode(parseJsonNode(mapper, inspection.getAnnotatedByHistory()));
+                ArrayNode severityHistory = asArrayNode(parseJsonNode(mapper, inspection.getSeverityHistory()));
+                ArrayNode timestampHistory = asArrayNode(parseJsonNode(mapper, inspection.getTimestampHistory()));
+
+                ArrayNode history = mapper.createArrayNode();
+                int snapshotCount = maxSize(boxHistory, faultHistory, annotatedHistory, severityHistory, timestampHistory);
+                for (int index = 0; index < snapshotCount; index++) {
+                    ObjectNode entry = mapper.createObjectNode();
+                    String ts = extractText(timestampHistory, index);
+                    putNullable(entry, "timestamp", ts);
+                    entry.put("isCurrent", false);
+                    entry.set("boundingBoxes", cloneNode(snapshotValue(boxHistory, index)));
+                    entry.set("faultTypes", cloneNode(snapshotValue(faultHistory, index)));
+                    entry.set("annotatedBy", cloneNode(snapshotValue(annotatedHistory, index)));
+                    entry.set("severity", cloneNode(snapshotValue(severityHistory, index)));
+                    history.add(entry);
+                }
+
+                ObjectNode currentEntry = mapper.createObjectNode();
+                putNullable(currentEntry, "timestamp",
+                        inspection.getImageUploadedAt() != null ? inspection.getImageUploadedAt().toString() : generatedAt.toString());
+                currentEntry.put("isCurrent", true);
+                currentEntry.set("boundingBoxes", cloneNode(currentBoxes));
+                currentEntry.set("faultTypes", cloneNode(currentFaults));
+                currentEntry.set("annotatedBy", cloneNode(currentAnnotated));
+                currentEntry.set("severity", cloneNode(currentSeverity));
+                history.add(currentEntry);
+
+                root.set("history", history);
+
+                byte[] metadataBytes = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(root);
+
+                StringBuilder csvBuilder = new StringBuilder();
+                csvBuilder.append("timestamp,isCurrent,boundingBoxes,faultTypes,annotatedBy,severity\n");
+                for (JsonNode entry : history) {
+                    String timestamp = entry.path("timestamp").isNull() ? "" : entry.path("timestamp").asText("");
+                    String boxesJson = mapper.writeValueAsString(entry.path("boundingBoxes"));
+                    String faultsJson = mapper.writeValueAsString(entry.path("faultTypes"));
+                    String annotatedJson = mapper.writeValueAsString(entry.path("annotatedBy"));
+                    String severityJson = mapper.writeValueAsString(entry.path("severity"));
+                    csvBuilder.append('"').append(csvEscape(timestamp)).append('"').append(',');
+                    csvBuilder.append(entry.path("isCurrent").asBoolean(false) ? "true" : "false").append(',');
+                    csvBuilder.append('"').append(csvEscape(boxesJson)).append('"').append(',');
+                    csvBuilder.append('"').append(csvEscape(faultsJson)).append('"').append(',');
+                    csvBuilder.append('"').append(csvEscape(annotatedJson)).append('"').append(',');
+                    csvBuilder.append('"').append(csvEscape(severityJson)).append('"').append('\n');
+                }
+                byte[] csvBytes = csvBuilder.toString().getBytes(StandardCharsets.UTF_8);
+
+                byte[] imageBytes = decodeDataUrl(inspection.getImageUrl());
+                String imageExt = guessImageExtension(inspection.getImageUrl());
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+                    ZipEntry metadataEntry = new ZipEntry("metadata.json");
+                    zos.putNextEntry(metadataEntry);
+                    zos.write(metadataBytes);
+                    zos.closeEntry();
+
+                    ZipEntry csvEntry = new ZipEntry("history.csv");
+                    zos.putNextEntry(csvEntry);
+                    zos.write(csvBytes);
+                    zos.closeEntry();
+
+                    if (imageBytes != null && imageBytes.length > 0) {
+                        ZipEntry imageEntry = new ZipEntry("image-original." + imageExt);
+                        zos.putNextEntry(imageEntry);
+                        zos.write(imageBytes);
+                        zos.closeEntry();
+                    }
+                }
+
+                byte[] zipBytes = baos.toByteArray();
+                String filenameBase = inspection.getInspectionNumber();
+                if (filenameBase == null || filenameBase.isBlank()) {
+                    filenameBase = inspection.getId();
+                }
+                String safeBase = sanitizeFilename(filenameBase);
+                String downloadName = safeBase + "-export.zip";
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+                headers.setContentDisposition(ContentDisposition.attachment().filename(downloadName).build());
+                headers.setContentLength(zipBytes.length);
+                return ResponseEntity.ok().headers(headers).body(zipBytes);
+            } catch (Exception ex) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Failed to export inspection"));
+            }
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
@@ -404,6 +556,122 @@ public class InspectionController {
         i.setAnnotatedByHistory(annotatedHist.toString());
         i.setSeverityHistory(severityHist.toString());
         i.setTimestampHistory(timestampHist.toString());
+    }
+
+    private static void putNullable(ObjectNode node, String field, String value) {
+        if (value == null) {
+            node.putNull(field);
+        } else {
+            node.put(field, value);
+        }
+    }
+
+    private static JsonNode parseJsonNode(ObjectMapper mapper, String raw) {
+        if (raw == null || raw.isBlank()) {
+            return NullNode.getInstance();
+        }
+        try {
+            JsonNode node = mapper.readTree(raw);
+            return node == null ? NullNode.getInstance() : node;
+        } catch (Exception ex) {
+            return NullNode.getInstance();
+        }
+    }
+
+    private static JsonNode cloneNode(JsonNode node) {
+        if (node == null || node.isMissingNode()) {
+            return NullNode.getInstance();
+        }
+        return node.deepCopy();
+    }
+
+    private static ArrayNode asArrayNode(JsonNode node) {
+        return node instanceof ArrayNode ? (ArrayNode) node : null;
+    }
+
+    private static JsonNode snapshotValue(ArrayNode array, int index) {
+        if (array == null || index < 0 || index >= array.size()) {
+            return NullNode.getInstance();
+        }
+        JsonNode node = array.get(index);
+        return node == null ? NullNode.getInstance() : node;
+    }
+
+    private static int maxSize(ArrayNode... arrays) {
+        int max = 0;
+        if (arrays == null) {
+            return 0;
+        }
+        for (ArrayNode array : arrays) {
+            if (array != null && array.size() > max) {
+                max = array.size();
+            }
+        }
+        return max;
+    }
+
+    private static String extractText(ArrayNode array, int index) {
+        if (array == null || index < 0 || index >= array.size()) {
+            return null;
+        }
+        JsonNode node = array.get(index);
+        return node != null && node.isValueNode() ? node.asText() : null;
+    }
+
+    private static String csvEscape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\"", "\"\"")
+                .replace('\n', ' ')
+                .replace('\r', ' ');
+    }
+
+    private static byte[] decodeDataUrl(String dataUrl) {
+        if (dataUrl == null || dataUrl.isBlank()) {
+            return null;
+        }
+        int comma = dataUrl.indexOf(',');
+        if (comma < 0) {
+            return null;
+        }
+        String base64 = dataUrl.substring(comma + 1);
+        try {
+            return Base64.getDecoder().decode(base64);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private static String guessImageExtension(String dataUrl) {
+        if (dataUrl == null || dataUrl.isBlank()) {
+            return "bin";
+        }
+        int colon = dataUrl.indexOf(':');
+        int semi = dataUrl.indexOf(';');
+        if (colon >= 0 && semi > colon) {
+            String mime = dataUrl.substring(colon + 1, semi).toLowerCase();
+            switch (mime) {
+                case "image/png":
+                    return "png";
+                case "image/jpeg":
+                case "image/jpg":
+                    return "jpg";
+                case "image/webp":
+                    return "webp";
+                default:
+                    return "bin";
+            }
+        }
+        return "bin";
+    }
+
+    private static String sanitizeFilename(String value) {
+        if (value == null || value.isBlank()) {
+            return "inspection";
+        }
+        String sanitized = value.replaceAll("[^A-Za-z0-9._-]", "_");
+        return sanitized.isBlank() ? "inspection" : sanitized;
     }
 
     @PostMapping("/{id}/clear-analysis")
