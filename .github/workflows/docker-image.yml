@@ -23,7 +23,7 @@ jobs:
         working-directory: backend
 
       - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/transformer-tracker:latest
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/transformer-tracker:latest .
         working-directory: backend
 
       - name: Login to DockerHub
