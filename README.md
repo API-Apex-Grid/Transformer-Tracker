@@ -25,47 +25,59 @@ Make sure the database is running and accessible. Schema is given below
 
 ```sql
 
-CREATE TABLE public.inspections (
-  id CHARACTER VARYING NOT NULL,
-  transformer_id CHARACTER VARYING NOT NULL,
-  inspectionnumber TEXT NOT NULL UNIQUE,
-  inspecteddate TEXT,
-  maintainancedate TEXT,
-  branch CHARACTER VARYING,
-  status CHARACTER VARYING,
-  imageurl TEXT,
-  weather CHARACTER VARYING,
-  lastanalysisweather TEXT,
-  uploadedby TEXT,
-  imageuploadedby TEXT,
-  imageuploadedat TIMESTAMP WITH TIME ZONE,
-  favourite BOOLEAN NOT NULL DEFAULT FALSE,
-  boundingboxes TEXT,
-  faulttypes TEXT,
-  CONSTRAINT inspections_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_inspections_transformer FOREIGN KEY (transformer_id) REFERENCES public.transformers(id)
-);
+create table public.inspections (
+  id text not null,
+  transformer_id text not null,
+  inspectionnumber text not null,
+  inspecteddate text null,
+  maintainancedate text null,
+  branch text null,
+  status text null,
+  imageurl text null,
+  weather text null,
+  lastanalysisweather text null,
+  uploadedby text null,
+  imageuploadedby text null,
+  imageuploadedat timestamp with time zone null,
+  favourite boolean not null default false,
+  boundingboxes text null,
+  faulttypes text null,
+  faulttypehistory text null,
+  boundingboxhistory text null,
+  annotatedby text null,
+  annotatedbyhistory text null,
+  severity text null,
+  timestamphistory text null,
+  timestamp timestamp with time zone null,
+  severityhistory text null,
+  constraint inspections_pkey primary key (id),
+  constraint inspections_inspectionnumber_key unique (inspectionnumber),
+  constraint fk_inspections_transformer foreign KEY (transformer_id) references transformers (id) on delete CASCADE
+)
 
-CREATE TABLE public.transformers (
-  id CHARACTER VARYING NOT NULL,
-  region CHARACTER VARYING,
-  transformernumber TEXT NOT NULL UNIQUE,
-  polenumber TEXT,
-  type CHARACTER VARYING,
-  location CHARACTER VARYING,
-  sunnyimage TEXT,
-  cloudyimage TEXT,
-  windyimage TEXT,
-  uploadedby TEXT,
-  sunnyimageuploadedby TEXT,
-  cloudyimageuploadedby TEXT,
-  windyimageuploadedby TEXT,
-  sunnyimageuploadedat TIMESTAMP WITH TIME ZONE,
-  cloudyimageuploadedat TIMESTAMP WITH TIME ZONE,
-  windyimageuploadedat TIMESTAMP WITH TIME ZONE,
-  favourite BOOLEAN NOT NULL DEFAULT FALSE,
-  CONSTRAINT transformers_pkey PRIMARY KEY (id)
-);
+create index IF not exists idx_inspections_transformer_id on public.inspections using btree (transformer_id) TABLESPACE pg_default;
+
+create table public.transformers (
+  id text not null,
+  region text null,
+  transformernumber text not null,
+  polenumber text null,
+  type text null,
+  location text null,
+  sunnyimage text null,
+  cloudyimage text null,
+  windyimage text null,
+  uploadedby text null,
+  sunnyimageuploadedby text null,
+  cloudyimageuploadedby text null,
+  windyimageuploadedby text null,
+  sunnyimageuploadedat timestamp with time zone null,
+  cloudyimageuploadedat timestamp with time zone null,
+  windyimageuploadedat timestamp with time zone null,
+  favourite boolean not null default false,
+  constraint transformers_pkey primary key (id),
+  constraint transformers_transformernumber_key unique (transformernumber)
+)
 
 CREATE TABLE public.users (
   id CHARACTER VARYING NOT NULL,
@@ -75,6 +87,30 @@ CREATE TABLE public.users (
   image TEXT,
   CONSTRAINT users_pkey PRIMARY KEY (id)
 );
+
+CREATE TABLE public.ai_model_parameters (
+  param_key text not null,
+  param_value double precision not null,
+  updated_at timestamp with time zone not null default now(),
+  constraint ai_model_parameters_pkey primary key (param_key)
+) TABLESPACE pg_default;
+
+CREATE TABLE public.ai_tuning_feedback (
+  id uuid not null default gen_random_uuid (),
+  inspection_id text not null,
+  ai_box_count integer not null,
+  user_box_count integer not null,
+  box_diff integer not null,
+  created_at timestamp with time zone not null default now(),
+  previous_snapshot text null,
+  final_snapshot text null,
+  previous_faults text null,
+  final_faults text null,
+  previous_annotated text null,
+  final_annotated text null,
+  notes text null,
+  constraint ai_tuning_feedback_pkey primary key (id)
+) TABLESPACE pg_default;
 
 ```
 
@@ -185,7 +221,8 @@ pnpm run dev
 - H2 console won’t connect: verify JDBC URL is `jdbc:h2:file:./db/transformerdb`, user `sa`, and empty password.
 - DB file not created: ensure the backend is running and you’ve performed at least one API action (the file appears on first write).
 
-## Notes
+## For Improvements
 
-- Package manager: pnpm-first. Running `pnpm install` in the project root installs all dependencies. No extra global tools are required beyond pnpm and Node.
-- Frontend reads `NEXT_PUBLIC_BACKEND_URL` (default `http://localhost:8080`).
+- Feel free to open issues or submit PRs for any bugs, improvements, or new features.
+- For your own use, you are free to customize the project as needed.
+- If you find the project useful, consider starring the repo!
