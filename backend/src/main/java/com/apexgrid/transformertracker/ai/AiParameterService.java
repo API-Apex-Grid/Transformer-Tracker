@@ -4,6 +4,8 @@ import com.apexgrid.transformertracker.model.ModelParameter;
 import com.apexgrid.transformertracker.repo.ModelParameterRepo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
@@ -14,12 +16,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AiParameterService {
+    private static final Logger LOG = LoggerFactory.getLogger(AiParameterService.class);
     private final ModelParameterRepo modelParameterRepo;
     private final Map<AiParameterKey, Double> cache = new ConcurrentHashMap<>();
 
     public AiParameterService(ModelParameterRepo modelParameterRepo) {
         this.modelParameterRepo = modelParameterRepo;
-        initializeCache();
+        try {
+            initializeCache();
+        } catch (Exception ex) {
+            // If initialization against the database fails (e.g. no DB available on startup),
+            // don't fail bean construction. Fall back to in-memory defaults and log a warning.
+            LOG.warn("Unable to initialize AI parameter cache from DB - falling back to defaults", ex);
+            for (AiParameterKey key : AiParameterKey.values()) {
+                cache.put(key, key.getDefaultValue());
+            }
+        }
     }
 
     private void initializeCache() {
