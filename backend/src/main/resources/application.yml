@@ -19,4 +19,4 @@ app:
     script: ./AI/analyze.py
 
 cors:
-  allowed-origins: "https://apex-grid-transformer-tracker.vercel.app/transformer, http://localhost:3000"
+  allowed-origins: "https://apex-grid-transformer-tracker.vercel.app, http://localhost:3000"
