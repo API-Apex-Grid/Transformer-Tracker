@@ -112,6 +112,7 @@ public class InspectionController {
                 JsonNode currentFaults = parseJsonNode(mapper, inspection.getFaultTypes());
                 JsonNode currentAnnotated = parseJsonNode(mapper, inspection.getAnnotatedBy());
                 JsonNode currentSeverity = parseJsonNode(mapper, inspection.getSeverity());
+                JsonNode currentComments = parseJsonNode(mapper, inspection.getComment());
 
                 ObjectNode currentNode = root.putObject("current");
                 putNullable(currentNode, "timestamp",
@@ -120,15 +121,17 @@ public class InspectionController {
                 currentNode.set("faultTypes", cloneNode(currentFaults));
                 currentNode.set("annotatedBy", cloneNode(currentAnnotated));
                 currentNode.set("severity", cloneNode(currentSeverity));
+                currentNode.set("comments", cloneNode(currentComments));
 
                 ArrayNode boxHistory = asArrayNode(parseJsonNode(mapper, inspection.getBoundingBoxHistory()));
                 ArrayNode faultHistory = asArrayNode(parseJsonNode(mapper, inspection.getFaultTypeHistory()));
                 ArrayNode annotatedHistory = asArrayNode(parseJsonNode(mapper, inspection.getAnnotatedByHistory()));
                 ArrayNode severityHistory = asArrayNode(parseJsonNode(mapper, inspection.getSeverityHistory()));
+                ArrayNode commentHistory = asArrayNode(parseJsonNode(mapper, inspection.getCommentHistory()));
                 ArrayNode timestampHistory = asArrayNode(parseJsonNode(mapper, inspection.getTimestampHistory()));
 
                 ArrayNode history = mapper.createArrayNode();
-                int snapshotCount = maxSize(boxHistory, faultHistory, annotatedHistory, severityHistory, timestampHistory);
+                int snapshotCount = maxSize(boxHistory, faultHistory, annotatedHistory, severityHistory, commentHistory, timestampHistory);
                 for (int index = 0; index < snapshotCount; index++) {
                     ObjectNode entry = mapper.createObjectNode();
                     String ts = extractText(timestampHistory, index);
@@ -138,6 +141,7 @@ public class InspectionController {
                     entry.set("faultTypes", cloneNode(snapshotValue(faultHistory, index)));
                     entry.set("annotatedBy", cloneNode(snapshotValue(annotatedHistory, index)));
                     entry.set("severity", cloneNode(snapshotValue(severityHistory, index)));
+                    entry.set("comments", cloneNode(snapshotValue(commentHistory, index)));
                     history.add(entry);
                 }
 
@@ -149,6 +153,7 @@ public class InspectionController {
                 currentEntry.set("faultTypes", cloneNode(currentFaults));
                 currentEntry.set("annotatedBy", cloneNode(currentAnnotated));
                 currentEntry.set("severity", cloneNode(currentSeverity));
+                currentEntry.set("comments", cloneNode(currentComments));
                 history.add(currentEntry);
 
                 root.set("history", history);
@@ -156,19 +161,21 @@ public class InspectionController {
                 byte[] metadataBytes = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(root);
 
                 StringBuilder csvBuilder = new StringBuilder();
-                csvBuilder.append("timestamp,isCurrent,boundingBoxes,faultTypes,annotatedBy,severity\n");
+                csvBuilder.append("timestamp,isCurrent,boundingBoxes,faultTypes,annotatedBy,severity,comments\n");
                 for (JsonNode entry : history) {
                     String timestamp = entry.path("timestamp").isNull() ? "" : entry.path("timestamp").asText("");
                     String boxesJson = mapper.writeValueAsString(entry.path("boundingBoxes"));
                     String faultsJson = mapper.writeValueAsString(entry.path("faultTypes"));
                     String annotatedJson = mapper.writeValueAsString(entry.path("annotatedBy"));
                     String severityJson = mapper.writeValueAsString(entry.path("severity"));
+                    String commentsJson = mapper.writeValueAsString(entry.path("comments"));
                     csvBuilder.append('"').append(csvEscape(timestamp)).append('"').append(',');
                     csvBuilder.append(entry.path("isCurrent").asBoolean(false) ? "true" : "false").append(',');
                     csvBuilder.append('"').append(csvEscape(boxesJson)).append('"').append(',');
                     csvBuilder.append('"').append(csvEscape(faultsJson)).append('"').append(',');
                     csvBuilder.append('"').append(csvEscape(annotatedJson)).append('"').append(',');
-                    csvBuilder.append('"').append(csvEscape(severityJson)).append('"').append('\n');
+                    csvBuilder.append('"').append(csvEscape(severityJson)).append('"').append(',');
+                    csvBuilder.append('"').append(csvEscape(commentsJson)).append('"').append('\n');
                 }
                 byte[] csvBytes = csvBuilder.toString().getBytes(StandardCharsets.UTF_8);
 
@@ -435,6 +442,7 @@ public class InspectionController {
         String boxesJson = i.getBoundingBoxes();
         String faultsJson = i.getFaultTypes();
         String severityJson = i.getSeverity();
+        String commentJson = i.getComment();
         if ((boxesJson == null || boxesJson.isBlank()) && (faultsJson == null || faultsJson.isBlank())) {
             return; // nothing to archive
         }
@@ -563,6 +571,29 @@ public class InspectionController {
             severityHist.addNull();
         }
 
+        // commentHistory as array of snapshots aligned with boxes/faults
+        ArrayNode commentHist;
+        String commentHistJson = i.getCommentHistory();
+        if (commentHistJson != null && !commentHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(commentHistJson);
+                commentHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                commentHist = mapper.createArrayNode();
+            }
+        } else {
+            commentHist = mapper.createArrayNode();
+        }
+        if (commentJson != null && !commentJson.isBlank()) {
+            try {
+                commentHist.add(mapper.readTree(commentJson));
+            } catch (Exception ex) {
+                commentHist.addNull();
+            }
+        } else {
+            commentHist.addNull();
+        }
+
         // timestampHistory records when each snapshot was archived
         ArrayNode timestampHist;
         String timestampHistJson = i.getTimestampHistory();
@@ -583,6 +614,7 @@ public class InspectionController {
         i.setFaultTypeHistory(faultHist.toString());
         i.setAnnotatedByHistory(annotatedHist.toString());
         i.setSeverityHistory(severityHist.toString());
+        i.setCommentHistory(commentHist.toString());
         i.setTimestampHistory(timestampHist.toString());
     }
 
@@ -786,6 +818,8 @@ public class InspectionController {
                 i.setAnnotatedByHistory(null);
                 i.setSeverity(null);
                 i.setSeverityHistory(null);
+                i.setComment(null);
+                i.setCommentHistory(null);
                 i.setTimestampHistory(null);
                 // analyzed image dimensions removed; nothing to clear
             } catch (Exception ignore) { }
@@ -882,6 +916,21 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed severity */ }
                 }
 
+                // Update comment array to maintain alignment
+                String commentJson = i.getComment();
+                if (commentJson != null && !commentJson.isBlank()) {
+                    try {
+                        JsonNode commentNode = mapper.readTree(commentJson);
+                        if (commentNode instanceof ArrayNode) {
+                            ArrayNode commentArr = (ArrayNode) commentNode;
+                            if (index >= 0 && index < commentArr.size()) {
+                                commentArr.remove(index);
+                                i.setComment(commentArr.isEmpty() ? null : commentArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed comment */ }
+                }
+
                 repo.save(i);
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
             } catch (Exception e) {
@@ -976,6 +1025,21 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed severity */ }
                 }
 
+                // Update comment alignment
+                String commentJson = i.getComment();
+                if (commentJson != null && !commentJson.isBlank()) {
+                    try {
+                        JsonNode commentNode = mapper.readTree(commentJson);
+                        if (commentNode instanceof ArrayNode) {
+                            ArrayNode commentArr = (ArrayNode) commentNode;
+                            if (matchIdx >= 0 && matchIdx < commentArr.size()) {
+                                commentArr.remove(matchIdx);
+                                i.setComment(commentArr.isEmpty() ? null : commentArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed comment */ }
+                }
+
                 repo.save(i);
                 return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
             } catch (Exception e) {
@@ -997,6 +1061,14 @@ public class InspectionController {
                 double w = ((Number)payload.getOrDefault("w", 0)).doubleValue();
                 double h = ((Number)payload.getOrDefault("h", 0)).doubleValue();
                 String faultType = String.valueOf(payload.getOrDefault("faultType", "none"));
+                Object rawComment = payload.get("comment");
+                String commentValue = null;
+                if (rawComment instanceof String) {
+                    String trimmed = ((String) rawComment).trim();
+                    if (!trimmed.isEmpty()) {
+                        commentValue = trimmed;
+                    }
+                }
 
                 ObjectMapper mapper = new ObjectMapper();
                 ArrayNode boxesArr;
@@ -1065,8 +1137,28 @@ public class InspectionController {
                 sevArr.addNull(); // User-added boxes have null severity
                 i.setSeverity(sevArr.toString());
 
+                // Update comment array aligned with boxes
+                ArrayNode commentArr;
+                String commentJson = i.getComment();
+                if (commentJson != null && !commentJson.isBlank()) {
+                    try {
+                        var node = mapper.readTree(commentJson);
+                        commentArr = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+                    } catch (Exception ex) {
+                        commentArr = mapper.createArrayNode();
+                    }
+                } else {
+                    commentArr = mapper.createArrayNode();
+                }
+                if (commentValue != null) {
+                    commentArr.add(commentValue);
+                } else {
+                    commentArr.addNull();
+                }
+                i.setComment(commentArr.isEmpty() ? null : commentArr.toString());
+
                 repo.save(i);
-                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", boxesArr, "faultTypes", ftArr));
+                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", boxesArr, "faultTypes", ftArr, "comments", commentArr));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Failed to add box"));
             }
@@ -1091,6 +1183,7 @@ public class InspectionController {
                 var boxesPayload = payload.get("boundingBoxes");
                 var faultsPayload = payload.get("faultTypes");
                 var annotatedByPayload = payload.get("annotatedBy");
+                var commentsPayload = payload.get("comments");
                 var tuneModelPayload = payload.get("tuneModel");
                 boolean tuneModel = true;
                 if (tuneModelPayload instanceof Boolean) {
@@ -1137,14 +1230,41 @@ public class InspectionController {
                     }
                 }
 
-        String finalBoxesJson = finalBoxes.toString();
-        String finalFaultsJson = finalFaults.toString();
-        String finalAnnotatedJson = finalAnnotated.toString();
+                ArrayNode finalComments = mapper.createArrayNode();
+                if (commentsPayload instanceof List) {
+                    for (Object commentObj : (List<?>) commentsPayload) {
+                        if (commentObj == null) {
+                            finalComments.addNull();
+                        } else {
+                            String text = commentObj.toString().trim();
+                            finalComments.add(text.isEmpty() ? null : text);
+                        }
+                    }
+                }
+                while (finalComments.size() < finalBoxes.size()) {
+                    finalComments.addNull();
+                }
+                while (finalComments.size() > finalBoxes.size()) {
+                    finalComments.remove(finalComments.size() - 1);
+                }
+                boolean hasCommentValue = false;
+                for (JsonNode node : finalComments) {
+                    if (node != null && !node.isNull() && !node.asText("").isBlank()) {
+                        hasCommentValue = true;
+                        break;
+                    }
+                }
+
+    String finalBoxesJson = finalBoxes.toString();
+    String finalFaultsJson = finalFaults.toString();
+    String finalAnnotatedJson = finalAnnotated.toString();
+    String finalCommentsJson = hasCommentValue ? finalComments.toString() : null;
 
         // Persist final state
         i.setBoundingBoxes(finalBoxesJson);
         i.setFaultTypes(finalFaultsJson);
         i.setAnnotatedBy(finalAnnotatedJson);
+        i.setComment(finalCommentsJson);
                 repo.save(i);
 
         if (tuneModel) {
@@ -1159,7 +1279,7 @@ public class InspectionController {
             );
         }
 
-                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", finalBoxes, "faultTypes", finalFaults));
+                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", finalBoxes, "faultTypes", finalFaults, "comments", finalComments));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Bulk update failed"));
             }

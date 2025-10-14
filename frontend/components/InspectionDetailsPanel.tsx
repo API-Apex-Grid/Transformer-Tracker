@@ -231,7 +231,44 @@ const parseSeverities = (
   return arr.slice(0, expectedLength);
 };
 
-const buildBoxInfo = (boxes: number[][], faults: string[]): OverlayBoxInfo[] =>
+const parseComments = (
+  raw: Inspection["comment"],
+  expectedLength: number
+): (string | null)[] => {
+  if (raw == null) return Array(expectedLength).fill(null);
+  let source: unknown = raw;
+  if (typeof source === "string") {
+    const original = source;
+    try {
+      const parsed = JSON.parse(original);
+      source = parsed;
+    } catch {
+      const trimmed = original.trim();
+      if (!trimmed) return Array(expectedLength).fill(null);
+      source = trimmed.split(/\r?\n+/).map((item) => item.trim());
+    }
+  }
+  const arr: (string | null)[] = Array.isArray(source)
+    ? (source as unknown[]).map((item) => {
+        if (item == null) return null;
+        const str = typeof item === "string" ? item : String(item);
+        const trimmed = str.trim();
+        return trimmed.length > 0 ? trimmed : null;
+      })
+    : typeof source === "string"
+    ? [source.trim()].map((s) => (s.length > 0 ? s : null))
+    : [];
+  if (arr.length < expectedLength) {
+    arr.push(...Array(expectedLength - arr.length).fill(null));
+  }
+  return arr.slice(0, expectedLength);
+};
+
+const buildBoxInfo = (
+  boxes: number[][],
+  faults: string[],
+  comments?: (string | null)[]
+): OverlayBoxInfo[] =>
   boxes.map((box, index) => {
     const fault = faults[index] ?? "none";
     return {
@@ -241,6 +278,7 @@ const buildBoxInfo = (boxes: number[][], faults: string[]): OverlayBoxInfo[] =>
       h: box[3],
       boxFault: fault,
       label: toDisplayLabel(fault),
+      comment: comments ? comments[index] ?? null : null,
     };
   });
 
@@ -262,6 +300,7 @@ type HistorySnapshot = {
   faults: string[];
   annotatedBy: string[];
   severity: (number | null)[];
+  comments: (string | null)[];
   timestamp: string | null;
 };
 
@@ -303,6 +342,9 @@ const cloneBoxes = (boxes: number[][]): number[][] =>
 const cloneStrings = (values: string[]): string[] => values.slice();
 
 const cloneSeverities = (values: (number | null)[]): (number | null)[] =>
+  values.slice();
+
+const cloneComments = (values: (string | null)[]): (string | null)[] =>
   values.slice();
 
 const jsonEqual = (a: unknown, b: unknown): boolean =>
@@ -364,18 +406,20 @@ const InspectionDetailsPanel = ({
   const [storedFaultTypes, setStoredFaultTypes] = useState<string[]>([]);
   const [storedAnnotatedBy, setStoredAnnotatedBy] = useState<string[]>([]);
   const [storedSeverity, setStoredSeverity] = useState<(number | null)[]>([]);
+  const [storedComments, setStoredComments] = useState<(string | null)[]>([]);
   const initialStoredRef = useRef<{
     boxes: number[][];
     faults: string[];
     annotatedBy: string[];
     severity: (number | null)[];
-  }>({ boxes: [], faults: [], annotatedBy: [], severity: [] });
+    comments: (string | null)[];
+  }>({ boxes: [], faults: [], annotatedBy: [], severity: [], comments: [] });
   const [tuneModelEnabled, setTuneModelEnabled] = useState(true);
   const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[]>([]);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
   // Queue changes to persist on close (X)
   const [pendingAdds, setPendingAdds] = useState<
-    { x: number; y: number; w: number; h: number; faultType: string }[]
+    { x: number; y: number; w: number; h: number; faultType: string; comment?: string | null }[]
   >([]);
   const [pendingDeletes, setPendingDeletes] = useState<
     { x: number; y: number; w: number; h: number }[]
@@ -395,6 +439,9 @@ const InspectionDetailsPanel = ({
   } | null>(null);
   const [showFaultModal, setShowFaultModal] = useState(false);
   const [faultSelection, setFaultSelection] = useState<string>("loose joint");
+  const [commentInput, setCommentInput] = useState<string>("");
+  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [editIndex, setEditIndex] = useState<number | null>(null);
 
   const transformer = useMemo(
     () =>
@@ -455,10 +502,13 @@ const InspectionDetailsPanel = ({
   const visibleSeverity = displaySnapshot
     ? displaySnapshot.severity
     : storedSeverity;
+  const visibleComments = displaySnapshot
+    ? displaySnapshot.comments
+    : storedComments;
 
   const visibleBoxInfo = useMemo(
-    () => buildBoxInfo(visibleBoxes, visibleFaultTypes),
-    [visibleBoxes, visibleFaultTypes]
+    () => buildBoxInfo(visibleBoxes, visibleFaultTypes, visibleComments),
+    [visibleBoxes, visibleFaultTypes, visibleComments]
   );
 
   const editingDisabled = selectedSnapshotIndex !== null;
@@ -531,11 +581,13 @@ const InspectionDetailsPanel = ({
       initialSnapshot.annotatedBy
     );
     const severityChanged = !jsonEqual(storedSeverity, initialSnapshot.severity);
+    const commentsChanged = !jsonEqual(storedComments, initialSnapshot.comments);
     return (
       boxesChanged ||
       faultsChanged ||
       annotatedChanged ||
       severityChanged ||
+      commentsChanged ||
       pendingAdds.length > 0 ||
       pendingDeletes.length > 0
     );
@@ -544,6 +596,7 @@ const InspectionDetailsPanel = ({
     storedFaultTypes,
     storedAnnotatedBy,
     storedSeverity,
+    storedComments,
     pendingAdds,
     pendingDeletes,
   ]);
@@ -554,6 +607,7 @@ const InspectionDetailsPanel = ({
     setStoredFaultTypes(cloneStrings(initialSnapshot.faults));
     setStoredAnnotatedBy(cloneStrings(initialSnapshot.annotatedBy));
     setStoredSeverity(cloneSeverities(initialSnapshot.severity));
+    setStoredComments(cloneComments(initialSnapshot.comments));
     setPendingAdds([]);
     setPendingDeletes([]);
     setSelectedSnapshotIndex(null);
@@ -590,30 +644,39 @@ const InspectionDetailsPanel = ({
         inspection.severity,
         parsedBoxes.length
       );
+      const parsedComments = parseComments(
+        inspection.comment as string | (string | null)[] | null,
+        parsedBoxes.length
+      );
       const clonedBoxes = cloneBoxes(parsedBoxes);
       const clonedFaults = cloneStrings(parsedFaults);
       const clonedAnnotated = cloneStrings(parsedAnnotatedBy);
       const clonedSeverity = cloneSeverities(parsedSeverity);
+      const clonedComments = cloneComments(parsedComments);
       setStoredBoxes(clonedBoxes);
       setStoredFaultTypes(clonedFaults);
       setStoredAnnotatedBy(clonedAnnotated);
       setStoredSeverity(clonedSeverity);
+      setStoredComments(clonedComments);
       initialStoredRef.current = {
         boxes: cloneBoxes(clonedBoxes),
         faults: cloneStrings(clonedFaults),
         annotatedBy: cloneStrings(clonedAnnotated),
         severity: cloneSeverities(clonedSeverity),
+        comments: cloneComments(clonedComments),
       };
     } catch {
       setStoredBoxes([]);
       setStoredFaultTypes([]);
       setStoredAnnotatedBy([]);
       setStoredSeverity([]);
+      setStoredComments([]);
       initialStoredRef.current = {
         boxes: [],
         faults: [],
         annotatedBy: [],
         severity: [],
+        comments: [],
       };
     }
     try {
@@ -629,6 +692,9 @@ const InspectionDetailsPanel = ({
       const severityHistoryEntries = parseHistoryEntries(
         inspection.severityHistory
       );
+      const commentHistoryEntries = parseHistoryEntries(
+        inspection.commentHistory
+      );
       const timestampHistoryEntries = parseHistoryEntries(
         inspection.timestampHistory
       );
@@ -637,6 +703,7 @@ const InspectionDetailsPanel = ({
         faultHistoryEntries.length,
         annotatedHistoryEntries.length,
         severityHistoryEntries.length,
+        commentHistoryEntries.length,
         timestampHistoryEntries.length
       );
       const snapshots: HistorySnapshot[] = [];
@@ -649,6 +716,10 @@ const InspectionDetailsPanel = ({
           | null
           | undefined;
         const severityRaw = severityHistoryEntries[idx] as Inspection["severity"];
+        const commentRaw = commentHistoryEntries[idx] as
+          | Inspection["comment"]
+          | null
+          | undefined;
         const boxes = parseBoundingBoxes(boxesRaw);
         const faultsFallbackLength = Array.isArray(faultsRaw)
           ? (faultsRaw as unknown[]).length
@@ -659,16 +730,21 @@ const InspectionDetailsPanel = ({
         const severityFallbackLength = Array.isArray(severityRaw)
           ? (severityRaw as unknown[]).length
           : 0;
+        const commentFallbackLength = Array.isArray(commentRaw)
+          ? (commentRaw as unknown[]).length
+          : 0;
         const targetLength = Math.max(
           boxes.length,
           faultsFallbackLength,
           annotatedFallbackLength,
-          severityFallbackLength
+          severityFallbackLength,
+          commentFallbackLength
         );
         const effectiveLength = targetLength > 0 ? targetLength : boxes.length;
         const faults = parseFaultTypes(faultsRaw, effectiveLength);
         const annotated = parseAnnotatedBy(annotatedRaw, effectiveLength);
         const severitySnapshot = parseSeverities(severityRaw, effectiveLength);
+        const commentsSnapshot = parseComments(commentRaw ?? null, effectiveLength);
         const timestampEntry = timestampHistoryEntries[idx];
         const timestamp =
           typeof timestampEntry === "string"
@@ -689,6 +765,7 @@ const InspectionDetailsPanel = ({
           faults,
           annotatedBy: annotated,
           severity: severitySnapshot,
+          comments: commentsSnapshot,
           timestamp,
         });
       }
@@ -714,6 +791,8 @@ const InspectionDetailsPanel = ({
     inspection.faultTypeHistory,
     inspection.annotatedByHistory,
     inspection.severityHistory,
+    inspection.comment,
+    inspection.commentHistory,
     inspection.timestampHistory,
   ]);
 
@@ -795,6 +874,13 @@ const InspectionDetailsPanel = ({
       const finalBoxes = storedBoxes.map((b) => [b[0], b[1], b[2], b[3]]);
       const finalFaults = storedFaultTypes.slice();
       const finalAnnotatedBy = storedAnnotatedBy.slice();
+      const finalComments = storedComments.map((value) => {
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          return trimmed.length > 0 ? trimmed : null;
+        }
+        return null;
+      });
       await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes/bulk`), {
         method: "PUT",
         headers: {
@@ -805,6 +891,7 @@ const InspectionDetailsPanel = ({
           boundingBoxes: finalBoxes,
           faultTypes: finalFaults,
           annotatedBy: finalAnnotatedBy,
+          comments: finalComments,
           tuneModel: tuneModelEnabled,
         }),
       });
@@ -813,6 +900,7 @@ const InspectionDetailsPanel = ({
         faults: cloneStrings(storedFaultTypes),
         annotatedBy: cloneStrings(storedAnnotatedBy),
         severity: cloneSeverities(storedSeverity),
+        comments: cloneComments(storedComments),
       };
       setPendingAdds([]);
       setPendingDeletes([]);
@@ -823,6 +911,166 @@ const InspectionDetailsPanel = ({
       setIsClosing(false);
       onClose();
     }
+  };
+
+  const closeFaultModal = () => {
+    setShowFaultModal(false);
+    setPendingRect(null);
+    setIsDrawMode(false);
+    setDrawTarget(null);
+    setCommentInput("");
+    setEditIndex(null);
+    setModalMode("add");
+  };
+
+  const handleStoredBoxEdit = (
+    index: number,
+    boxOverride?: { x: number; y: number; w: number; h: number }
+  ) => {
+    if (editingDisabled) return;
+    const box = storedBoxes[index];
+    if (!box) return;
+    const rect = {
+      x: boxOverride?.x ?? box[0],
+      y: boxOverride?.y ?? box[1],
+      w: boxOverride?.w ?? box[2],
+      h: boxOverride?.h ?? box[3],
+    };
+    setModalMode("edit");
+    setEditIndex(index);
+    setFaultSelection(storedFaultTypes[index] ?? "none");
+    setCommentInput(storedComments[index] ?? "");
+    setPendingRect(rect);
+    setShowFaultModal(true);
+    setIsDrawMode(false);
+    setDrawTarget(null);
+  };
+
+  const handleModalSave = () => {
+    if (!inspection.id || !pendingRect) {
+      closeFaultModal();
+      return;
+    }
+    const ft = faultSelection;
+    const trimmed = commentInput.trim();
+    const commentValue = trimmed.length > 0 ? trimmed : null;
+    const username =
+      typeof window !== "undefined"
+        ? localStorage.getItem("username") || "user"
+        : "user";
+
+    if (modalMode === "edit" && editIndex !== null) {
+      const targetIndex = editIndex;
+      setStoredFaultTypes((prev) => {
+        const next = prev.slice();
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next[targetIndex] = ft;
+        }
+        return next;
+      });
+      setStoredAnnotatedBy((prev) => {
+        const next = prev.slice();
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next[targetIndex] = username;
+        }
+        return next;
+      });
+      setStoredComments((prev) => {
+        const next = prev.slice();
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next[targetIndex] = commentValue;
+        }
+        return next;
+      });
+      setPendingAdds((prev) => {
+        if (!pendingRect) return prev;
+        const idx = prev.findIndex((a) => sameBox(a, pendingRect));
+        if (idx < 0) return prev;
+        const next = prev.slice();
+        next[idx] = {
+          ...next[idx],
+          faultType: ft,
+          comment: commentValue,
+        };
+        return next;
+      });
+      setAiStats((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        if (Array.isArray(next.boxInfo)) {
+          const infoArr = (next.boxInfo as OverlayBoxInfo[]).map((entry) => ({
+            ...entry,
+          }));
+          const matchIdx = infoArr.findIndex(
+            (entry) =>
+              entry &&
+              Math.round(entry.x) === Math.round(pendingRect.x) &&
+              Math.round(entry.y) === Math.round(pendingRect.y) &&
+              Math.round(entry.w) === Math.round(pendingRect.w) &&
+              Math.round(entry.h) === Math.round(pendingRect.h)
+          );
+          if (matchIdx >= 0) {
+            infoArr[matchIdx] = {
+              ...infoArr[matchIdx],
+              boxFault: ft,
+              comment: commentValue ?? undefined,
+            };
+          }
+          next.boxInfo = infoArr;
+        }
+        return next;
+      });
+      const toggleKey = faultToToggleKey(ft);
+      if (toggleKey) {
+        setOverlayToggles(
+          (prev) => ({ ...prev, [toggleKey]: true } as OverlayToggles)
+        );
+      }
+      closeFaultModal();
+      return;
+    }
+
+    const rect = pendingRect;
+    setStoredBoxes((prev) => [...prev, [rect.x, rect.y, rect.w, rect.h]]);
+    setStoredFaultTypes((prev) => [...prev, ft]);
+    setStoredAnnotatedBy((prev) => [...prev, username]);
+    setStoredSeverity((prev) => [...prev, null]);
+    setStoredComments((prev) => [...prev, commentValue]);
+    setPendingAdds((prev) => [
+      ...prev,
+      { x: rect.x, y: rect.y, w: rect.w, h: rect.h, faultType: ft, comment: commentValue },
+    ]);
+    const toggleKey = faultToToggleKey(ft);
+    if (toggleKey) {
+      setOverlayToggles((prev) => ({ ...prev, [toggleKey]: true } as OverlayToggles));
+    }
+    setAiStats((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev };
+      const boxesList = Array.isArray(next.boxes)
+        ? (next.boxes as number[][]).slice()
+        : [];
+      boxesList.push([rect.x, rect.y, rect.w, rect.h]);
+      next.boxes = boxesList;
+      const infoList = Array.isArray(next.boxInfo)
+        ? (next.boxInfo as OverlayBoxInfo[]).map((entry) => ({ ...entry }))
+        : [];
+      infoList.push({
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+        boxFault: ft,
+        comment: commentValue ?? undefined,
+      });
+      next.boxInfo = infoList;
+      return next;
+    });
+    closeFaultModal();
+  };
+
+  const handleModalCancel = () => {
+    closeFaultModal();
   };
 
   const handleExport = async () => {
@@ -1023,11 +1271,13 @@ const InspectionDetailsPanel = ({
                   setStoredFaultTypes([]);
                   setStoredAnnotatedBy([]);
                   setStoredSeverity([]);
+                  setStoredComments([]);
                   initialStoredRef.current = {
                     boxes: [],
                     faults: [],
                     annotatedBy: [],
                     severity: [],
+                    comments: [],
                   };
                   // Also clear any pending changes
                   setPendingAdds([]);
@@ -1082,16 +1332,19 @@ const InspectionDetailsPanel = ({
                   (bi: OverlayBoxInfo & { severity?: number | null }) =>
                     typeof bi?.severity === "number" ? bi.severity : null
                 );
+                const commentValues = Array(aiBoxes.length).fill(null);
                 setStoredBoxes(clonedBoxes);
                 setStoredFaultTypes(clonedFaults);
                 // All AI-detected boxes are annotated by "AI"
                 setStoredAnnotatedBy(aiAnnotated);
                 setStoredSeverity(severityValues);
+                setStoredComments(commentValues);
                 initialStoredRef.current = {
                   boxes: cloneBoxes(clonedBoxes),
                   faults: cloneStrings(clonedFaults),
                   annotatedBy: cloneStrings(aiAnnotated),
                   severity: cloneSeverities(severityValues),
+                  comments: cloneComments(commentValues),
                 };
                 setPendingAdds([]);
                 setPendingDeletes([]);
@@ -1249,7 +1502,12 @@ const InspectionDetailsPanel = ({
                     allowDraw={isDrawMode && drawTarget === "ai"}
                     onDrawComplete={(rect) => {
                       setPendingRect(rect);
+                      setModalMode("add");
+                      setEditIndex(null);
+                      setCommentInput("");
                       setShowFaultModal(true);
+                      setIsDrawMode(false);
+                      setDrawTarget(null);
                     }}
                     resetKey={`${inspection.id}-ai`}
                     onRemoveBox={async (idx, box) => {
@@ -1267,6 +1525,21 @@ const InspectionDetailsPanel = ({
                           return { x: b[0], y: b[1], w: b[2], h: b[3] };
                         }
                         return undefined;
+                      })();
+                      const removalIndex = (() => {
+                        if (del) {
+                          const found = storedBoxes.findIndex(
+                            (b) =>
+                              b &&
+                              b.length >= 4 &&
+                              Math.round(b[0]) === Math.round(del.x) &&
+                              Math.round(b[1]) === Math.round(del.y) &&
+                              Math.round(b[2]) === Math.round(del.w) &&
+                              Math.round(b[3]) === Math.round(del.h)
+                          );
+                          if (found >= 0) return found;
+                        }
+                        return idx;
                       })();
                       // Optimistically update local aiStats only; queue deletion to persist on close
                       setAiStats((prev) => {
@@ -1311,6 +1584,43 @@ const InspectionDetailsPanel = ({
                         }
                         return next;
                       });
+                      if (removalIndex >= 0) {
+                        setStoredBoxes((prev) => {
+                          const next = prev.slice();
+                          if (removalIndex >= 0 && removalIndex < next.length) {
+                            next.splice(removalIndex, 1);
+                          }
+                          return next;
+                        });
+                        setStoredFaultTypes((prev) => {
+                          const next = prev.slice();
+                          if (removalIndex >= 0 && removalIndex < next.length) {
+                            next.splice(removalIndex, 1);
+                          }
+                          return next;
+                        });
+                        setStoredAnnotatedBy((prev) => {
+                          const next = prev.slice();
+                          if (removalIndex >= 0 && removalIndex < next.length) {
+                            next.splice(removalIndex, 1);
+                          }
+                          return next;
+                        });
+                        setStoredSeverity((prev) => {
+                          const next = prev.slice();
+                          if (removalIndex >= 0 && removalIndex < next.length) {
+                            next.splice(removalIndex, 1);
+                          }
+                          return next;
+                        });
+                        setStoredComments((prev) => {
+                          const next = prev.slice();
+                          if (removalIndex >= 0 && removalIndex < next.length) {
+                            next.splice(removalIndex, 1);
+                          }
+                          return next;
+                        });
+                      }
                       if (del) {
                         setPendingDeletes((prev) => {
                           // if this box was added in this session, cancel the add instead of enqueueing delete
@@ -1371,6 +1681,10 @@ const InspectionDetailsPanel = ({
                       typeof sev === "number"
                         ? Math.round(sev * 100)
                         : undefined;
+                    const commentText =
+                      typeof bi.comment === "string" && bi.comment.trim().length > 0
+                        ? bi.comment.trim()
+                        : null;
                     return (
                       <li
                         key={`ai-legend-${i}`}
@@ -1379,11 +1693,18 @@ const InspectionDetailsPanel = ({
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">
                           {i + 1}
                         </span>
-                        <span>
-                          {fault}
-                         {" · Annotated by AI"}
-                          {sevPct !== undefined ? ` · Severity ${sevPct}%` : ""}
-                        </span>
+                        <div className="flex flex-col text-left">
+                          <span>
+                            {fault}
+                           {" · Annotated by AI"}
+                            {sevPct !== undefined ? ` · Severity ${sevPct}%` : ""}
+                          </span>
+                          {commentText && (
+                            <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                              Comment: {commentText}
+                            </span>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
@@ -1506,9 +1827,20 @@ const InspectionDetailsPanel = ({
                         onDrawComplete={(rect) => {
                           if (editingDisabled) return;
                           setPendingRect(rect);
+                          setModalMode("add");
+                          setEditIndex(null);
+                          setCommentInput("");
                           setShowFaultModal(true);
+                          setIsDrawMode(false);
+                          setDrawTarget(null);
                         }}
                         resetKey={`${inspection.id}-stored`}
+                        onSelectBox={
+                          editingDisabled
+                            ? undefined
+                            : (selectedIdx, selectedBox) =>
+                                handleStoredBoxEdit(selectedIdx, selectedBox)
+                        }
                         onRemoveBox={async (idx, box) => {
                           if (editingDisabled) return;
                           if (!inspection.id) return;
@@ -1547,10 +1879,16 @@ const InspectionDetailsPanel = ({
                             : [];
                           if (matchIdx >= 0 && matchIdx < newSeverity.length)
                             newSeverity.splice(matchIdx, 1);
+                          const newComments = Array.isArray(storedComments)
+                            ? storedComments.slice()
+                            : [];
+                          if (matchIdx >= 0 && matchIdx < newComments.length)
+                            newComments.splice(matchIdx, 1);
                           setStoredBoxes(newBoxes);
                           setStoredFaultTypes(newFaults);
                           setStoredAnnotatedBy(newAnnotatedBy);
                           setStoredSeverity(newSeverity);
+                          setStoredComments(newComments);
                           // queue the delete if we have coords; also cancel out any pending add for same box
                           if (del) {
                             setPendingDeletes((prev) => {
@@ -1611,6 +1949,10 @@ const InspectionDetailsPanel = ({
                               who.toLowerCase() === "ai" && typeof sev === "number"
                                 ? Math.round(sev * 100)
                                 : undefined;
+                            const commentText =
+                              typeof bi.comment === "string" && bi.comment.trim().length > 0
+                                ? bi.comment.trim()
+                                : null;
                             return (
                               <li
                                 key={`stored-legend-${i}`}
@@ -1619,11 +1961,20 @@ const InspectionDetailsPanel = ({
                                 <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">
                                   {i + 1}
                                 </span>
-                                <span>
-                                  {label}
-                                  {` · Annotated by ${who}`}
-                                  {sevPct !== undefined ? ` · Severity ${sevPct}%` : ""}
-                                </span>
+                                <div className="flex flex-col text-left">
+                                  <span>
+                                    {label}
+                                    {` · Annotated by ${who}`}
+                                    {sevPct !== undefined
+                                      ? ` · Severity ${sevPct}%`
+                                      : ""}
+                                  </span>
+                                  {commentText && (
+                                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                      Comment: {commentText}
+                                    </span>
+                                  )}
+                                </div>
                               </li>
                             );
                           })}
@@ -1645,7 +1996,7 @@ const InspectionDetailsPanel = ({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="details-panel bg-white dark:bg-[#111] rounded shadow-lg p-4 w-80">
               <h3 className="font-semibold mb-3 text-gray-900">
-                Select fault type
+                {modalMode === "edit" ? "Edit bounding box" : "Add bounding box"}
               </h3>
               <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
                 Fault type
@@ -1660,70 +2011,28 @@ const InspectionDetailsPanel = ({
                 <option value="wire overload">Wire overload</option>
                 <option value="none">None</option>
               </select>
+              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                Comment (optional)
+              </label>
+              <textarea
+                className="details-panel w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 mb-4 text-sm"
+                rows={3}
+                placeholder="Add context for this box"
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+              />
               <div className="flex justify-end gap-2">
                 <button
                   className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
-                  onClick={() => {
-                    setShowFaultModal(false);
-                    setPendingRect(null);
-                    setIsDrawMode(false);
-                    setDrawTarget(null);
-                  }}
+                  type="button"
+                  onClick={handleModalCancel}
                 >
                   Cancel
                 </button>
                 <button
                   className="px-3 py-1 text-sm rounded bg-black dark:bg-white text-white dark:text-black"
-                  onClick={async () => {
-                    if (!inspection.id || !pendingRect) return;
-                    const ft = faultSelection;
-                    const rect = pendingRect; // capture before clearing state
-                    const username = typeof window !== "undefined" ? localStorage.getItem("username") || "user" : "user";
-                    // Optimistically update UI so the new box appears immediately
-                    setStoredBoxes((prev) => [
-                      ...prev,
-                      [rect.x, rect.y, rect.w, rect.h],
-                    ]);
-                    setStoredFaultTypes((prev) => [...prev, ft]);
-                    setStoredAnnotatedBy((prev) => [...prev, username]);
-                    setStoredSeverity((prev) => [...prev, null]);
-                           // Queue add to persist on close
-                          setPendingAdds((prev) => [
-                            ...prev,
-                            { x: rect.x, y: rect.y, w: rect.w, h: rect.h, faultType: ft },
-                          ]);
-                    const key = faultToToggleKey(ft);
-                    if (key)
-                      setOverlayToggles(
-                        (t) => ({ ...t, [key]: true } as OverlayToggles)
-                      );
-                    setAiStats((prev) => {
-                      if (!prev) return prev;
-                      const next = { ...prev };
-                      const bxs = Array.isArray(next.boxes)
-                        ? (next.boxes as number[][]).slice()
-                        : [];
-                      bxs.push([rect.x, rect.y, rect.w, rect.h]);
-                      next.boxes = bxs;
-                      const info = Array.isArray(next.boxInfo)
-                        ? (next.boxInfo as OverlayBoxInfo[]).slice()
-                        : [];
-                      info.push({
-                        x: rect.x,
-                        y: rect.y,
-                        w: rect.w,
-                        h: rect.h,
-                        boxFault: ft,
-                      });
-                      next.boxInfo = info;
-                      return next;
-                    });
-                    // Close modal immediately after clicking save
-                    setShowFaultModal(false);
-                    setPendingRect(null);
-                    setIsDrawMode(false);
-                    setDrawTarget(null);
-                  }}
+                  type="button"
+                  onClick={handleModalSave}
                 >
                   Save
                 </button>

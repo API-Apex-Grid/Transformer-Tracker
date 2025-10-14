@@ -23,11 +23,14 @@ export interface Inspection {
     // Per-box severity scores (JSON string or parsed array), aligned to boundingBoxes order
     // Only AI-annotated faults have severity; user-added faults have null severity
     severity?: string | (number | null)[] | null;
+    // Optional per-box comments, aligned to boundingBoxes order
+    comment?: string | (string | null)[] | null;
     favourite?: boolean;
     // History snapshots stored as JSON strings or parsed arrays
     boundingBoxHistory?: string | (number[][] | null)[] | null;
     faultTypeHistory?: string | (string[] | null)[] | null;
     annotatedByHistory?: string | (string[] | null)[] | null;
     severityHistory?: string | ((number | null)[] | null)[] | null;
+    commentHistory?: string | ((string | null)[] | null)[] | null;
     timestampHistory?: string | (string | null)[] | null;
 }

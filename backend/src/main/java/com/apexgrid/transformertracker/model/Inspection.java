@@ -75,9 +75,17 @@ public class Inspection {
     @Column(name = "severity", columnDefinition = "text")
     private String severity;
 
+    // Optional per-box comments entered by users
+    @Column(name = "comment", columnDefinition = "text")
+    private String comment;
+
     // History of per-box severity arrays aligned with boundingBoxHistory/faultTypeHistory snapshots
     @Column(name = "severityhistory", columnDefinition = "text")
     private String severityHistory;
+
+    // History of per-box comments aligned with boundingBoxHistory snapshots
+    @Column(name = "commenthistory", columnDefinition = "text")
+    private String commentHistory;
 
     // History of timestamps (ISO-8601 strings) when each snapshot was archived
     @Column(name = "timestamphistory", columnDefinition = "text")
@@ -151,8 +159,14 @@ public class Inspection {
     public String getSeverity() { return severity; }
     public void setSeverity(String severity) { this.severity = severity; }
 
+    public String getComment() { return comment; }
+    public void setComment(String comment) { this.comment = comment; }
+
     public String getSeverityHistory() { return severityHistory; }
     public void setSeverityHistory(String severityHistory) { this.severityHistory = severityHistory; }
+
+    public String getCommentHistory() { return commentHistory; }
+    public void setCommentHistory(String commentHistory) { this.commentHistory = commentHistory; }
 
     public String getTimestampHistory() { return timestampHistory; }
     public void setTimestampHistory(String timestampHistory) { this.timestampHistory = timestampHistory; }

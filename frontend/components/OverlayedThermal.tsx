@@ -14,6 +14,7 @@ export type OverlayBoxInfo = {
   x: number; y: number; w: number; h: number;
   label?: string;
   boxFault?: "loose joint" | "point overload" | "wire overload" | "none" | string;
+  comment?: string | null;
 };
 
 export type OverlayToggles = {
@@ -38,6 +39,8 @@ interface OverlayedThermalProps {
   onDrawComplete?: (box: { x: number; y: number; w: number; h: number }) => void;
   // Optional key; when this changes, the viewer will re-center once like on first mount
   resetKey?: string | number;
+  // Optional: called when user requests to edit an existing box
+  onSelectBox?: (index: number, box: { x: number; y: number; w: number; h: number }) => void;
 }
 
 function is2DArray(a: unknown): a is number[][] {
@@ -56,6 +59,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
   allowDraw,
   onDrawComplete,
   resetKey,
+  onSelectBox,
 }) => {
 
   // Track actual image natural dimensions to compute relative box positions
@@ -88,7 +92,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       const info = infosByKey.get(key);
       const boxFault = info?.boxFault ?? "none";
       const label = info?.label ?? boxFault;
-      return { x: bx, y: by, w: bw, h: bh, boxFault, label };
+  const comment = info?.comment ?? null;
+  return { x: bx, y: by, w: bw, h: bh, boxFault, label, comment };
     });
   }, [boxes, boxInfo, naturalWidth, naturalHeight, nat?.w, nat?.h]);
 
@@ -507,8 +512,14 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                         height: `${b.h}px`,
                         border: "2px solid red",
                         boxSizing: "border-box",
-                        cursor: onRemoveBox ? 'pointer' : 'default',
-                      }}>
+                        cursor: onRemoveBox || onSelectBox ? 'pointer' : 'default',
+                      }}
+                      onClick={() => {
+                        if (onSelectBox) {
+                          onSelectBox(idx, { x: b.x, y: b.y, w: b.w, h: b.h });
+                        }
+                      }}
+                    >
               <div
                 style={{
                   position: "absolute",
@@ -523,6 +534,55 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
               >
                 {b.label || b.boxFault || "fault"}
               </div>
+              {b.comment && b.comment.length > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 2,
+                    bottom: 2,
+                    maxWidth: '90%',
+                    background: 'rgba(17,24,39,0.85)',
+                    color: '#f9fafb',
+                    fontSize: 11,
+                    padding: '2px 4px',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={b.comment}
+                >
+                  {b.comment}
+                </div>
+              )}
+              {onSelectBox && (
+                <button
+                  type="button"
+                  title="Edit box"
+                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectBox(idx, { x: b.x, y: b.y, w: b.w, h: b.h }); }}
+                  style={{
+                    position: 'absolute',
+                    top: -8,
+                    left: -8,
+                    minWidth: 36,
+                    height: 20,
+                    borderRadius: 10,
+                    background: '#1f2937',
+                    color: '#fff',
+                    fontSize: 10,
+                    lineHeight: '20px',
+                    textAlign: 'center',
+                    padding: '0 6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  Edit
+                </button>
+              )}
               {/* Hover X button to remove */}
               {onRemoveBox && (
                 <button
