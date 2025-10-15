@@ -428,9 +428,22 @@ const InspectionDetailsPanel = ({
   const [isExporting, setIsExporting] = useState(false);
   const sameBox = (a: {x:number;y:number;w:number;h:number}, b: {x:number;y:number;w:number;h:number}) =>
     a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+  const rectsEqual = (
+    a: { x: number; y: number; w: number; h: number } | null,
+    b: { x: number; y: number; w: number; h: number } | null,
+    tolerance = 0.5
+  ): boolean => {
+    if (!a || !b) return false;
+    return (
+      Math.abs(a.x - b.x) <= tolerance &&
+      Math.abs(a.y - b.y) <= tolerance &&
+      Math.abs(a.w - b.w) <= tolerance &&
+      Math.abs(a.h - b.h) <= tolerance
+    );
+  };
   // Drawing & modal state
   const [isDrawMode, setIsDrawMode] = useState(false);
-  const [drawTarget, setDrawTarget] = useState<"ai" | "stored" | null>(null);
+  const [drawTarget, setDrawTarget] = useState<"ai" | "stored" | "ai-edit" | "stored-edit" | null>(null);
   const [pendingRect, setPendingRect] = useState<{
     x: number;
     y: number;
@@ -442,6 +455,15 @@ const InspectionDetailsPanel = ({
   const [commentInput, setCommentInput] = useState<string>("");
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [editSource, setEditSource] = useState<"ai" | "stored" | null>(null);
+  const [editSelectionMode, setEditSelectionMode] = useState<"ai" | "stored" | null>(null);
+  const [editOriginalRect, setEditOriginalRect] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  const [awaitingRedraw, setAwaitingRedraw] = useState(false);
 
   const transformer = useMemo(
     () =>
@@ -921,6 +943,10 @@ const InspectionDetailsPanel = ({
     setCommentInput("");
     setEditIndex(null);
     setModalMode("add");
+    setEditSource(null);
+    setEditOriginalRect(null);
+    setEditSelectionMode(null);
+    setAwaitingRedraw(false);
   };
 
   const handleStoredBoxEdit = (
@@ -938,6 +964,10 @@ const InspectionDetailsPanel = ({
     };
     setModalMode("edit");
     setEditIndex(index);
+    setEditSource("stored");
+    setEditOriginalRect(rect);
+    setAwaitingRedraw(false);
+    setEditSelectionMode(null);
     setFaultSelection(storedFaultTypes[index] ?? "none");
     setCommentInput(storedComments[index] ?? "");
     setPendingRect(rect);
@@ -946,8 +976,46 @@ const InspectionDetailsPanel = ({
     setDrawTarget(null);
   };
 
+  const handleAiBoxEdit = (
+    index: number,
+    boxOverride?: { x: number; y: number; w: number; h: number }
+  ) => {
+    if (!storedBoxes[index]) return;
+    const rect = {
+      x: boxOverride?.x ?? storedBoxes[index][0],
+      y: boxOverride?.y ?? storedBoxes[index][1],
+      w: boxOverride?.w ?? storedBoxes[index][2],
+      h: boxOverride?.h ?? storedBoxes[index][3],
+    };
+    setModalMode("edit");
+    setEditIndex(index);
+    setEditSource("ai");
+    setEditOriginalRect(rect);
+    setAwaitingRedraw(false);
+    setEditSelectionMode(null);
+    setFaultSelection(storedFaultTypes[index] ?? "none");
+    setCommentInput(storedComments[index] ?? "");
+    setPendingRect(rect);
+    setShowFaultModal(true);
+    setIsDrawMode(false);
+    setDrawTarget(null);
+  };
+
+  const requestBoundingBoxRedraw = () => {
+    if (!editSource) return;
+    if (editingDisabled) return;
+    const target = editSource === "stored" ? "stored-edit" : "ai-edit";
+    setModalMode("edit");
+    setShowFaultModal(false);
+    setIsDrawMode(true);
+    setDrawTarget(target);
+    setPendingRect(null);
+    setAwaitingRedraw(true);
+    setEditSelectionMode(null);
+  };
+
   const handleModalSave = () => {
-    if (!inspection.id || !pendingRect) {
+    if (!inspection.id) {
       closeFaultModal();
       return;
     }
@@ -961,6 +1029,27 @@ const InspectionDetailsPanel = ({
 
     if (modalMode === "edit" && editIndex !== null) {
       const targetIndex = editIndex;
+      const originalRect = editOriginalRect;
+      const resolvedRect = pendingRect ?? editOriginalRect;
+      if (!originalRect || !resolvedRect) {
+        closeFaultModal();
+        return;
+      }
+      const coordsChanged = !rectsEqual(resolvedRect, originalRect);
+      const newBoxArray = [
+        resolvedRect.x,
+        resolvedRect.y,
+        resolvedRect.w,
+        resolvedRect.h,
+      ];
+
+      setStoredBoxes((prev) => {
+        const next = prev.slice();
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next.splice(targetIndex, 1, newBoxArray);
+        }
+        return next;
+      });
       setStoredFaultTypes((prev) => {
         const next = prev.slice();
         if (targetIndex >= 0 && targetIndex < next.length) {
@@ -975,6 +1064,13 @@ const InspectionDetailsPanel = ({
         }
         return next;
       });
+      setStoredSeverity((prev) => {
+        const next = prev.slice();
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next[targetIndex] = null;
+        }
+        return next;
+      });
       setStoredComments((prev) => {
         const next = prev.slice();
         if (targetIndex >= 0 && targetIndex < next.length) {
@@ -982,50 +1078,111 @@ const InspectionDetailsPanel = ({
         }
         return next;
       });
+
+      const oldRectObj = {
+        x: originalRect.x,
+        y: originalRect.y,
+        w: originalRect.w,
+        h: originalRect.h,
+      };
+      const newRectObj = {
+        x: resolvedRect.x,
+        y: resolvedRect.y,
+        w: resolvedRect.w,
+        h: resolvedRect.h,
+      };
+
+      let replacedExistingAdd = false;
       setPendingAdds((prev) => {
-        if (!pendingRect) return prev;
-        const idx = prev.findIndex((a) => sameBox(a, pendingRect));
-        if (idx < 0) return prev;
         const next = prev.slice();
-        next[idx] = {
-          ...next[idx],
+        const existingIdx = next.findIndex((a) => sameBox(a, oldRectObj));
+        if (existingIdx >= 0) {
+          replacedExistingAdd = true;
+          next[existingIdx] = {
+            x: newRectObj.x,
+            y: newRectObj.y,
+            w: newRectObj.w,
+            h: newRectObj.h,
+            faultType: ft,
+            comment: commentValue,
+          };
+          return next;
+        }
+        const newIdx = next.findIndex((a) => sameBox(a, newRectObj));
+        if (newIdx >= 0) {
+          next[newIdx] = {
+            ...next[newIdx],
+            faultType: ft,
+            comment: commentValue,
+          };
+          return next;
+        }
+        next.push({
+          x: newRectObj.x,
+          y: newRectObj.y,
+          w: newRectObj.w,
+          h: newRectObj.h,
           faultType: ft,
           comment: commentValue,
-        };
+        });
         return next;
       });
+      if (coordsChanged && !replacedExistingAdd) {
+        setPendingDeletes((prev) => {
+          if (prev.some((entry) => sameBox(entry, oldRectObj))) return prev;
+          return [...prev, oldRectObj];
+        });
+      }
+
       setAiStats((prev) => {
         if (!prev) return prev;
         const next = { ...prev };
+        if (Array.isArray(next.boxes)) {
+          next.boxes = (next.boxes as number[][]).map((entry, idx) => {
+            if (idx !== targetIndex) return entry.slice();
+            return [
+              resolvedRect.x,
+              resolvedRect.y,
+              resolvedRect.w,
+              resolvedRect.h,
+            ];
+          });
+        }
         if (Array.isArray(next.boxInfo)) {
-          const infoArr = (next.boxInfo as OverlayBoxInfo[]).map((entry) => ({
-            ...entry,
-          }));
-          const matchIdx = infoArr.findIndex(
-            (entry) =>
-              entry &&
-              Math.round(entry.x) === Math.round(pendingRect.x) &&
-              Math.round(entry.y) === Math.round(pendingRect.y) &&
-              Math.round(entry.w) === Math.round(pendingRect.w) &&
-              Math.round(entry.h) === Math.round(pendingRect.h)
-          );
-          if (matchIdx >= 0) {
-            infoArr[matchIdx] = {
-              ...infoArr[matchIdx],
-              boxFault: ft,
-              comment: commentValue ?? undefined,
-            };
-          }
-          next.boxInfo = infoArr;
+          next.boxInfo = (next.boxInfo as OverlayBoxInfo[]).map((entry, idx) => {
+            const updated = { ...entry };
+            if (idx === targetIndex) {
+              updated.x = resolvedRect.x;
+              updated.y = resolvedRect.y;
+              updated.w = resolvedRect.w;
+              updated.h = resolvedRect.h;
+              updated.boxFault = ft;
+              if (commentValue && commentValue.length > 0) {
+                updated.comment = commentValue;
+              } else {
+                delete updated.comment;
+              }
+              if ("severity" in updated) {
+                (updated as { severity?: number | null }).severity = undefined;
+              }
+            }
+            return updated;
+          });
         }
         return next;
       });
+
       const toggleKey = faultToToggleKey(ft);
       if (toggleKey) {
         setOverlayToggles(
           (prev) => ({ ...prev, [toggleKey]: true } as OverlayToggles)
         );
       }
+      closeFaultModal();
+      return;
+    }
+
+    if (!pendingRect) {
       closeFaultModal();
       return;
     }
@@ -1038,11 +1195,20 @@ const InspectionDetailsPanel = ({
     setStoredComments((prev) => [...prev, commentValue]);
     setPendingAdds((prev) => [
       ...prev,
-      { x: rect.x, y: rect.y, w: rect.w, h: rect.h, faultType: ft, comment: commentValue },
+      {
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+        faultType: ft,
+        comment: commentValue,
+      },
     ]);
     const toggleKey = faultToToggleKey(ft);
     if (toggleKey) {
-      setOverlayToggles((prev) => ({ ...prev, [toggleKey]: true } as OverlayToggles));
+      setOverlayToggles(
+        (prev) => ({ ...prev, [toggleKey]: true } as OverlayToggles)
+      );
     }
     setAiStats((prev) => {
       if (!prev) return prev;
@@ -1164,7 +1330,7 @@ const InspectionDetailsPanel = ({
             </svg>
             <span>{isExporting ? "Preparing…" : "Export data"}</span>
           </button>
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <label className="flex items-center gap-2 text-sm">
             <span>Tune model</span>
             <span className="relative inline-flex h-5 w-10 items-center">
               <input
@@ -1499,17 +1665,40 @@ const InspectionDetailsPanel = ({
                       label: String(i + 1),
                     }))}
                     toggles={overlayToggles}
-                    allowDraw={isDrawMode && drawTarget === "ai"}
+                    allowDraw={
+                      isDrawMode &&
+                      (drawTarget === "ai" || drawTarget === "ai-edit")
+                    }
                     onDrawComplete={(rect) => {
-                      setPendingRect(rect);
-                      setModalMode("add");
-                      setEditIndex(null);
-                      setCommentInput("");
-                      setShowFaultModal(true);
-                      setIsDrawMode(false);
-                      setDrawTarget(null);
+                      if (drawTarget === "ai-edit") {
+                        setPendingRect(rect);
+                        setModalMode("edit");
+                        setIsDrawMode(false);
+                        setDrawTarget(null);
+                        setAwaitingRedraw(false);
+                        setShowFaultModal(true);
+                      } else {
+                        setPendingRect(rect);
+                        setModalMode("add");
+                        setEditIndex(null);
+                        setCommentInput("");
+                        setShowFaultModal(true);
+                        setIsDrawMode(false);
+                        setDrawTarget(null);
+                      }
                     }}
                     resetKey={`${inspection.id}-ai`}
+                    onSelectBox={(
+                      idx: number,
+                      box: { x: number; y: number; w: number; h: number },
+                      source?: "click" | "button"
+                    ) => {
+                      if (editingDisabled) return;
+                      if (source !== "button" && editSelectionMode !== "ai") {
+                        return;
+                      }
+                      handleAiBoxEdit(idx, box);
+                    }}
                     onRemoveBox={async (idx, box) => {
                       if (!inspection.id) return;
                       // Determine coords to delete before mutating state
@@ -1640,7 +1829,7 @@ const InspectionDetailsPanel = ({
                   {/* Add box button for AI overlay */}
                   <div className="mt-2 flex gap-2">
                     <button
-                      className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded $`}
+                      className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded custombutton$`}
                       onClick={() => {
                         setIsDrawMode(true);
                         setDrawTarget("ai");
@@ -1650,19 +1839,80 @@ const InspectionDetailsPanel = ({
                         ? "Drawing: click-drag on image"
                         : "Add box"}
                     </button>
-                    {isDrawMode && drawTarget === "ai" && (
-                      <button
-                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded "
-                        onClick={() => {
+                    <button
+                      className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded ${
+                        editSelectionMode === "ai"
+                          ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-black"
+                          : "text-gray-900 dark:text-white"
+                      } ${
+                        editingDisabled ||
+                        awaitingRedraw ||
+                        (aiStats?.boxes?.length ?? 0) === 0
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                      onClick={() => {
+                        if (
+                          editingDisabled ||
+                          awaitingRedraw ||
+                          (aiStats?.boxes?.length ?? 0) === 0
+                        )
+                          return;
+                        if (editSelectionMode === "ai") {
+                          setEditSelectionMode(null);
+                        } else {
                           setIsDrawMode(false);
                           setDrawTarget(null);
-                          setPendingRect(null);
+                          setEditSelectionMode("ai");
+                          setAwaitingRedraw(false);
+                        }
+                      }}
+                      disabled={
+                        editingDisabled ||
+                        awaitingRedraw ||
+                        (aiStats?.boxes?.length ?? 0) === 0
+                      }
+                    >
+                      {editSelectionMode === "ai" ? "Cancel edit" : "Edit box"}
+                    </button>
+                    {isDrawMode &&
+                      (drawTarget === "ai" || drawTarget === "ai-edit") && (
+                      <button
+                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 custombutton rounded "
+                        onClick={() => {
+                          const editingActive = drawTarget === "ai-edit";
+                          setIsDrawMode(false);
+                          setDrawTarget(null);
+                          if (editingActive) {
+                            setAwaitingRedraw(false);
+                            if (editOriginalRect) {
+                              setPendingRect(editOriginalRect);
+                              setModalMode("edit");
+                              setShowFaultModal(true);
+                            } else {
+                              setPendingRect(null);
+                            }
+                          } else {
+                            setPendingRect(null);
+                          }
                         }}
                       >
                         Cancel drawing
                       </button>
                     )}
                   </div>
+                  {editSelectionMode === "ai" &&
+                    !awaitingRedraw &&
+                    (aiStats?.boxes?.length ?? 0) > 0 && (
+                    <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                      Click a box on the image to edit it.
+                    </p>
+                  )}
+                  {awaitingRedraw && editSource === "ai" && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                      Draw the replacement box on the image to continue editing.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="w-full h-56 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded text-gray-400">
@@ -1670,7 +1920,7 @@ const InspectionDetailsPanel = ({
                 </div>
               )}
               {aiStats && (aiStats.boxInfo?.length ?? 0) > 0 && (
-                <ol className="mt-2 text-xs text-gray-700 dark:text-gray-300 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+                <ol className="mt-2 text-xs grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                   {aiStats.boxInfo!.map((bi, i) => {
                     const fault = toDisplayLabel(
                       canonicalizeFault(bi.boxFault || "none")
@@ -1690,7 +1940,7 @@ const InspectionDetailsPanel = ({
                         key={`ai-legend-${i}`}
                         className="flex items-center gap-2"
                       >
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full font-semibold">
                           {i + 1}
                         </span>
                         <div className="flex flex-col text-left">
@@ -1731,7 +1981,7 @@ const InspectionDetailsPanel = ({
                   <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
                     {historySnapshots.length > 0 && (
                       <>
-                        <label className="font-semibold text-gray-700 dark:text-gray-300">
+                        <label className="font-semibold">
                           Version
                         </label>
                         <select
@@ -1789,7 +2039,7 @@ const InspectionDetailsPanel = ({
                           {visibleFaultSummary.map(({ fault, label, count }) => (
                             <span
                               key={fault}
-                              className="details-panel inline-flex items-center gap-1 rounded-full border border-gray-300"
+                              className="details-panel inline-flex items-center gap-1 rounded-full border border-gray-300 pl-2 pr-2"
                             >
                               <span className="font-semibold">{count}</span>
                               <span>{label}</span>
@@ -1823,23 +2073,47 @@ const InspectionDetailsPanel = ({
                           label: String(idx + 1),
                         }))}
                         toggles={overlayToggles}
-                        allowDraw={!editingDisabled && isDrawMode && drawTarget === "stored"}
+                        allowDraw={
+                          !editingDisabled &&
+                          isDrawMode &&
+                          (drawTarget === "stored" || drawTarget === "stored-edit")
+                        }
                         onDrawComplete={(rect) => {
                           if (editingDisabled) return;
-                          setPendingRect(rect);
-                          setModalMode("add");
-                          setEditIndex(null);
-                          setCommentInput("");
-                          setShowFaultModal(true);
-                          setIsDrawMode(false);
-                          setDrawTarget(null);
+                          if (drawTarget === "stored-edit") {
+                            setPendingRect(rect);
+                            setModalMode("edit");
+                            setIsDrawMode(false);
+                            setDrawTarget(null);
+                            setAwaitingRedraw(false);
+                            setShowFaultModal(true);
+                          } else {
+                            setPendingRect(rect);
+                            setModalMode("add");
+                            setEditIndex(null);
+                            setCommentInput("");
+                            setShowFaultModal(true);
+                            setIsDrawMode(false);
+                            setDrawTarget(null);
+                          }
                         }}
                         resetKey={`${inspection.id}-stored`}
                         onSelectBox={
                           editingDisabled
                             ? undefined
-                            : (selectedIdx, selectedBox) =>
-                                handleStoredBoxEdit(selectedIdx, selectedBox)
+                            : (
+                                selectedIdx,
+                                selectedBox,
+                                source?: "click" | "button"
+                              ) => {
+                                if (
+                                  source !== "button" &&
+                                  editSelectionMode !== "stored"
+                                ) {
+                                  return;
+                                }
+                                handleStoredBoxEdit(selectedIdx, selectedBox);
+                              }
                         }
                         onRemoveBox={async (idx, box) => {
                           if (editingDisabled) return;
@@ -1908,11 +2182,7 @@ const InspectionDetailsPanel = ({
                       {/* Add box button for stored overlay */}
                       <div className="mt-2 flex gap-2">
                         <button
-                          className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded ${
-                            isDrawMode && drawTarget === "stored"
-                              ? "bg-black dark:bg-white text-white dark:text-black"
-                              : "text-gray-900 dark:text-white"
-                          } ${editingDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                          className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded custombutton  ${editingDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                           disabled={editingDisabled}
                           onClick={() => {
                             if (editingDisabled) return;
@@ -1924,19 +2194,37 @@ const InspectionDetailsPanel = ({
                             ? "Drawing: click-drag on image"
                             : "Add box"}
                         </button>
-                        {isDrawMode && drawTarget === "stored" && (
+                        {isDrawMode &&
+                          (drawTarget === "stored" || drawTarget === "stored-edit") && (
                           <button
-                            className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
+                            className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded custombutton"
                             onClick={() => {
+                              const editingActive = drawTarget === "stored-edit";
                               setIsDrawMode(false);
                               setDrawTarget(null);
-                              setPendingRect(null);
+                              if (editingActive) {
+                                setAwaitingRedraw(false);
+                                if (editOriginalRect) {
+                                  setPendingRect(editOriginalRect);
+                                  setModalMode("edit");
+                                  setShowFaultModal(true);
+                                } else {
+                                  setPendingRect(null);
+                                }
+                              } else {
+                                setPendingRect(null);
+                              }
                             }}
                           >
                             Cancel drawing
                           </button>
                         )}
                       </div>
+                      {awaitingRedraw && editSource === "stored" && (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Draw the replacement box on the image to continue editing.
+                        </p>
+                      )}
                       {visibleBoxInfo.length > 0 && (
                         <ol className="mt-2 text-xs text-gray-700 dark:text-gray-300 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                           {visibleBoxInfo.map((bi, i) => {
@@ -1958,7 +2246,7 @@ const InspectionDetailsPanel = ({
                                 key={`stored-legend-${i}`}
                                 className="flex items-center gap-2"
                               >
-                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900 dark:bg-gray-200 text-white dark:text-black text-[10px] font-semibold">
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full font-semibold">
                                   {i + 1}
                                 </span>
                                 <div className="flex flex-col text-left">
@@ -2021,6 +2309,15 @@ const InspectionDetailsPanel = ({
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
               />
+              {modalMode === "edit" && !awaitingRedraw && (
+                <button
+                  type="button"
+                  className="w-full mb-3 text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1 text-gray-900 dark:text-white"
+                  onClick={requestBoundingBoxRedraw}
+                >
+                  Redraw bounding box
+                </button>
+              )}
               <div className="flex justify-end gap-2">
                 <button
                   className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"

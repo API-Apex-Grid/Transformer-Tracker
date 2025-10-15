@@ -40,7 +40,11 @@ interface OverlayedThermalProps {
   // Optional key; when this changes, the viewer will re-center once like on first mount
   resetKey?: string | number;
   // Optional: called when user requests to edit an existing box
-  onSelectBox?: (index: number, box: { x: number; y: number; w: number; h: number }) => void;
+  onSelectBox?: (
+    index: number,
+    box: { x: number; y: number; w: number; h: number },
+    source?: "click" | "button"
+  ) => void;
 }
 
 function is2DArray(a: unknown): a is number[][] {
@@ -516,7 +520,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                       }}
                       onClick={() => {
                         if (onSelectBox) {
-                          onSelectBox(idx, { x: b.x, y: b.y, w: b.w, h: b.h });
+                          onSelectBox(idx, { x: b.x, y: b.y, w: b.w, h: b.h }, "click");
                         }
                       }}
                     >
@@ -560,7 +564,11 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                   type="button"
                   title="Edit box"
                   onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectBox(idx, { x: b.x, y: b.y, w: b.w, h: b.h }); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelectBox(idx, { x: b.x, y: b.y, w: b.w, h: b.h }, "button");
+                  }}
                   style={{
                     position: 'absolute',
                     top: -8,
