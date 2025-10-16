@@ -1,5 +1,6 @@
 package com.apexgrid.transformertracker.web;
 
+import com.apexgrid.transformertracker.ai.AiParameterService;
 import com.apexgrid.transformertracker.ai.ParameterTuningService;
 import com.apexgrid.transformertracker.ai.PythonAnalyzerService;
 import com.apexgrid.transformertracker.model.Inspection;
@@ -44,15 +45,18 @@ public class InspectionController {
     private final TransformerRepo transformerRepo;
     private final PythonAnalyzerService pythonAnalyzerService;
     private final ParameterTuningService parameterTuningService;
+    private final AiParameterService aiParameterService;
 
     public InspectionController(InspectionRepo repo,
                                 TransformerRepo transformerRepo,
                                 PythonAnalyzerService pythonAnalyzerService,
-                                ParameterTuningService parameterTuningService) {
+                                ParameterTuningService parameterTuningService,
+                                AiParameterService aiParameterService) {
         this.repo = repo;
         this.transformerRepo = transformerRepo;
         this.pythonAnalyzerService = pythonAnalyzerService;
         this.parameterTuningService = parameterTuningService;
+        this.aiParameterService = aiParameterService;
     }
 
     @GetMapping
@@ -1284,6 +1288,22 @@ public class InspectionController {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Bulk update failed"));
             }
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/model/reset")
+    public ResponseEntity<?> resetModelParameters(@RequestHeader(value = "x-username", required = false) String username) {
+        try {
+            aiParameterService.resetToDefaults();
+            Map<String, Double> parameters = aiParameterService.getAllParameters();
+            return ResponseEntity.ok(Map.of(
+                    "ok", Boolean.TRUE,
+                    "parameters", parameters,
+                    "resetBy", (username == null || username.isBlank()) ? "user" : username
+            ));
+        } catch (Exception ex) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to reset model parameters"));
+        }
     }
 
     // No-op

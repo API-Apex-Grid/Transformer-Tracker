@@ -76,6 +76,12 @@ public class AiParameterService {
         return setValue(key, updated);
     }
 
+    public synchronized void resetToDefaults() {
+        for (AiParameterKey key : AiParameterKey.values()) {
+            setValue(key, key.getDefaultValue());
+        }
+    }
+
     public ObjectNode buildConfigNode(ObjectMapper mapper) {
         Assert.notNull(mapper, "ObjectMapper is required");
         ObjectNode node = mapper.createObjectNode();

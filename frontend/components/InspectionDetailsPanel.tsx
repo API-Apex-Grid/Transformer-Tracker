@@ -464,6 +464,10 @@ const InspectionDetailsPanel = ({
     h: number;
   } | null>(null);
   const [awaitingRedraw, setAwaitingRedraw] = useState(false);
+  const [showResetModelConfirm, setShowResetModelConfirm] = useState(false);
+  const [isResettingModel, setIsResettingModel] = useState(false);
+  const [resetModelMessage, setResetModelMessage] = useState<string | null>(null);
+  const [resetModelError, setResetModelError] = useState<string | null>(null);
 
   const transformer = useMemo(
     () =>
@@ -935,6 +939,59 @@ const InspectionDetailsPanel = ({
     }
   };
 
+  const handleResetModelClick = () => {
+    setResetModelMessage(null);
+    setResetModelError(null);
+    setShowResetModelConfirm(true);
+  };
+
+  const closeResetModelModal = () => {
+    if (isResettingModel) return;
+    setShowResetModelConfirm(false);
+  };
+
+  const handleConfirmResetModel = async () => {
+    setIsResettingModel(true);
+    setResetModelError(null);
+    try {
+      const username =
+        typeof window !== "undefined" ? localStorage.getItem("username") || "" : "";
+      const response = await fetch(apiUrl(`/api/inspections/model/reset`), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-username": username,
+        },
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Reset failed (${response.status})`);
+      }
+      const payload: unknown = await response
+        .json()
+        .catch(() => null);
+      let actor: string | undefined;
+      if (typeof payload === "object" && payload !== null) {
+        const candidate = (payload as { resetBy?: unknown }).resetBy;
+        if (typeof candidate === "string") {
+          actor = candidate;
+        }
+      }
+      setShowResetModelConfirm(false);
+      setResetModelMessage(
+        actor && actor.trim().length > 0
+          ? `AI parameters reset to defaults by ${actor}.`
+          : "AI parameters reset to defaults."
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to reset model parameters.";
+      setResetModelError(message);
+    } finally {
+      setIsResettingModel(false);
+    }
+  };
+
   const closeFaultModal = () => {
     setShowFaultModal(false);
     setPendingRect(null);
@@ -1337,12 +1394,36 @@ const InspectionDetailsPanel = ({
                 type="checkbox"
                 className="peer sr-only"
                 checked={tuneModelEnabled}
+                disabled={isResettingModel}
                 onChange={(event) => setTuneModelEnabled(event.target.checked)}
               />
               <span className="pointer-events-none absolute inset-0 rounded-full bg-gray-400 transition-colors peer-checked:bg-green-500" />
               <span className="pointer-events-none absolute left-1 top-1 h-3 w-3 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
             </span>
           </label>
+          <button
+            type="button"
+            onClick={handleResetModelClick}
+            disabled={isResettingModel}
+            className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Reset AI parameters to their defaults"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <path d="M4 4v6h6" />
+              <path d="M20 20v-6h-6" />
+              <path d="M20 9.5A7.5 7.5 0 0 0 11 2h-1" />
+              <path d="M4 14.5A7.5 7.5 0 0 0 13 22h1" />
+            </svg>
+            <span>{isResettingModel ? "Resetting…" : "Reset model"}</span>
+          </button>
           <button onClick={flushAndClose} className="text-gray-400 hover:text-gray-600" disabled={isClosing}>
             <svg
               className="w-6 h-6"
@@ -1360,6 +1441,13 @@ const InspectionDetailsPanel = ({
           </button>
         </div>
       </div>
+
+      {!showResetModelConfirm && resetModelMessage && (
+        <div className="mb-4 text-sm text-green-600">{resetModelMessage}</div>
+      )}
+      {!showResetModelConfirm && resetModelError && (
+        <div className="mb-4 text-sm text-red-600">{resetModelError}</div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div>
@@ -2279,6 +2367,43 @@ const InspectionDetailsPanel = ({
             </div>
           </div>
         </div>
+        {/* Reset model confirmation */}
+        {showResetModelConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="details-panel bg-white dark:bg-[#111] rounded shadow-lg p-5 w-96">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                Reset AI parameters?
+              </h3>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                This will restore all model tuning values to the factory defaults
+                and cannot be undone. Continue?
+              </p>
+              {resetModelError && (
+                <div className="mb-3 text-sm text-red-600" role="alert">
+                  {resetModelError}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white disabled:opacity-60"
+                  onClick={closeResetModelModal}
+                  disabled={isResettingModel}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-1 text-sm rounded bg-red-600 text-white disabled:opacity-60"
+                  onClick={handleConfirmResetModel}
+                  disabled={isResettingModel}
+                >
+                  {isResettingModel ? "Resetting…" : "Yes, reset"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Fault selection modal */}
         {showFaultModal && pendingRect && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
