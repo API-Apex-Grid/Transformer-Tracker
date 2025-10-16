@@ -16,6 +16,7 @@ export async function GET(req: Request) {
   const incomingUrl = new URL(req.url);
   const tf = incomingUrl.searchParams.get("tf");
   const fav = incomingUrl.searchParams.get("fav");
+  const summary = incomingUrl.searchParams.get("summary");
 
   const base = getBackendBaseUrl();
   const url = new URL(`${base}/api/transformers`);
@@ -41,6 +42,33 @@ export async function GET(req: Request) {
   }
 
   const data = await res.json();
+  if (summary) {
+    type InputItem = Record<string, unknown>;
+    const list: InputItem[] = Array.isArray(data) ? (data as InputItem[]) : [];
+    const stripped = list.map((t) => {
+      const item = t ?? {} as InputItem;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(item)) {
+        if (
+          k === "sunnyImage" ||
+          k === "cloudyImage" ||
+          k === "windyImage" ||
+          k === "sunnyImageUploadedBy" ||
+          k === "cloudyImageUploadedBy" ||
+          k === "windyImageUploadedBy" ||
+          k === "sunnyImageUploadedAt" ||
+          k === "cloudyImageUploadedAt" ||
+          k === "windyImageUploadedAt" ||
+          k === "inspections"
+        ) {
+          continue;
+        }
+        out[k] = v;
+      }
+      return out;
+    });
+    return NextResponse.json(stripped, { headers: { "Cache-Control": "no-store" } });
+  }
   return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 

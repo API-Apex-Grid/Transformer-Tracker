@@ -32,6 +32,13 @@ public class TransformerController {
         return repo.findAll();
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<Transformer> getOne(@PathVariable String id) {
+        return repo.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public Transformer create(@RequestBody Transformer t) {
         return repo.save(t);

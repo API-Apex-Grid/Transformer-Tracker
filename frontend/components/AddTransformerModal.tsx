@@ -46,13 +46,20 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
   const isDuplicateCombo = (tfNo: string, poleNo: string) => {
     const a = tfNo.trim().toLowerCase();
     const b = poleNo.trim().toLowerCase();
-    return transformers.some(t => t.transformerNumber.trim().toLowerCase() === a && t.poleNumber.trim().toLowerCase() === b);
+    return transformers.some(
+      (t) =>
+        t.transformerNumber.trim().toLowerCase() === a &&
+        t.poleNumber.trim().toLowerCase() === b
+    );
   };
 
   const checkTfUniqueInDb = async (tfNo: string): Promise<boolean> => {
     if (!tfNo.trim()) return false;
     try {
-  const res = await fetch(apiUrl(`/api/transformers?tf=${encodeURIComponent(tfNo)}`), { cache: 'no-store' });
+      const res = await fetch(
+        apiUrl(`/api/transformers?tf=${encodeURIComponent(tfNo)}`),
+        { cache: "no-store" }
+      );
       if (!res.ok) return true; // if API failed, do not block
       const data = await res.json();
       // Unique if no records found
@@ -66,15 +73,22 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     e.preventDefault();
     const newErrors: { [k: string]: string } = {};
     if (!region) newErrors.region = "Region is required";
-    if (!transformerNumber) newErrors.transformerNumber = "Transformer number is required";
+    if (!transformerNumber)
+      newErrors.transformerNumber = "Transformer number is required";
     if (!poleNumber) newErrors.poleNumber = "Pole number is required";
     if (!type) newErrors.type = "Type is required";
     if (!newErrors.transformerNumber) {
       const unique = await checkTfUniqueInDb(transformerNumber);
-      if (!unique) newErrors.transformerNumber = "This transformer number already exists";
+      if (!unique)
+        newErrors.transformerNumber = "This transformer number already exists";
     }
-    if (!newErrors.transformerNumber && !newErrors.poleNumber && isDuplicateCombo(transformerNumber, poleNumber)) {
-      newErrors.poleNumber = "A transformer with this transformer no. and pole no. already exists";
+    if (
+      !newErrors.transformerNumber &&
+      !newErrors.poleNumber &&
+      isDuplicateCombo(transformerNumber, poleNumber)
+    ) {
+      newErrors.poleNumber =
+        "A transformer with this transformer no. and pole no. already exists";
     }
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
@@ -87,12 +101,19 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     // DB-backed uniqueness check for transformer number
     const unique = await checkTfUniqueInDb(transformerNumber);
     if (!unique) {
-      setErrors(prev => ({ ...prev, transformerNumber: "This transformer number already exists" }));
+      setErrors((prev) => ({
+        ...prev,
+        transformerNumber: "This transformer number already exists",
+      }));
       return;
     }
     // Double-check duplicates at submit time
     if (isDuplicateCombo(transformerNumber, poleNumber)) {
-      setErrors(prev => ({ ...prev, poleNumber: "A transformer with this transformer no. and pole no. already exists" }));
+      setErrors((prev) => ({
+        ...prev,
+        poleNumber:
+          "A transformer with this transformer no. and pole no. already exists",
+      }));
       return;
     }
     addTransformer({
@@ -103,7 +124,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
       location,
       sunnyImage,
       cloudyImage,
-      windyImage
+      windyImage,
     });
     hideSetTransformer();
   };
@@ -112,12 +133,19 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     // Check uniqueness as well when skipping images
     const unique = await checkTfUniqueInDb(transformerNumber);
     if (!unique) {
-      setErrors(prev => ({ ...prev, transformerNumber: "This transformer number already exists" }));
+      setErrors((prev) => ({
+        ...prev,
+        transformerNumber: "This transformer number already exists",
+      }));
       return;
     }
     // Double-check duplicates even when skipping images
     if (isDuplicateCombo(transformerNumber, poleNumber)) {
-      setErrors(prev => ({ ...prev, poleNumber: "A transformer with this transformer no. and pole no. already exists" }));
+      setErrors((prev) => ({
+        ...prev,
+        poleNumber:
+          "A transformer with this transformer no. and pole no. already exists",
+      }));
       return;
     }
     addTransformer({
@@ -128,7 +156,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
       location,
       sunnyImage: null,
       cloudyImage: null,
-      windyImage: null
+      windyImage: null,
     });
     hideSetTransformer();
   };
@@ -139,13 +167,13 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
       reader.onload = (e) => {
         const base64 = e.target?.result as string;
         switch (weather) {
-          case 'sunny':
+          case "sunny":
             setSunnyImage(base64);
             break;
-          case 'cloudy':
+          case "cloudy":
             setCloudyImage(base64);
             break;
-          case 'windy':
+          case "windy":
             setWindyImage(base64);
             break;
         }
@@ -153,13 +181,13 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
       reader.readAsDataURL(file);
     } else {
       switch (weather) {
-        case 'sunny':
+        case "sunny":
           setSunnyImage(null);
           break;
-        case 'cloudy':
+        case "cloudy":
           setCloudyImage(null);
           break;
-        case 'windy':
+        case "windy":
           setWindyImage(null);
           break;
       }
@@ -170,7 +198,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     <>
       <button
         onClick={showSetTransformer}
-        className="bg-black hover:bg-black/80 text-white font-bold py-2 px-4 rounded mb-4"
+        className="custombutton font-bold py-2 px-4 rounded mb-4"
       >
         Add Transformer
       </button>
@@ -212,7 +240,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   backgroundImage:
                                     "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
                                   backgroundPosition: "right 0.5rem center",
-                                  backgroundSize: "1.5em 1.5em"
+                                  backgroundSize: "1.5em 1.5em",
                                 }}
                               >
                                 <option value="" disabled>
@@ -226,7 +254,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 <option>Galle</option>
                               </select>
                               {errors.region && (
-                                <p className="mt-1 text-sm text-red-600">{errors.region}</p>
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors.region}
+                                </p>
                               )}
                             </div>
                             <div className="mb-4">
@@ -246,7 +276,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                               />
                               {errors.transformerNumber && (
-                                <p className="mt-1 text-sm text-red-600">{errors.transformerNumber}</p>
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors.transformerNumber}
+                                </p>
                               )}
                             </div>
                             <div className="mb-4">
@@ -264,7 +296,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
                               />
                               {errors.poleNumber && (
-                                <p className="mt-1 text-sm text-red-600">{errors.poleNumber}</p>
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors.poleNumber}
+                                </p>
                               )}
                             </div>
                             <div className="mb-4">
@@ -283,7 +317,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                   backgroundImage:
                                     "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
                                   backgroundPosition: "right 0.5rem center",
-                                  backgroundSize: "1.5em 1.5em"
+                                  backgroundSize: "1.5em 1.5em",
                                 }}
                               >
                                 <option value="" disabled>
@@ -293,7 +327,9 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 <option>Bulk</option>
                               </select>
                               {errors.type && (
-                                <p className="mt-1 text-sm text-red-600">{errors.type}</p>
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors.type}
+                                </p>
                               )}
                             </div>
                             <div className="mb-4">
@@ -314,7 +350,8 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                         ) : (
                           <div className="mt-2">
                             <p className="text-sm text-gray-600 mb-4">
-                              Upload base images for different weather conditions (optional)
+                              Upload base images for different weather
+                              conditions (optional)
                             </p>
 
                             <div className="space-y-4">
@@ -325,13 +362,28 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 <input
                                   type="file"
                                   accept="image/*"
-                                  onChange={(e) => handleFileChange('sunny', e.target.files?.[0] || null)}
-                                  className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                                  onChange={(e) =>
+                                    handleFileChange(
+                                      "sunny",
+                                      e.target.files?.[0] || null
+                                    )
+                                  }
+                                  className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
+                                    ${
+                                      sunnyImage
+                                        ? "text-black"
+                                        : "text-gray-400"
+                                    }`}
                                 />
                                 {sunnyImage && (
                                   <div className="mt-2">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={sunnyImage} alt="Sunny weather preview" className="w-20 h-20 object-cover rounded border" />
+                                    <img
+                                      src={sunnyImage}
+                                      alt="Sunny weather preview"
+                                      className="w-20 h-20 object-cover rounded border"
+                                    />
                                     <div className="mt-2">
                                       <button
                                         type="button"
@@ -352,13 +404,28 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 <input
                                   type="file"
                                   accept="image/*"
-                                  onChange={(e) => handleFileChange('cloudy', e.target.files?.[0] || null)}
-                                  className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                                  onChange={(e) =>
+                                    handleFileChange(
+                                      "cloudy",
+                                      e.target.files?.[0] || null
+                                    )
+                                  }
+                                  className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
+                                    ${
+                                      cloudyImage
+                                        ? "text-black"
+                                        : "text-gray-400"
+                                    }`}
                                 />
                                 {cloudyImage && (
                                   <div className="mt-2">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={cloudyImage} alt="Cloudy weather preview" className="w-20 h-20 object-cover rounded border" />
+                                    <img
+                                      src={cloudyImage}
+                                      alt="Cloudy weather preview"
+                                      className="w-20 h-20 object-cover rounded border"
+                                    />
                                     <div className="mt-2">
                                       <button
                                         type="button"
@@ -379,13 +446,28 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                                 <input
                                   type="file"
                                   accept="image/*"
-                                  onChange={(e) => handleFileChange('windy', e.target.files?.[0] || null)}
-                                  className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                                  onChange={(e) =>
+                                    handleFileChange(
+                                      "windy",
+                                      e.target.files?.[0] || null
+                                    )
+                                  }
+                                  className={`shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:ring-1 focus:ring-black bg-white
+                                    file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-black dark:file:bg-white file:text-white dark:file:text-black file:hover:bg-black/80 dark:file:hover:bg-white/80
+                                    ${
+                                      windyImage
+                                        ? "text-black"
+                                        : "text-gray-400"
+                                    }`}
                                 />
                                 {windyImage && (
                                   <div className="mt-2">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={windyImage} alt="Windy weather preview" className="w-20 h-20 object-cover rounded border" />
+                                    <img
+                                      src={windyImage}
+                                      alt="Windy weather preview"
+                                      className="w-20 h-20 object-cover rounded border"
+                                    />
                                     <div className="mt-2">
                                       <button
                                         type="button"
@@ -410,14 +492,14 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                       <>
                         <button
                           type="submit"
-                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black dark:bg-white text-base font-medium text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Next
                         </button>
                         <button
                           onClick={hideSetTransformer}
                           type="button"
-                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Cancel
                         </button>
@@ -427,7 +509,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                         <button
                           type="submit"
                           disabled={!hasAnyImage}
-                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black text-base font-medium text-white hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black sm:ml-3 sm:w-auto sm:text-sm"
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-black dark:bg-white text-base font-medium text-white dark:text-black hover:bg-black/80 dark:hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Confirm
                         </button>
@@ -435,14 +517,14 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
                           onClick={handleSkip}
                           type="button"
                           disabled={hasAnyImage}
-                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-black hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Skip for now
                         </button>
                         <button
                           onClick={() => setStep(1)}
                           type="button"
-                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-gray-200 text-base font-medium text-black hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-black sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-gray-200 text-base font-medium text-black hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                         >
                           Back
                         </button>

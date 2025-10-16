@@ -1,9 +1,17 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Inspection } from "@/types/inspection";
 import { apiUrl } from "@/lib/api";
+
+const parseMaybeJson = (value: unknown): unknown => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
 
 type InspectionsContextValue = {
   inspections: Inspection[];
@@ -12,6 +20,8 @@ type InspectionsContextValue = {
   deleteInspection: (index: number) => void;
   reload: () => Promise<void>;
   lastError: string | null;
+  loading: boolean;
+  fetchInspectionById: (id: string) => Promise<Inspection | null>;
 };
 
 const InspectionsContext = createContext<InspectionsContextValue | undefined>(undefined);
@@ -19,12 +29,13 @@ const InspectionsContext = createContext<InspectionsContextValue | undefined>(un
 export function InspectionsProvider({ children }: { children: React.ReactNode }) {
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
-  const pathname = usePathname();
+  const [loading, setLoading] = useState<boolean>(false);
 
   const load = async () => {
     try {
       setLastError(null);
-      const res = await fetch(apiUrl("/api/inspections"), { cache: "no-store" });
+      setLoading(true);
+      const res = await fetch("/api/inspections?summary=1", { cache: "no-store" });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
@@ -34,7 +45,39 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
         if (typeof raw === 'object' && raw !== null) {
           const obj = raw as Record<string, unknown> & { transformer?: { transformerNumber?: string } };
           const transformerNumber = (obj.transformerNumber as string) ?? obj.transformer?.transformerNumber ?? "";
-          return { ...(obj as object), transformerNumber } as Inspection;
+          // Parse boundingBoxes if it's a JSON string
+          let boundingBoxes: unknown = (obj as any).boundingBoxes;
+          if (typeof boundingBoxes === 'string') {
+            try { boundingBoxes = JSON.parse(boundingBoxes); } catch { /* keep as string if invalid */ }
+          }
+          // Parse faultTypes if provided as string
+          let faultTypes: unknown = (obj as any).faultTypes;
+          if (typeof faultTypes === 'string') {
+            try { faultTypes = JSON.parse(faultTypes); } catch { /* keep as string if invalid */ }
+          }
+          // Parse severity if provided as string
+          let severity: unknown = (obj as any).severity;
+          if (typeof severity === 'string') {
+            try { severity = JSON.parse(severity); } catch { /* keep as string if invalid */ }
+          }
+          const boundingBoxHistory = parseMaybeJson((obj as any).boundingBoxHistory);
+          const faultTypeHistory = parseMaybeJson((obj as any).faultTypeHistory);
+          const annotatedByHistory = parseMaybeJson((obj as any).annotatedByHistory);
+          const severityHistory = parseMaybeJson((obj as any).severityHistory);
+          const timestampHistory = parseMaybeJson((obj as any).timestampHistory);
+          // faultType (string) comes straight from the API; include via spread
+          return {
+            ...(obj as object),
+            transformerNumber,
+            boundingBoxes,
+            faultTypes,
+            severity,
+            boundingBoxHistory,
+            faultTypeHistory,
+            annotatedByHistory,
+            severityHistory,
+            timestampHistory,
+          } as Inspection;
         }
         return {
           transformerNumber: "",
@@ -45,24 +88,104 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
           status: "",
         } as Inspection;
       });
+      // Sort by natural numeric order of transformer number (e.g., TR1, TR2, ..., TR9, TR10)
+      const numKey = (s: string | undefined) => {
+        if (!s) return Number.POSITIVE_INFINITY;
+        const m = s.match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+      };
+      normalized.sort((a, b) => {
+        const na = numKey(a.transformerNumber);
+        const nb = numKey(b.transformerNumber);
+        if (na !== nb) return na - nb;
+        return (a.transformerNumber || '').localeCompare(b.transformerNumber || '');
+      });
       setInspections(normalized);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error fetching inspections';
       console.error('[InspectionsContext] load failed:', err);
       setLastError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Initial load
+  // Initial load only after login flag is present
   useEffect(() => {
-    void load();
+    try {
+      const logged = typeof window !== 'undefined' && localStorage.getItem('isLoggedIn') === 'true';
+      if (logged) void load();
+    } catch {
+      // ignore
+    }
   }, []);
 
-  // Refetch on route change
+  // Reload when the app signals a successful login, or when the window regains focus while logged in
   useEffect(() => {
-    if (!pathname) return;
-    void load();
-  }, [pathname]);
+    if (typeof window === 'undefined') return;
+    const onLoggedIn = () => { void load(); };
+    const onFocus = () => {
+      try {
+        const logged = localStorage.getItem('isLoggedIn') === 'true';
+        if (logged) void load();
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('app:logged-in', onLoggedIn as EventListener);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('app:logged-in', onLoggedIn as EventListener);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
+  // Do not refetch on route change to avoid unnecessary reloads
+
+  const fetchInspectionById = async (id: string): Promise<Inspection | null> => {
+    try {
+      const res = await fetch(`/api/inspections/${id}`, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const raw = await res.json();
+      const normalized: Inspection = ((): Inspection => {
+        if (typeof raw === 'object' && raw !== null) {
+          const obj = raw as Record<string, unknown> & { transformer?: { transformerNumber?: string } };
+          const transformerNumber = (obj.transformerNumber as string) ?? obj.transformer?.transformerNumber ?? "";
+          let boundingBoxes: unknown = (obj as any).boundingBoxes;
+          if (typeof boundingBoxes === 'string') {
+            try { boundingBoxes = JSON.parse(boundingBoxes); } catch {}
+          }
+          let faultTypes: unknown = (obj as any).faultTypes;
+          if (typeof faultTypes === 'string') {
+            try { faultTypes = JSON.parse(faultTypes); } catch {}
+          }
+          let severity: unknown = (obj as any).severity;
+          if (typeof severity === 'string') {
+            try { severity = JSON.parse(severity); } catch {}
+          }
+          const boundingBoxHistory = parseMaybeJson((obj as any).boundingBoxHistory);
+          const faultTypeHistory = parseMaybeJson((obj as any).faultTypeHistory);
+          const annotatedByHistory = parseMaybeJson((obj as any).annotatedByHistory);
+          const severityHistory = parseMaybeJson((obj as any).severityHistory);
+          const timestampHistory = parseMaybeJson((obj as any).timestampHistory);
+          return {
+            ...(obj as object),
+            transformerNumber,
+            boundingBoxes,
+            faultTypes,
+            severity,
+            boundingBoxHistory,
+            faultTypeHistory,
+            annotatedByHistory,
+            severityHistory,
+            timestampHistory,
+          } as Inspection;
+        }
+        return raw as Inspection;
+      })();
+      return normalized;
+    } catch {
+      return null;
+    }
+  };
 
   const addInspection = async (i: Inspection) => {
     let username: string | null = null;
@@ -101,6 +224,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
         maintainanceDate: i.maintainanceDate,
         branch: i.branch,
         status: i.status,
+        favourite: typeof i.favourite === 'boolean' ? i.favourite : undefined,
         transformer: { transformerNumber: i.transformerNumber },
       }),
     });
@@ -117,8 +241,8 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   };
 
   const value = useMemo(
-    () => ({ inspections, addInspection, updateInspection, deleteInspection, reload: load, lastError }),
-    [inspections, lastError]
+    () => ({ inspections, addInspection, updateInspection, deleteInspection, reload: load, lastError, loading, fetchInspectionById }),
+    [inspections, lastError, loading]
   );
 
   return <InspectionsContext.Provider value={value}>{children}</InspectionsContext.Provider>;

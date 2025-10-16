@@ -3,18 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/api";
+import LoadingScreen from "@/components/LoadingScreen";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Home() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
-  const res = await fetch(apiUrl("/api/login"), {
+      setLoading(true);
+      const res = await fetch(apiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -30,20 +34,32 @@ export default function Home() {
         localStorage.setItem("isLoggedIn", "true");
         localStorage.setItem("username", username);
         localStorage.setItem("userImage", data.image || "");
+        // Notify app that login succeeded so data contexts can reload immediately
+        window.dispatchEvent(new Event("app:logged-in"));
       } catch {}
       router.push("/transformer");
-  } catch {
+    } catch {
       setError("Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
-      <div className="w-full max-w-sm bg-white rounded-lg shadow p-6">
-        <h1 className="text-xl font-semibold text-black mb-4 text-center">Sign in</h1>
+    <div className="min-h-screen flex items-center justify-center p-4 text-gray-900 transition-colors ">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      <div className="w-full max-w-sm rounded-lg shadow p-6 transition-colors signin">
+        <h1 className="text-xl font-semibold mb-4 text-center">Sign in</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-black mb-1">Username</label>
+            <label
+              htmlFor="username"
+              className="block text-sm font-medium mb-1"
+            >
+              Username
+            </label>
             <input
               id="username"
               type="text"
@@ -55,7 +71,12 @@ export default function Home() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-black mb-1">Password</label>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium mb-1"
+            >
+              Password
+            </label>
             <input
               id="password"
               type="password"
@@ -69,12 +90,14 @@ export default function Home() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
-            className="w-full inline-flex justify-center rounded-md bg-black px-4 py-2 text-white font-medium hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+            className="w-full inline-flex justify-center rounded-md bg-black px-4 py-2 text-white font-medium transition-colors hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-white/80 dark:focus:ring-white"
+            disabled={loading}
           >
-            Sign in
+            {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
       </div>
+      <LoadingScreen show={loading} message="Signing you in…" />
     </div>
   );
 }

@@ -2,6 +2,7 @@ package com.apexgrid.transformertracker.ai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,11 @@ import java.util.List;
 @Service
 public class PythonAnalyzerService {
     private final ObjectMapper mapper = new ObjectMapper();
+    private final AiParameterService parameterService;
+
+    public PythonAnalyzerService(AiParameterService parameterService) {
+        this.parameterService = parameterService;
+    }
 
     @Value("${app.ai.python:python}")
     private String pythonCommand;
@@ -23,9 +29,10 @@ public class PythonAnalyzerService {
     private String scriptPath;
 
     public JsonNode analyze(BufferedImage baseline, BufferedImage candidate) throws Exception {
-        File tempDir = Files.createTempDirectory("tt-ai-").toFile();
-        File baseFile = new File(tempDir, "baseline.png");
-        File candFile = new File(tempDir, "candidate.png");
+    File tempDir = Files.createTempDirectory("tt-ai-").toFile();
+    File baseFile = new File(tempDir, "baseline.png");
+    File candFile = new File(tempDir, "candidate.png");
+    File paramsFile = new File(tempDir, "params.json");
         // Always write as PNG
         ImageIO.write(baseline, "png", baseFile);
         ImageIO.write(candidate, "png", candFile);
@@ -41,6 +48,14 @@ public class PythonAnalyzerService {
         cmd.add(scriptFile.getAbsolutePath());
         cmd.add(baseFile.getAbsolutePath());
         cmd.add(candFile.getAbsolutePath());
+
+        try {
+            ObjectNode params = parameterService.buildConfigNode(mapper);
+            mapper.writeValue(paramsFile, params);
+            cmd.add(paramsFile.getAbsolutePath());
+        } catch (Exception ex) {
+            // Proceed with defaults when parameter persistence fails
+        }
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
@@ -61,7 +76,10 @@ public class PythonAnalyzerService {
         // Best-effort cleanup
         try { baseFile.delete(); } catch (Exception ignored) {}
         try { candFile.delete(); } catch (Exception ignored) {}
-        try { tempDir.delete(); } catch (Exception ignored) {}
+        if (paramsFile.exists()) {
+            try { paramsFile.delete(); } catch (Exception ignored) {}
+        }
+    try { tempDir.delete(); } catch (Exception ignored) {}
 
         if (code != 0) {
             throw new IllegalStateException("Python analyzer exited with code " + code + ": " + output);

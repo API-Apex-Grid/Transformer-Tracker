@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Transformer } from "@/types/transformer";
 import { apiUrl } from "@/lib/api";
 
@@ -12,6 +11,9 @@ type TransformersContextValue = {
   deleteTransformer: (index: number) => void;
   reload: () => Promise<void>;
   lastError: string | null;
+  loading: boolean;
+  fetchTransformerById: (id: string) => Promise<Transformer | null>;
+  findByNumber: (transformerNumber: string) => Transformer | undefined;
 };
 
 const TransformersContext = createContext<TransformersContextValue | undefined>(undefined);
@@ -19,36 +21,84 @@ const TransformersContext = createContext<TransformersContextValue | undefined>(
 export function TransformersProvider({ children }: { children: React.ReactNode }) {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
-  const pathname = usePathname();
+  const [loading, setLoading] = useState<boolean>(false);
 
   // load from API
   const load = async () => {
     try {
       setLastError(null);
-      const res = await fetch(apiUrl("/api/transformers"), { cache: "no-store" });
+      setLoading(true);
+      // Ask the local API for summary only to reduce payload
+      const res = await fetch("/api/transformers?summary=1", { cache: "no-store" });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
       }
       const data = await res.json();
-      setTransformers(Array.isArray(data) ? data : []);
+      const list: Transformer[] = Array.isArray(data) ? data : [];
+      const numKey = (s: string | undefined) => {
+        if (!s) return Number.POSITIVE_INFINITY;
+        const m = s.match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+      };
+      list.sort((a, b) => {
+        const na = numKey(a.transformerNumber);
+        const nb = numKey(b.transformerNumber);
+        if (na !== nb) return na - nb;
+        return (a.transformerNumber || '').localeCompare(b.transformerNumber || '');
+      });
+      setTransformers(list as Transformer[]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error fetching transformers';
       console.error('[TransformersContext] load failed:', err);
       setLastError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Initial load
+  // Initial load only after login flag is present
   useEffect(() => {
-    void load();
+    try {
+      const logged = typeof window !== 'undefined' && localStorage.getItem('isLoggedIn') === 'true';
+      if (logged) void load();
+    } catch {
+      // ignore
+    }
   }, []);
 
-  // Refetch on route change (e.g., switching between /transformer and /inspections)
+  // Reload when app signals login or when window regains focus while logged in
   useEffect(() => {
-    if (!pathname) return;
-    void load();
-  }, [pathname]);
+    if (typeof window === 'undefined') return;
+    const onLoggedIn = () => { void load(); };
+    const onFocus = () => {
+      try {
+        const logged = localStorage.getItem('isLoggedIn') === 'true';
+        if (logged) void load();
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('app:logged-in', onLoggedIn as EventListener);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('app:logged-in', onLoggedIn as EventListener);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
+  // Do not refetch on route change; list is cached in memory and can be refreshed explicitly
+
+  const fetchTransformerById = async (id: string): Promise<Transformer | null> => {
+    try {
+      const res = await fetch(`/api/transformers/${id}`, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const t = await res.json();
+      return t as Transformer;
+    } catch {
+      return null;
+    }
+  };
+
+  const findByNumber = (transformerNumber: string) => transformers.find(t => t.transformerNumber === transformerNumber);
 
   const addTransformer = async (t: Transformer) => {
     let username: string | null = null;
@@ -121,8 +171,8 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   };
 
   const value = useMemo(
-    () => ({ transformers, addTransformer, updateTransformer, deleteTransformer, reload: load, lastError }),
-    [transformers, lastError]
+    () => ({ transformers, addTransformer, updateTransformer, deleteTransformer, reload: load, lastError, loading, fetchTransformerById, findByNumber }),
+    [transformers, lastError, loading]
   );
 
   return <TransformersContext.Provider value={value}>{children}</TransformersContext.Provider>;
