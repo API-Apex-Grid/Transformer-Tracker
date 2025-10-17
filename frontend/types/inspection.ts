@@ -33,4 +33,6 @@ export interface Inspection {
     severityHistory?: string | ((number | null)[] | null)[] | null;
     commentHistory?: string | ((string | null)[] | null)[] | null;
     timestampHistory?: string | (string | null)[] | null;
+    recentStatus?: string | (string | null)[] | null;
+    recentStatusHistory?: string | ((string | null)[] | null)[] | null;
 }

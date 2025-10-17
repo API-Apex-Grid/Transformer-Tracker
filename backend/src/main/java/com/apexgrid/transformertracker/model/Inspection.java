@@ -79,6 +79,10 @@ public class Inspection {
     @Column(name = "comment", columnDefinition = "text")
     private String comment;
 
+    // Per-box recent status (e.g., added/edited) aligned with boundingBoxes order
+    @Column(name = "recentstatus", columnDefinition = "text")
+    private String recentStatus;
+
     // History of per-box severity arrays aligned with boundingBoxHistory/faultTypeHistory snapshots
     @Column(name = "severityhistory", columnDefinition = "text")
     private String severityHistory;
@@ -90,6 +94,10 @@ public class Inspection {
     // History of timestamps (ISO-8601 strings) when each snapshot was archived
     @Column(name = "timestamphistory", columnDefinition = "text")
     private String timestampHistory;
+
+    // History of per-box recent statuses aligned with boundingBoxHistory snapshots
+    @Column(name = "recentstatushistory", columnDefinition = "text")
+    private String recentStatusHistory;
 
 
     public String getId() { return id; }
@@ -162,6 +170,9 @@ public class Inspection {
     public String getComment() { return comment; }
     public void setComment(String comment) { this.comment = comment; }
 
+    public String getRecentStatus() { return recentStatus; }
+    public void setRecentStatus(String recentStatus) { this.recentStatus = recentStatus; }
+
     public String getSeverityHistory() { return severityHistory; }
     public void setSeverityHistory(String severityHistory) { this.severityHistory = severityHistory; }
 
@@ -170,4 +181,7 @@ public class Inspection {
 
     public String getTimestampHistory() { return timestampHistory; }
     public void setTimestampHistory(String timestampHistory) { this.timestampHistory = timestampHistory; }
+
+    public String getRecentStatusHistory() { return recentStatusHistory; }
+    public void setRecentStatusHistory(String recentStatusHistory) { this.recentStatusHistory = recentStatusHistory; }
 }

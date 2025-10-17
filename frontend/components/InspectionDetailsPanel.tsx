@@ -264,11 +264,70 @@ const parseComments = (
   return arr.slice(0, expectedLength);
 };
 
+const normalizeStatus = (value: unknown): "added" | "edited" | "deleted" | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "added" || normalized === "edited" || normalized === "deleted") {
+    return normalized;
+  }
+  return null;
+};
+
+const parseStatuses = (
+  raw: string | string[] | null | undefined,
+  expectedLength: number
+): ("added" | "edited" | "deleted" | null)[] => {
+  if (expectedLength <= 0) return [];
+  let source: unknown = raw;
+  if (typeof source === "string") {
+    const trimmed = source.trim();
+    if (!trimmed) {
+      source = [];
+    } else {
+      try {
+        source = JSON.parse(trimmed);
+      } catch {
+        source = trimmed
+          .split(/[,;\n]+/)
+          .map((part) => part.trim())
+          .filter((part) => part.length > 0);
+      }
+    }
+  }
+  const arr: ("added" | "edited" | "deleted" | null)[] = Array.isArray(source)
+    ? (source as unknown[]).map((item) => normalizeStatus(item))
+    : [];
+  while (arr.length < expectedLength) {
+    arr.push(null);
+  }
+  if (arr.length > expectedLength) {
+    arr.length = expectedLength;
+  }
+  return arr;
+};
+
+const formatStatusLabel = (
+  status: string | null | undefined,
+  isSnapshot: boolean
+): string | null => {
+  switch (status) {
+    case "added":
+      return "Status: added";
+    case "edited":
+      return "Status: edited";
+    case "deleted":
+      return isSnapshot ? "Status: deleted (removed after this snapshot)" : null;
+    default:
+      return null;
+  }
+};
+
 const buildBoxInfo = (
   boxes: number[][],
   faults: string[],
-  comments?: (string | null)[]
-): OverlayBoxInfo[] =>
+  comments?: (string | null)[],
+  statuses?: ("added" | "edited" | "deleted" | null)[]
+): (OverlayBoxInfo & { status?: "added" | "edited" | "deleted" | null })[] =>
   boxes.map((box, index) => {
     const fault = faults[index] ?? "none";
     return {
@@ -279,6 +338,7 @@ const buildBoxInfo = (
       boxFault: fault,
       label: toDisplayLabel(fault),
       comment: comments ? comments[index] ?? null : null,
+      status: statuses ? statuses[index] ?? null : null,
     };
   });
 
@@ -301,6 +361,7 @@ type HistorySnapshot = {
   annotatedBy: string[];
   severity: (number | null)[];
   comments: (string | null)[];
+  statuses: ("added" | "edited" | "deleted" | null)[];
   timestamp: string | null;
 };
 
@@ -346,6 +407,10 @@ const cloneSeverities = (values: (number | null)[]): (number | null)[] =>
 
 const cloneComments = (values: (string | null)[]): (string | null)[] =>
   values.slice();
+
+const cloneStatuses = (
+  values: ("added" | "edited" | "deleted" | null)[]
+): ("added" | "edited" | "deleted" | null)[] => values.slice();
 
 const jsonEqual = (a: unknown, b: unknown): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -407,13 +472,15 @@ const InspectionDetailsPanel = ({
   const [storedAnnotatedBy, setStoredAnnotatedBy] = useState<string[]>([]);
   const [storedSeverity, setStoredSeverity] = useState<(number | null)[]>([]);
   const [storedComments, setStoredComments] = useState<(string | null)[]>([]);
+  const [storedStatuses, setStoredStatuses] = useState<("added" | "edited" | "deleted" | null)[]>([]);
   const initialStoredRef = useRef<{
     boxes: number[][];
     faults: string[];
     annotatedBy: string[];
     severity: (number | null)[];
     comments: (string | null)[];
-  }>({ boxes: [], faults: [], annotatedBy: [], severity: [], comments: [] });
+    statuses: ("added" | "edited" | "deleted" | null)[];
+  }>({ boxes: [], faults: [], annotatedBy: [], severity: [], comments: [], statuses: [] });
   const [tuneModelEnabled, setTuneModelEnabled] = useState(true);
   const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[]>([]);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
@@ -531,10 +598,13 @@ const InspectionDetailsPanel = ({
   const visibleComments = displaySnapshot
     ? displaySnapshot.comments
     : storedComments;
+  const visibleStatuses = displaySnapshot
+    ? displaySnapshot.statuses
+    : storedStatuses;
 
   const visibleBoxInfo = useMemo(
-    () => buildBoxInfo(visibleBoxes, visibleFaultTypes, visibleComments),
-    [visibleBoxes, visibleFaultTypes, visibleComments]
+    () => buildBoxInfo(visibleBoxes, visibleFaultTypes, visibleComments, visibleStatuses),
+    [visibleBoxes, visibleFaultTypes, visibleComments, visibleStatuses]
   );
 
   const editingDisabled = selectedSnapshotIndex !== null;
@@ -608,12 +678,14 @@ const InspectionDetailsPanel = ({
     );
     const severityChanged = !jsonEqual(storedSeverity, initialSnapshot.severity);
     const commentsChanged = !jsonEqual(storedComments, initialSnapshot.comments);
+    const statusesChanged = !jsonEqual(storedStatuses, initialSnapshot.statuses);
     return (
       boxesChanged ||
       faultsChanged ||
       annotatedChanged ||
       severityChanged ||
       commentsChanged ||
+      statusesChanged ||
       pendingAdds.length > 0 ||
       pendingDeletes.length > 0
     );
@@ -623,6 +695,7 @@ const InspectionDetailsPanel = ({
     storedAnnotatedBy,
     storedSeverity,
     storedComments,
+    storedStatuses,
     pendingAdds,
     pendingDeletes,
   ]);
@@ -634,6 +707,7 @@ const InspectionDetailsPanel = ({
     setStoredAnnotatedBy(cloneStrings(initialSnapshot.annotatedBy));
     setStoredSeverity(cloneSeverities(initialSnapshot.severity));
     setStoredComments(cloneComments(initialSnapshot.comments));
+    setStoredStatuses(cloneStatuses(initialSnapshot.statuses));
     setPendingAdds([]);
     setPendingDeletes([]);
     setSelectedSnapshotIndex(null);
@@ -674,22 +748,29 @@ const InspectionDetailsPanel = ({
         inspection.comment as string | (string | null)[] | null,
         parsedBoxes.length
       );
+      const parsedStatuses = parseStatuses(
+        inspection.recentStatus as string | string[] | null | undefined,
+        parsedBoxes.length
+      );
       const clonedBoxes = cloneBoxes(parsedBoxes);
       const clonedFaults = cloneStrings(parsedFaults);
       const clonedAnnotated = cloneStrings(parsedAnnotatedBy);
       const clonedSeverity = cloneSeverities(parsedSeverity);
       const clonedComments = cloneComments(parsedComments);
+      const clonedStatuses = cloneStatuses(parsedStatuses);
       setStoredBoxes(clonedBoxes);
       setStoredFaultTypes(clonedFaults);
       setStoredAnnotatedBy(clonedAnnotated);
       setStoredSeverity(clonedSeverity);
       setStoredComments(clonedComments);
+      setStoredStatuses(clonedStatuses);
       initialStoredRef.current = {
         boxes: cloneBoxes(clonedBoxes),
         faults: cloneStrings(clonedFaults),
         annotatedBy: cloneStrings(clonedAnnotated),
         severity: cloneSeverities(clonedSeverity),
         comments: cloneComments(clonedComments),
+        statuses: cloneStatuses(clonedStatuses),
       };
     } catch {
       setStoredBoxes([]);
@@ -697,12 +778,14 @@ const InspectionDetailsPanel = ({
       setStoredAnnotatedBy([]);
       setStoredSeverity([]);
       setStoredComments([]);
+      setStoredStatuses([]);
       initialStoredRef.current = {
         boxes: [],
         faults: [],
         annotatedBy: [],
         severity: [],
         comments: [],
+        statuses: [],
       };
     }
     try {
@@ -721,6 +804,9 @@ const InspectionDetailsPanel = ({
       const commentHistoryEntries = parseHistoryEntries(
         inspection.commentHistory
       );
+      const statusHistoryEntries = parseHistoryEntries(
+        inspection.recentStatusHistory
+      );
       const timestampHistoryEntries = parseHistoryEntries(
         inspection.timestampHistory
       );
@@ -730,6 +816,7 @@ const InspectionDetailsPanel = ({
         annotatedHistoryEntries.length,
         severityHistoryEntries.length,
         commentHistoryEntries.length,
+        statusHistoryEntries.length,
         timestampHistoryEntries.length
       );
       const snapshots: HistorySnapshot[] = [];
@@ -759,18 +846,29 @@ const InspectionDetailsPanel = ({
         const commentFallbackLength = Array.isArray(commentRaw)
           ? (commentRaw as unknown[]).length
           : 0;
+        const statusRawEntry = statusHistoryEntries[idx];
+        const statusFallbackLength = Array.isArray(statusRawEntry)
+          ? (statusRawEntry as unknown[]).length
+          : 0;
         const targetLength = Math.max(
           boxes.length,
           faultsFallbackLength,
           annotatedFallbackLength,
           severityFallbackLength,
-          commentFallbackLength
+          commentFallbackLength,
+          statusFallbackLength
         );
         const effectiveLength = targetLength > 0 ? targetLength : boxes.length;
         const faults = parseFaultTypes(faultsRaw, effectiveLength);
         const annotated = parseAnnotatedBy(annotatedRaw, effectiveLength);
         const severitySnapshot = parseSeverities(severityRaw, effectiveLength);
         const commentsSnapshot = parseComments(commentRaw ?? null, effectiveLength);
+        const statusRaw = statusRawEntry as
+          | string
+          | string[]
+          | null
+          | undefined;
+        const statusesSnapshot = parseStatuses(statusRaw, effectiveLength);
         const timestampEntry = timestampHistoryEntries[idx];
         const timestamp =
           typeof timestampEntry === "string"
@@ -792,6 +890,7 @@ const InspectionDetailsPanel = ({
           annotatedBy: annotated,
           severity: severitySnapshot,
           comments: commentsSnapshot,
+          statuses: statusesSnapshot,
           timestamp,
         });
       }
@@ -927,6 +1026,7 @@ const InspectionDetailsPanel = ({
         annotatedBy: cloneStrings(storedAnnotatedBy),
         severity: cloneSeverities(storedSeverity),
         comments: cloneComments(storedComments),
+        statuses: cloneStatuses(storedStatuses),
       };
       setPendingAdds([]);
       setPendingDeletes([]);
@@ -1135,6 +1235,13 @@ const InspectionDetailsPanel = ({
         }
         return next;
       });
+      setStoredStatuses((prev) => {
+        const next = prev.slice();
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next[targetIndex] = next[targetIndex] === "added" ? "added" : "edited";
+        }
+        return next;
+      });
 
       const oldRectObj = {
         x: originalRect.x,
@@ -1250,6 +1357,7 @@ const InspectionDetailsPanel = ({
     setStoredAnnotatedBy((prev) => [...prev, username]);
     setStoredSeverity((prev) => [...prev, null]);
     setStoredComments((prev) => [...prev, commentValue]);
+  setStoredStatuses((prev) => [...prev, "added"]);
     setPendingAdds((prev) => [
       ...prev,
       {
@@ -1526,12 +1634,14 @@ const InspectionDetailsPanel = ({
                   setStoredAnnotatedBy([]);
                   setStoredSeverity([]);
                   setStoredComments([]);
+                  setStoredStatuses([]);
                   initialStoredRef.current = {
                     boxes: [],
                     faults: [],
                     annotatedBy: [],
                     severity: [],
                     comments: [],
+                    statuses: [],
                   };
                   // Also clear any pending changes
                   setPendingAdds([]);
@@ -1587,18 +1697,23 @@ const InspectionDetailsPanel = ({
                     typeof bi?.severity === "number" ? bi.severity : null
                 );
                 const commentValues = Array(aiBoxes.length).fill(null);
+                const statusValues = Array(aiBoxes.length).fill(
+                  null as "added" | "edited" | "deleted" | null
+                );
                 setStoredBoxes(clonedBoxes);
                 setStoredFaultTypes(clonedFaults);
                 // All AI-detected boxes are annotated by "AI"
                 setStoredAnnotatedBy(aiAnnotated);
                 setStoredSeverity(severityValues);
                 setStoredComments(commentValues);
+                setStoredStatuses(statusValues);
                 initialStoredRef.current = {
                   boxes: cloneBoxes(clonedBoxes),
                   faults: cloneStrings(clonedFaults),
                   annotatedBy: cloneStrings(aiAnnotated),
                   severity: cloneSeverities(severityValues),
                   comments: cloneComments(commentValues),
+                  statuses: cloneStatuses(statusValues),
                 };
                 setPendingAdds([]);
                 setPendingDeletes([]);
@@ -1891,6 +2006,13 @@ const InspectionDetailsPanel = ({
                           return next;
                         });
                         setStoredComments((prev) => {
+                          const next = prev.slice();
+                          if (removalIndex >= 0 && removalIndex < next.length) {
+                            next.splice(removalIndex, 1);
+                          }
+                          return next;
+                        });
+                        setStoredStatuses((prev) => {
                           const next = prev.slice();
                           if (removalIndex >= 0 && removalIndex < next.length) {
                             next.splice(removalIndex, 1);
@@ -2329,6 +2451,10 @@ const InspectionDetailsPanel = ({
                               typeof bi.comment === "string" && bi.comment.trim().length > 0
                                 ? bi.comment.trim()
                                 : null;
+                            const statusText = formatStatusLabel(
+                              (bi as { status?: "added" | "edited" | "deleted" | null }).status ?? null,
+                              selectedSnapshotIndex !== null
+                            );
                             return (
                               <li
                                 key={`stored-legend-${i}`}
@@ -2348,6 +2474,11 @@ const InspectionDetailsPanel = ({
                                   {commentText && (
                                     <span className="text-[11px] text-gray-500 dark:text-gray-400">
                                       Comment: {commentText}
+                                    </span>
+                                  )}
+                                  {statusText && (
+                                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                      {statusText}
                                     </span>
                                   )}
                                 </div>
