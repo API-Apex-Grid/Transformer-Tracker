@@ -327,7 +327,7 @@ const buildBoxInfo = (
   faults: string[],
   comments?: (string | null)[],
   statuses?: ("added" | "edited" | "deleted" | null)[]
-): (OverlayBoxInfo & { status?: "added" | "edited" | "deleted" | null })[] =>
+): OverlayBoxInfo[] =>
   boxes.map((box, index) => {
     const fault = faults[index] ?? "none";
     return {
@@ -918,6 +918,8 @@ const InspectionDetailsPanel = ({
     inspection.severityHistory,
     inspection.comment,
     inspection.commentHistory,
+    inspection.recentStatus,
+    inspection.recentStatusHistory,
     inspection.timestampHistory,
   ]);
 

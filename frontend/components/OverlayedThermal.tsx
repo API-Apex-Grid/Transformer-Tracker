@@ -15,6 +15,7 @@ export type OverlayBoxInfo = {
   label?: string;
   boxFault?: "loose joint" | "point overload" | "wire overload" | "none" | string;
   comment?: string | null;
+  status?: "added" | "edited" | "deleted" | null;
 };
 
 export type OverlayToggles = {
@@ -96,8 +97,9 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       const info = infosByKey.get(key);
       const boxFault = info?.boxFault ?? "none";
       const label = info?.label ?? boxFault;
-  const comment = info?.comment ?? null;
-  return { x: bx, y: by, w: bw, h: bh, boxFault, label, comment };
+      const comment = info?.comment ?? null;
+      const status = info?.status ?? null;
+      return { x: bx, y: by, w: bw, h: bh, boxFault, label, comment, status };
     });
   }, [boxes, boxInfo, naturalWidth, naturalHeight, nat?.w, nat?.h]);
 
@@ -483,7 +485,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                     }}
                   />
                 )}
-                {list.map((b, idx) => {
+        {list.map((b, idx) => {
           // Normalize the boxFault value to handle case sensitivity and trim whitespace
           const normalizedFault = (b.boxFault || "").toLowerCase().trim();
           
@@ -506,6 +508,39 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
           // debug trace removed for production
 
           if (!show) return null;
+          const status = (b as { status?: "added" | "edited" | "deleted" | null }).status ?? null;
+          let borderColor = "#dc2626";
+          let borderStyle: "solid" | "dashed" = "solid";
+          let labelBackground = "rgba(220,38,38,0.9)";
+          let statusBadgeText: string | null = null;
+          let statusBadgeBackground = "rgba(17,24,39,0.85)";
+          let statusBadgeColor = "#f9fafb";
+          switch (status) {
+            case "added":
+              borderColor = "#16a34a";
+              labelBackground = "rgba(22,163,74,0.9)";
+              statusBadgeText = "Added";
+              statusBadgeBackground = "rgba(22,163,74,0.9)";
+              statusBadgeColor = "#f0fdf4";
+              break;
+            case "edited":
+              borderColor = "#f97316";
+              labelBackground = "rgba(249,115,22,0.9)";
+              statusBadgeText = "Edited";
+              statusBadgeBackground = "rgba(249,115,22,0.9)";
+              statusBadgeColor = "#fffbeb";
+              break;
+            case "deleted":
+              borderColor = "#6b7280";
+              borderStyle = "dashed";
+              labelBackground = "rgba(107,114,128,0.9)";
+              statusBadgeText = "Deleted";
+              statusBadgeBackground = "rgba(75,85,99,0.95)";
+              statusBadgeColor = "#e5e7eb";
+              break;
+            default:
+              break;
+          }
                   return (
                     <div key={`${b.x}-${b.y}-${idx}`}
                       style={{
@@ -514,8 +549,12 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                         top: `${b.y}px`,
                         width: `${b.w}px`,
                         height: `${b.h}px`,
-                        border: "2px solid red",
+                        border: `2px ${borderStyle} ${borderColor}`,
                         boxSizing: "border-box",
+                        boxShadow: status === "deleted"
+                          ? "0 0 0 1px rgba(107,114,128,0.35)"
+                          : "0 0 0 1px rgba(220,38,38,0.25)",
+                        opacity: status === "deleted" ? 0.8 : 1,
                         cursor: onRemoveBox || onSelectBox ? 'pointer' : 'default',
                       }}
                       onClick={() => {
@@ -529,7 +568,7 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
                   position: "absolute",
                   right: 2,
                   top: 2,
-                  background: "red",
+                  background: labelBackground,
                   color: "white",
                   fontSize: 12,
                   padding: "2px 4px",
@@ -538,6 +577,27 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
               >
                 {b.label || b.boxFault || "fault"}
               </div>
+              {statusBadgeText && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 2,
+                    top: 2,
+                    transform: "translateY(-120%)",
+                    background: statusBadgeBackground,
+                    color: statusBadgeColor,
+                    fontSize: 10,
+                    padding: "1px 4px",
+                    borderRadius: 3,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    fontWeight: 600,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
+                  }}
+                >
+                  {statusBadgeText}
+                </div>
+              )}
               {b.comment && b.comment.length > 0 && (
                 <div
                   style={{
