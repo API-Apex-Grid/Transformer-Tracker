@@ -1328,6 +1328,7 @@ const InspectionDetailsPanel = ({
               } else {
                 delete updated.comment;
               }
+              updated.annotatedBy = username;
               if ("severity" in updated) {
                 (updated as { severity?: number | null }).severity = undefined;
               }
@@ -1359,7 +1360,7 @@ const InspectionDetailsPanel = ({
     setStoredAnnotatedBy((prev) => [...prev, username]);
     setStoredSeverity((prev) => [...prev, null]);
     setStoredComments((prev) => [...prev, commentValue]);
-  setStoredStatuses((prev) => [...prev, "added"]);
+    setStoredStatuses((prev) => [...prev, "added"]);
     setPendingAdds((prev) => [
       ...prev,
       {
@@ -1395,6 +1396,7 @@ const InspectionDetailsPanel = ({
         h: rect.h,
         boxFault: ft,
         comment: commentValue ?? undefined,
+        annotatedBy: username,
       });
       next.boxInfo = infoList;
       return next;
@@ -1674,13 +1676,29 @@ const InspectionDetailsPanel = ({
             inspectionId={inspection.id as string}
             onPreviewUrl={(u) => setPreviewUrl(u)}
             onAnalysisResult={(res) => {
+              const normalizedBoxInfo: (OverlayBoxInfo & {
+                severity?: number;
+                severityLabel?: string;
+                avgDeltaV?: number;
+                maxDeltaV?: number;
+                annotatedBy?: string | null;
+              })[] = Array.isArray(res.boxInfo)
+                ? res.boxInfo.map((entry) => {
+                    const candidate = (entry as { annotatedBy?: string | null }).annotatedBy;
+                    const annotator =
+                      typeof candidate === "string" && candidate.trim().length > 0
+                        ? candidate.trim()
+                        : "AI";
+                    return { ...entry, annotatedBy: annotator };
+                  })
+                : [];
               setAiStats({
                 prob: res.prob,
                 histDistance: res.histDistance,
                 dv95: res.dv95,
                 warmFraction: res.warmFraction,
                 boxes: res.boxes as number[][] | number[],
-                boxInfo: res.boxInfo || [],
+                boxInfo: normalizedBoxInfo,
                 imageWidth: res.imageWidth,
                 imageHeight: res.imageHeight,
                 overallSeverity: res.overallSeverity,
@@ -1688,7 +1706,7 @@ const InspectionDetailsPanel = ({
               });
               // Sync AI results into stored state so they are included on flush
               const aiBoxes = res.boxes as number[][];
-              const aiBoxInfo = res.boxInfo || [];
+              const aiBoxInfo = normalizedBoxInfo;
               if (Array.isArray(aiBoxes)) {
                 const clonedBoxes = cloneBoxes(aiBoxes);
                 const aiFaults = aiBoxInfo.map((bi: OverlayBoxInfo) => bi.boxFault || "none");
@@ -2147,6 +2165,11 @@ const InspectionDetailsPanel = ({
                       typeof bi.comment === "string" && bi.comment.trim().length > 0
                         ? bi.comment.trim()
                         : null;
+                    const annotatedByRaw = (bi as { annotatedBy?: string | null }).annotatedBy;
+                    const annotator =
+                      typeof annotatedByRaw === "string" && annotatedByRaw.trim().length > 0
+                        ? annotatedByRaw.trim()
+                        : "AI";
                     return (
                       <li
                         key={`ai-legend-${i}`}
@@ -2158,7 +2181,7 @@ const InspectionDetailsPanel = ({
                         <div className="flex flex-col text-left">
                           <span>
                             {fault}
-                           {" · Annotated by AI"}
+                            {` · Annotated by ${annotator}`}
                             {sevPct !== undefined ? ` · Severity ${sevPct}%` : ""}
                           </span>
                           {commentText && (

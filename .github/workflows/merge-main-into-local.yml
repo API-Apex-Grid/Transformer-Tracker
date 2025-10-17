@@ -1,0 +1,61 @@
+name: Merge main into target
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Local branch to merge into (default: local)'
+        required: false
+        default: 'local'
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set target branch
+        run: echo "TARGET_BRANCH=${{ github.event.inputs.target_branch || 'local' }}" >> $GITHUB_ENV
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch branches
+        run: |
+          git fetch origin main
+          git fetch origin $TARGET_BRANCH || true
+
+      - name: Checkout target branch
+        run: |
+          if git rev-parse --verify origin/$TARGET_BRANCH >/dev/null 2>&1; then
+            git checkout -B $TARGET_BRANCH origin/$TARGET_BRANCH
+          else
+            git checkout -B $TARGET_BRANCH
+          fi
+
+      - name: Merge main into target branch
+        run: |
+          set -o pipefail
+          if git merge --no-edit origin/main; then
+            echo "Merge succeeded"
+          else
+            echo "Merge failed. Showing status and conflicted files:" >&2
+            git status --porcelain
+            git --no-pager diff --name-only --diff-filter=U || true
+            exit 1
+          fi
+
+      - name: Push merged branch
+        run: git push origin HEAD:$TARGET_BRANCH
