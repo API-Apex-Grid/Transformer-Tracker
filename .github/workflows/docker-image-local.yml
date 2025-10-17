@@ -1,86 +1,58 @@
-name: Build and push Docker image (local)
+name: Backend Docker build
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'backend/**'
-  workflow_dispatch:
-    inputs:
-      target_branch:
-        description: 'Local branch to merge into (default: local)'
-        required: false
-        default: 'local'
+  workflow_run:
+    workflows: ["Merge main into target"]
+    types:
+      - completed
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  merge-and-build:
+  detect-and-build:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
 
-      - name: Set target branch
-        run: echo "TARGET_BRANCH=${{ github.event.inputs.target_branch || 'local' }}" >> $GITHUB_ENV
-
-      - name: Configure Git
+      - name: Determine target branch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # workflow_run payload contains the head_branch (the branch that triggered the original run)
+          echo "TRIGGER_BRANCH=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_ENV
 
-      - name: Fetch branches
+      - name: Detect backend changes between target and main
+        id: detect
         run: |
+          set -euo pipefail
+          TARGET=${TRIGGER_BRANCH:-local}
+          echo "Checking changes in backend/ between origin/$TARGET and origin/main"
           git fetch origin main
-          git fetch origin $TARGET_BRANCH || true
-
-      - name: Checkout target branch
-        run: |
-          if git rev-parse --verify origin/$TARGET_BRANCH >/dev/null 2>&1; then
-            git checkout -B $TARGET_BRANCH origin/$TARGET_BRANCH
+          git fetch origin $TARGET || true
+          if git ls-remote --exit-code --heads origin "$TARGET" >/dev/null 2>&1; then
+            CHANGED=$(git diff --name-only origin/$TARGET..origin/main || true)
           else
-            git checkout -B $TARGET_BRANCH
+            echo "origin/$TARGET not found — treating as changed"
+            CHANGED="backend/"
+          fi
+          echo "Changed files:\n$CHANGED"
+          if printf "%s" "$CHANGED" | grep -E '^backend/' >/dev/null 2>&1; then
+            echo "backend_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "backend_changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Merge main into target branch
+      - name: Build and push Docker image
+        if: steps.detect.outputs.backend_changed == 'true'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          set -o pipefail
-          if git merge --no-edit origin/main; then
-            echo "Merge succeeded"
-          else
-            echo "Merge failed. Showing status and conflicted files:" >&2
-            git status --porcelain
-            git --no-pager diff --name-only --diff-filter=U || true
-            exit 1
-          fi
-
-      - name: Push merged branch
-        run: git push origin HEAD:$TARGET_BRANCH
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Build with Maven
-        run: mvn -DskipTests package
-        working-directory: backend
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/transformer-tracker-local:latest .
-        working-directory: backend
-
-      - name: Push image
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/transformer-tracker-local:latest
+          set -euo pipefail
+          echo "Backend changed — building image"
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          docker build -t "$DOCKERHUB_USERNAME/transformer-tracker-local:latest" backend
+          docker push "$DOCKERHUB_USERNAME/transformer-tracker-local:latest"
