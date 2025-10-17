@@ -15,6 +15,7 @@ export type OverlayBoxInfo = {
   label?: string;
   boxFault?: "loose joint" | "point overload" | "wire overload" | "none" | string;
   comment?: string | null;
+  annotatedBy?: string | null;
   status?: "added" | "edited" | "deleted" | null;
 };
 
