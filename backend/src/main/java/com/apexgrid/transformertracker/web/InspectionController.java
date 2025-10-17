@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -315,7 +316,7 @@ public class InspectionController {
             try {
                 // Before performing a new AI analysis, archive any existing analysis to history with annotatedBy = "AI"
                 try {
-                    archivePreviousAnalysis(i, "AI");
+                    archivePreviousAnalysis(i, "AI", null);
                 } catch (Exception ignore) { }
                 // Find baseline image from transformer based on weather
                 Transformer t = i.getTransformer();
@@ -415,7 +416,8 @@ public class InspectionController {
             }
             // analyzed image dimensions no longer persisted
         } catch (Exception ignore) { }
-    repo.save(i);
+        i.setRecentStatus(null);
+        repo.save(i);
 
         // Pass through fields as-is from Python, including fault classification
     return ResponseEntity.ok(Map.of(
@@ -442,7 +444,7 @@ public class InspectionController {
      * Append the current analysis (boundingBoxes + faultTypes) to history arrays,
      * and add an aligned annotatedByHistory entry.
      */
-    private void archivePreviousAnalysis(Inspection i, String annotatedBy) throws Exception {
+    private void archivePreviousAnalysis(Inspection i, String annotatedBy, ArrayNode statusSnapshot) throws Exception {
         String boxesJson = i.getBoundingBoxes();
         String faultsJson = i.getFaultTypes();
         String severityJson = i.getSeverity();
@@ -598,6 +600,40 @@ public class InspectionController {
             commentHist.addNull();
         }
 
+        // recentStatusHistory captures per-box recent status flags aligned with snapshots
+        ArrayNode statusHist;
+        String statusHistJson = i.getRecentStatusHistory();
+        if (statusHistJson != null && !statusHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(statusHistJson);
+                statusHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                statusHist = mapper.createArrayNode();
+            }
+        } else {
+            statusHist = mapper.createArrayNode();
+        }
+
+        ArrayNode statusToArchive = null;
+        if (statusSnapshot != null) {
+            statusToArchive = statusSnapshot.deepCopy();
+        } else {
+            String recentStatusJson = i.getRecentStatus();
+            if (recentStatusJson != null && !recentStatusJson.isBlank()) {
+                try {
+                    JsonNode statusNode = mapper.readTree(recentStatusJson);
+                    if (statusNode instanceof ArrayNode) {
+                        statusToArchive = ((ArrayNode) statusNode).deepCopy();
+                    }
+                } catch (Exception ignore) { }
+            }
+        }
+        if (statusToArchive != null && hasMeaningfulStatus(statusToArchive)) {
+            statusHist.add(statusToArchive);
+        } else {
+            statusHist.addNull();
+        }
+
         // timestampHistory records when each snapshot was archived
         ArrayNode timestampHist;
         String timestampHistJson = i.getTimestampHistory();
@@ -619,6 +655,7 @@ public class InspectionController {
         i.setAnnotatedByHistory(annotatedHist.toString());
         i.setSeverityHistory(severityHist.toString());
         i.setCommentHistory(commentHist.toString());
+        i.setRecentStatusHistory(statusHist.toString());
         i.setTimestampHistory(timestampHist.toString());
     }
 
@@ -682,6 +719,260 @@ public class InspectionController {
         return node != null && node.isValueNode() ? node.asText() : null;
     }
 
+    private static ArrayNode parseArrayNode(ObjectMapper mapper, String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode node = mapper.readTree(json);
+            return node instanceof ArrayNode ? (ArrayNode) node : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static StatusDiff computeStatusDiff(ArrayNode previousBoxes,
+                                                ArrayNode previousFaults,
+                                                ArrayNode previousComments,
+                                                ArrayNode currentBoxes,
+                                                ArrayNode currentFaults,
+                                                ArrayNode currentComments,
+                                                ObjectMapper mapper) {
+        List<BoxDescriptor> prevDescriptors = buildDescriptors(previousBoxes, previousFaults, previousComments);
+        List<BoxDescriptor> currDescriptors = buildDescriptors(currentBoxes, currentFaults, currentComments);
+
+        List<String> currentFlags = new ArrayList<>();
+        for (int idx = 0; idx < currDescriptors.size(); idx++) {
+            currentFlags.add(null);
+        }
+        List<String> historyFlags = new ArrayList<>();
+        for (int idx = 0; idx < prevDescriptors.size(); idx++) {
+            historyFlags.add(null);
+        }
+
+        // Step 1: exact matches
+        for (int idx = 0; idx < currDescriptors.size(); idx++) {
+            BoxDescriptor curr = currDescriptors.get(idx);
+            if (curr == null) {
+                continue;
+            }
+            int matchIdx = findMatching(prevDescriptors, curr, true);
+            if (matchIdx >= 0) {
+                BoxDescriptor prev = prevDescriptors.get(matchIdx);
+                prev.matched = true;
+                curr.matched = true;
+            }
+        }
+
+        // Step 2: match by index
+        for (int idx = 0; idx < currDescriptors.size(); idx++) {
+            BoxDescriptor curr = currDescriptors.get(idx);
+            if (curr == null || curr.matched) {
+                continue;
+            }
+            if (curr.index >= 0 && curr.index < prevDescriptors.size()) {
+                BoxDescriptor prev = prevDescriptors.get(curr.index);
+                if (prev != null && !prev.matched) {
+                    markEdited(curr, prev, currentFlags, historyFlags);
+                }
+            }
+        }
+
+        // Step 3: relaxed geometry matches
+        for (int idx = 0; idx < currDescriptors.size(); idx++) {
+            BoxDescriptor curr = currDescriptors.get(idx);
+            if (curr == null || curr.matched) {
+                continue;
+            }
+            int matchIdx = findMatching(prevDescriptors, curr, false);
+            if (matchIdx >= 0) {
+                BoxDescriptor prev = prevDescriptors.get(matchIdx);
+                if (prev != null && !prev.matched) {
+                    markEdited(curr, prev, currentFlags, historyFlags);
+                }
+            }
+        }
+
+        // Step 4: remaining are added
+        for (int idx = 0; idx < currDescriptors.size(); idx++) {
+            BoxDescriptor curr = currDescriptors.get(idx);
+            if (curr == null) {
+                continue;
+            }
+            if (!curr.matched) {
+                currentFlags.set(curr.index, "added");
+                curr.matched = true;
+            }
+        }
+
+        // Step 5: previous unmatched entries are deleted
+        for (int idx = 0; idx < prevDescriptors.size(); idx++) {
+            BoxDescriptor prev = prevDescriptors.get(idx);
+            if (prev != null && !prev.matched) {
+                historyFlags.set(prev.index, "deleted");
+            }
+        }
+
+        ArrayNode currentStatus = mapper.createArrayNode();
+        for (String flag : currentFlags) {
+            if (flag == null || flag.isBlank()) {
+                currentStatus.addNull();
+            } else {
+                currentStatus.add(flag);
+            }
+        }
+
+        ArrayNode historyStatus = mapper.createArrayNode();
+        for (String flag : historyFlags) {
+            if (flag == null || flag.isBlank()) {
+                historyStatus.addNull();
+            } else {
+                historyStatus.add(flag);
+            }
+        }
+
+        return new StatusDiff(currentStatus, historyStatus);
+    }
+
+    private static List<BoxDescriptor> buildDescriptors(ArrayNode boxes,
+                                                        ArrayNode faults,
+                                                        ArrayNode comments) {
+        int count = boxes != null ? boxes.size() : 0;
+        List<BoxDescriptor> descriptors = new ArrayList<>();
+        for (int idx = 0; idx < count; idx++) {
+            descriptors.add(null);
+        }
+        if (boxes == null) {
+            return descriptors;
+        }
+        for (int idx = 0; idx < count; idx++) {
+            JsonNode box = boxes.get(idx);
+            if (!(box instanceof ArrayNode) || box.size() < 4) {
+                continue;
+            }
+            double x = box.get(0).asDouble();
+            double y = box.get(1).asDouble();
+            double w = box.get(2).asDouble();
+            double h = box.get(3).asDouble();
+            String fault = faults != null && idx < faults.size() && faults.get(idx) != null && !faults.get(idx).isNull()
+                    ? faults.get(idx).asText("none")
+                    : "none";
+            String comment = null;
+            if (comments != null && idx < comments.size()) {
+                JsonNode commentNode = comments.get(idx);
+                if (commentNode != null && !commentNode.isNull()) {
+                    String raw = commentNode.asText(null);
+                    if (raw != null) {
+                        String trimmed = raw.trim();
+                        if (!trimmed.isEmpty()) {
+                            comment = trimmed;
+                        }
+                    }
+                }
+            }
+            descriptors.set(idx, new BoxDescriptor(idx, x, y, w, h, fault, comment));
+        }
+        return descriptors;
+    }
+
+    private static void markEdited(BoxDescriptor curr,
+                                   BoxDescriptor prev,
+                                   List<String> currentFlags,
+                                   List<String> historyFlags) {
+        prev.matched = true;
+        curr.matched = true;
+        if (curr.index >= 0 && curr.index < currentFlags.size()) {
+            currentFlags.set(curr.index, "edited");
+        }
+        if (prev.index >= 0 && prev.index < historyFlags.size()) {
+            historyFlags.set(prev.index, "edited");
+        }
+    }
+
+    private static int findMatching(List<BoxDescriptor> candidates,
+                                    BoxDescriptor target,
+                                    boolean requireAttributes) {
+        int bestIndex = -1;
+        double bestScore = Double.MAX_VALUE;
+        for (int idx = 0; idx < candidates.size(); idx++) {
+            BoxDescriptor candidate = candidates.get(idx);
+            if (candidate == null || candidate.matched) {
+                continue;
+            }
+            if (!geometryClose(candidate, target, BOX_MATCH_EPSILON)) {
+                continue;
+            }
+            if (requireAttributes && !attributesEqual(candidate, target)) {
+                continue;
+            }
+            double score = geometryDistance(candidate, target);
+            if (score < bestScore) {
+                bestScore = score;
+                bestIndex = idx;
+            }
+        }
+        return bestIndex;
+    }
+
+    private static boolean attributesEqual(BoxDescriptor a, BoxDescriptor b) {
+        return faultEquals(a.fault, b.fault) && commentEquals(a.comment, b.comment);
+    }
+
+    private static boolean faultEquals(String a, String b) {
+        String fa = a == null ? "none" : a.trim();
+        String fb = b == null ? "none" : b.trim();
+        return fa.equalsIgnoreCase(fb);
+    }
+
+    private static boolean commentEquals(String a, String b) {
+        if (a == null || a.isBlank()) {
+            return b == null || b.isBlank();
+        }
+        if (b == null || b.isBlank()) {
+            return false;
+        }
+        return a.equals(b);
+    }
+
+    private static double geometryDistance(BoxDescriptor a, BoxDescriptor b) {
+        double dx = Math.abs(a.x - b.x);
+        double dy = Math.abs(a.y - b.y);
+        double dw = Math.abs(a.w - b.w);
+        double dh = Math.abs(a.h - b.h);
+        return dx + dy + dw + dh;
+    }
+
+    private static boolean geometryClose(BoxDescriptor a, BoxDescriptor b, double epsilon) {
+        return Math.abs(a.x - b.x) <= epsilon
+                && Math.abs(a.y - b.y) <= epsilon
+                && Math.abs(a.w - b.w) <= epsilon
+                && Math.abs(a.h - b.h) <= epsilon;
+    }
+
+    private record StatusDiff(ArrayNode currentStatus, ArrayNode historyStatus) {}
+
+    private static final class BoxDescriptor {
+        final int index;
+        final double x;
+        final double y;
+        final double w;
+        final double h;
+        final String fault;
+        final String comment;
+        boolean matched;
+
+        BoxDescriptor(int index, double x, double y, double w, double h, String fault, String comment) {
+            this.index = index;
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.fault = fault == null ? "none" : fault;
+            this.comment = comment;
+            this.matched = false;
+        }
+    }
+
     private static String csvEscape(String value) {
         if (value == null) {
             return "";
@@ -689,6 +980,21 @@ public class InspectionController {
         return value.replace("\"", "\"\"")
                 .replace('\n', ' ')
                 .replace('\r', ' ');
+    }
+
+    private static boolean hasMeaningfulStatus(ArrayNode node) {
+        if (node == null) {
+            return false;
+        }
+        for (JsonNode entry : node) {
+            if (entry != null && !entry.isNull()) {
+                String text = entry.asText(null);
+                if (text != null && !text.isBlank()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static byte[] decodeDataUrl(String dataUrl) {
@@ -803,6 +1109,8 @@ public class InspectionController {
 
     private record BaselineSelection(String dataUrl, String weatherLabel) {}
 
+    private static final double BOX_MATCH_EPSILON = 0.5;
+
     @PostMapping("/{id}/clear-analysis")
     public ResponseEntity<?> clearAnalysis(@PathVariable String id) {
         return repo.findById(id).map(i -> {
@@ -825,6 +1133,8 @@ public class InspectionController {
                 i.setComment(null);
                 i.setCommentHistory(null);
                 i.setTimestampHistory(null);
+                i.setRecentStatus(null);
+                i.setRecentStatusHistory(null);
                 // analyzed image dimensions removed; nothing to clear
             } catch (Exception ignore) { }
             repo.save(i);
@@ -856,8 +1166,6 @@ public class InspectionController {
                                        @RequestHeader(value = "x-username", required = false) String username) {
         return repo.findById(id).map(i -> {
             try {
-                // Archive current analysis before modification by user
-                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
                 String boxesJson = i.getBoundingBoxes();
                 if (boxesJson == null || boxesJson.isBlank()) {
                     return ResponseEntity.badRequest().body(Map.of("error", "No bounding boxes to modify"));
@@ -871,6 +1179,15 @@ public class InspectionController {
                 if (index < 0 || index >= arr.size()) {
                     return ResponseEntity.badRequest().body(Map.of("error", "Index out of range"));
                 }
+                ArrayNode statusSnapshot = mapper.createArrayNode();
+                for (int idx = 0; idx < arr.size(); idx++) {
+                    if (idx == index) {
+                        statusSnapshot.add("deleted");
+                    } else {
+                        statusSnapshot.addNull();
+                    }
+                }
+                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username, statusSnapshot); } catch (Exception ignore) { }
                 // Remove the box at index
                 arr.remove(index);
                 i.setBoundingBoxes(arr.toString());
@@ -935,8 +1252,15 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed comment */ }
                 }
 
+                // Clear recent status for current state; deletion is represented only in history
+                i.setRecentStatus(null);
+
                 repo.save(i);
-                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
+                return ResponseEntity.ok(Map.of(
+                        "ok", true,
+                        "boundingBoxes", arr,
+                        "faultTypes", i.getFaultTypes(),
+                        "recentStatus", null));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Failed to remove box"));
             }
@@ -952,8 +1276,6 @@ public class InspectionController {
                                               @RequestHeader(value = "x-username", required = false) String username) {
         return repo.findById(id).map(i -> {
             try {
-                // Archive current analysis before modification by user
-                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
                 String boxesJson = i.getBoundingBoxes();
                 if (boxesJson == null || boxesJson.isBlank()) {
                     return ResponseEntity.badRequest().body(Map.of("error", "No bounding boxes to modify"));
@@ -982,6 +1304,15 @@ public class InspectionController {
                 if (matchIdx < 0) {
                     return ResponseEntity.badRequest().body(Map.of("error", "Box not found"));
                 }
+                ArrayNode statusSnapshot = mapper.createArrayNode();
+                for (int idx = 0; idx < arr.size(); idx++) {
+                    if (idx == matchIdx) {
+                        statusSnapshot.add("deleted");
+                    } else {
+                        statusSnapshot.addNull();
+                    }
+                }
+                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username, statusSnapshot); } catch (Exception ignore) { }
                 arr.remove(matchIdx);
                 i.setBoundingBoxes(arr.toString());
 
@@ -1044,8 +1375,14 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed comment */ }
                 }
 
+                i.setRecentStatus(null);
+
                 repo.save(i);
-                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", arr, "faultTypes", i.getFaultTypes()));
+                return ResponseEntity.ok(Map.of(
+                        "ok", true,
+                        "boundingBoxes", arr,
+                        "faultTypes", i.getFaultTypes(),
+                        "recentStatus", null));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Failed to remove box"));
             }
@@ -1059,7 +1396,7 @@ public class InspectionController {
         return repo.findById(id).map(i -> {
             try {
                 // Archive current analysis before modification by user
-                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
+                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username, null); } catch (Exception ignore) { }
                 double x = ((Number)payload.getOrDefault("x", 0)).doubleValue();
                 double y = ((Number)payload.getOrDefault("y", 0)).doubleValue();
                 double w = ((Number)payload.getOrDefault("w", 0)).doubleValue();
@@ -1161,8 +1498,23 @@ public class InspectionController {
                 }
                 i.setComment(commentArr.isEmpty() ? null : commentArr.toString());
 
+                ArrayNode statusArr = mapper.createArrayNode();
+                for (int idx = 0; idx < boxesArr.size(); idx++) {
+                    if (idx == boxesArr.size() - 1) {
+                        statusArr.add("added");
+                    } else {
+                        statusArr.addNull();
+                    }
+                }
+                i.setRecentStatus(hasMeaningfulStatus(statusArr) ? statusArr.toString() : null);
+
                 repo.save(i);
-                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", boxesArr, "faultTypes", ftArr, "comments", commentArr));
+                return ResponseEntity.ok(Map.of(
+                        "ok", true,
+                        "boundingBoxes", boxesArr,
+                        "faultTypes", ftArr,
+                        "comments", commentArr,
+                        "recentStatus", statusArr));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Failed to add box"));
             }
@@ -1178,10 +1530,12 @@ public class InspectionController {
                 String previousBoxes = i.getBoundingBoxes();
                 String previousFaults = i.getFaultTypes();
                 String previousAnnotated = i.getAnnotatedBy();
-                // Archive previous analysis once before bulk update
-                try { archivePreviousAnalysis(i, username == null || username.isBlank() ? "user" : username); } catch (Exception ignore) { }
-
+                String previousComments = i.getComment();
+                String actor = username == null || username.isBlank() ? "user" : username;
                 ObjectMapper mapper = new ObjectMapper();
+                ArrayNode prevBoxesNode = parseArrayNode(mapper, previousBoxes);
+                ArrayNode prevFaultsNode = parseArrayNode(mapper, previousFaults);
+                ArrayNode prevCommentsNode = parseArrayNode(mapper, previousComments);
                 
                 // Parse incoming boxes, faultTypes, and annotatedBy from request
                 var boxesPayload = payload.get("boundingBoxes");
@@ -1224,11 +1578,11 @@ public class InspectionController {
                 ArrayNode finalAnnotated = mapper.createArrayNode();
                 if (annotatedByPayload instanceof List) {
                     for (Object ann : (List<?>) annotatedByPayload) {
-                        finalAnnotated.add(ann != null ? ann.toString() : (username == null || username.isBlank() ? "user" : username));
+                        finalAnnotated.add(ann != null ? ann.toString() : actor);
                     }
                 } else {
                     // Fallback: fill with username for all boxes
-                    String who = username == null || username.isBlank() ? "user" : username;
+                    String who = actor;
                     for (int k = 0; k < finalFaults.size(); k++) {
                         finalAnnotated.add(who);
                     }
@@ -1259,31 +1613,51 @@ public class InspectionController {
                     }
                 }
 
-    String finalBoxesJson = finalBoxes.toString();
-    String finalFaultsJson = finalFaults.toString();
-    String finalAnnotatedJson = finalAnnotated.toString();
-    String finalCommentsJson = hasCommentValue ? finalComments.toString() : null;
+                StatusDiff statusDiff = computeStatusDiff(
+                        prevBoxesNode,
+                        prevFaultsNode,
+                        prevCommentsNode,
+                        finalBoxes,
+                        finalFaults,
+                        finalComments,
+                        mapper);
 
-        // Persist final state
-        i.setBoundingBoxes(finalBoxesJson);
-        i.setFaultTypes(finalFaultsJson);
-        i.setAnnotatedBy(finalAnnotatedJson);
-        i.setComment(finalCommentsJson);
+                ArrayNode historyStatusSnapshot = statusDiff.historyStatus();
+                ArrayNode currentStatusSnapshot = statusDiff.currentStatus();
+
+                try { archivePreviousAnalysis(i, actor, historyStatusSnapshot); } catch (Exception ignore) { }
+
+                String finalBoxesJson = finalBoxes.toString();
+                String finalFaultsJson = finalFaults.toString();
+                String finalAnnotatedJson = finalAnnotated.toString();
+                String finalCommentsJson = hasCommentValue ? finalComments.toString() : null;
+
+                // Persist final state
+                i.setBoundingBoxes(finalBoxesJson);
+                i.setFaultTypes(finalFaultsJson);
+                i.setAnnotatedBy(finalAnnotatedJson);
+                i.setComment(finalCommentsJson);
+                i.setRecentStatus(hasMeaningfulStatus(currentStatusSnapshot) ? currentStatusSnapshot.toString() : null);
                 repo.save(i);
 
-        if (tuneModel) {
-            parameterTuningService.processBulkUpdateFeedback(
-                i,
-                previousBoxes,
-                previousFaults,
-                previousAnnotated,
-                finalBoxesJson,
-                finalFaultsJson,
-                finalAnnotatedJson
-            );
-        }
+                if (tuneModel) {
+                    parameterTuningService.processBulkUpdateFeedback(
+                            i,
+                            previousBoxes,
+                            previousFaults,
+                            previousAnnotated,
+                            finalBoxesJson,
+                            finalFaultsJson,
+                            finalAnnotatedJson
+                    );
+                }
 
-                return ResponseEntity.ok(Map.of("ok", true, "boundingBoxes", finalBoxes, "faultTypes", finalFaults, "comments", finalComments));
+                return ResponseEntity.ok(Map.of(
+                        "ok", true,
+                        "boundingBoxes", finalBoxes,
+                        "faultTypes", finalFaults,
+                        "comments", finalComments,
+                        "recentStatus", currentStatusSnapshot));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Bulk update failed"));
             }
