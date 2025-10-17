@@ -134,7 +134,9 @@ cd backend/AI
 pip install -r requirements.txt
 ```
 
-2. Start the backend (port 8080)
+2. Install Apache Maven by following the  instructions at <https://maven.apache.org/install.html>
+
+3. Start the backend (port 8080)
 
 ```powershell
 # from the project root
