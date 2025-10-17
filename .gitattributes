@@ -1,3 +1,4 @@
 # Keep local versions of these files when merging from main
 backend/src/main/resources/application.yml merge=ours
 frontend/lib/api.ts merge=ours
+README.md merge=ours
