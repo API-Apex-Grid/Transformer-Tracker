@@ -25,6 +25,8 @@ export interface Inspection {
     severity?: string | (number | null)[] | null;
     // Optional per-box comments, aligned to boundingBoxes order
     comment?: string | (string | null)[] | null;
+    // Per-box timestamps, aligned with boundingBoxes order
+    boxCreatedAt?: string | (string | null)[] | null;
     favourite?: boolean;
     // History snapshots stored as JSON strings or parsed arrays
     boundingBoxHistory?: string | (number[][] | null)[] | null;
@@ -35,4 +37,5 @@ export interface Inspection {
     timestampHistory?: string | (string | null)[] | null;
     recentStatus?: string | (string | null)[] | null;
     recentStatusHistory?: string | ((string | null)[] | null)[] | null;
+    boxCreatedAtHistory?: string | ((string | null)[] | null)[] | null;
 }

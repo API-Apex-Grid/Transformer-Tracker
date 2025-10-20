@@ -306,6 +306,39 @@ const parseStatuses = (
   return arr;
 };
 
+const parseCreatedAt = (
+  raw: Inspection["boxCreatedAt"] | unknown,
+  expectedLength: number
+): (string | null)[] => {
+  if (expectedLength <= 0) return [];
+  let source: unknown = raw ?? null;
+  if (typeof source === "string") {
+    const trimmed = source.trim();
+    if (!trimmed) {
+      source = [];
+    } else {
+      try {
+        source = JSON.parse(trimmed);
+      } catch {
+        source = [trimmed];
+      }
+    }
+  }
+  const arr: (string | null)[] = Array.isArray(source)
+    ? (source as unknown[]).map((item) => {
+        if (item == null) return null;
+        const text = typeof item === "string" ? item : String(item);
+        const trimmed = text.trim();
+        return trimmed.length > 0 ? trimmed : null;
+      })
+    : typeof source === "string"
+    ? [source]
+    : [];
+  while (arr.length < expectedLength) arr.push(null);
+  if (arr.length > expectedLength) arr.length = expectedLength;
+  return arr;
+};
+
 const formatStatusLabel = (
   status: string | null | undefined,
   isSnapshot: boolean
@@ -322,11 +355,27 @@ const formatStatusLabel = (
   }
 };
 
+const formatCreatedAtLabel = (
+  value: string | null | undefined
+): string | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 const buildBoxInfo = (
   boxes: number[][],
   faults: string[],
   comments?: (string | null)[],
-  statuses?: ("added" | "edited" | "deleted" | null)[]
+  statuses?: ("added" | "edited" | "deleted" | null)[],
+  createdAt?: (string | null)[]
 ): OverlayBoxInfo[] =>
   boxes.map((box, index) => {
     const fault = faults[index] ?? "none";
@@ -339,6 +388,7 @@ const buildBoxInfo = (
       label: toDisplayLabel(fault),
       comment: comments ? comments[index] ?? null : null,
       status: statuses ? statuses[index] ?? null : null,
+      createdAt: createdAt ? createdAt[index] ?? null : null,
     };
   });
 
@@ -362,6 +412,7 @@ type HistorySnapshot = {
   severity: (number | null)[];
   comments: (string | null)[];
   statuses: ("added" | "edited" | "deleted" | null)[];
+  createdAt: (string | null)[];
   timestamp: string | null;
 };
 
@@ -411,6 +462,9 @@ const cloneComments = (values: (string | null)[]): (string | null)[] =>
 const cloneStatuses = (
   values: ("added" | "edited" | "deleted" | null)[]
 ): ("added" | "edited" | "deleted" | null)[] => values.slice();
+
+const cloneTimestamps = (values: (string | null)[]): (string | null)[] =>
+  values.slice();
 
 const jsonEqual = (a: unknown, b: unknown): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -472,6 +526,7 @@ const InspectionDetailsPanel = ({
   const [storedAnnotatedBy, setStoredAnnotatedBy] = useState<string[]>([]);
   const [storedSeverity, setStoredSeverity] = useState<(number | null)[]>([]);
   const [storedComments, setStoredComments] = useState<(string | null)[]>([]);
+  const [storedCreatedAt, setStoredCreatedAt] = useState<(string | null)[]>([]);
   const [storedStatuses, setStoredStatuses] = useState<("added" | "edited" | "deleted" | null)[]>([]);
   const initialStoredRef = useRef<{
     boxes: number[][];
@@ -479,8 +534,9 @@ const InspectionDetailsPanel = ({
     annotatedBy: string[];
     severity: (number | null)[];
     comments: (string | null)[];
+    createdAt: (string | null)[];
     statuses: ("added" | "edited" | "deleted" | null)[];
-  }>({ boxes: [], faults: [], annotatedBy: [], severity: [], comments: [], statuses: [] });
+  }>({ boxes: [], faults: [], annotatedBy: [], severity: [], comments: [], createdAt: [], statuses: [] });
   const [tuneModelEnabled, setTuneModelEnabled] = useState(true);
   const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[]>([]);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
@@ -601,10 +657,13 @@ const InspectionDetailsPanel = ({
   const visibleStatuses = displaySnapshot
     ? displaySnapshot.statuses
     : storedStatuses;
+  const visibleCreatedAt = displaySnapshot
+    ? displaySnapshot.createdAt
+    : storedCreatedAt;
 
   const visibleBoxInfo = useMemo(
-    () => buildBoxInfo(visibleBoxes, visibleFaultTypes, visibleComments, visibleStatuses),
-    [visibleBoxes, visibleFaultTypes, visibleComments, visibleStatuses]
+    () => buildBoxInfo(visibleBoxes, visibleFaultTypes, visibleComments, visibleStatuses, visibleCreatedAt),
+    [visibleBoxes, visibleFaultTypes, visibleComments, visibleStatuses, visibleCreatedAt]
   );
 
   const editingDisabled = selectedSnapshotIndex !== null;
@@ -679,6 +738,7 @@ const InspectionDetailsPanel = ({
     const severityChanged = !jsonEqual(storedSeverity, initialSnapshot.severity);
     const commentsChanged = !jsonEqual(storedComments, initialSnapshot.comments);
     const statusesChanged = !jsonEqual(storedStatuses, initialSnapshot.statuses);
+    const createdChanged = !jsonEqual(storedCreatedAt, initialSnapshot.createdAt);
     return (
       boxesChanged ||
       faultsChanged ||
@@ -686,6 +746,7 @@ const InspectionDetailsPanel = ({
       severityChanged ||
       commentsChanged ||
       statusesChanged ||
+      createdChanged ||
       pendingAdds.length > 0 ||
       pendingDeletes.length > 0
     );
@@ -695,6 +756,7 @@ const InspectionDetailsPanel = ({
     storedAnnotatedBy,
     storedSeverity,
     storedComments,
+    storedCreatedAt,
     storedStatuses,
     pendingAdds,
     pendingDeletes,
@@ -752,17 +814,23 @@ const InspectionDetailsPanel = ({
         inspection.recentStatus as string | string[] | null | undefined,
         parsedBoxes.length
       );
+      const parsedCreatedAt = parseCreatedAt(
+        inspection.boxCreatedAt as string | (string | null)[] | null,
+        parsedBoxes.length
+      );
       const clonedBoxes = cloneBoxes(parsedBoxes);
       const clonedFaults = cloneStrings(parsedFaults);
       const clonedAnnotated = cloneStrings(parsedAnnotatedBy);
       const clonedSeverity = cloneSeverities(parsedSeverity);
       const clonedComments = cloneComments(parsedComments);
+      const clonedCreated = cloneTimestamps(parsedCreatedAt);
       const clonedStatuses = cloneStatuses(parsedStatuses);
       setStoredBoxes(clonedBoxes);
       setStoredFaultTypes(clonedFaults);
       setStoredAnnotatedBy(clonedAnnotated);
       setStoredSeverity(clonedSeverity);
       setStoredComments(clonedComments);
+      setStoredCreatedAt(clonedCreated);
       setStoredStatuses(clonedStatuses);
       initialStoredRef.current = {
         boxes: cloneBoxes(clonedBoxes),
@@ -770,6 +838,7 @@ const InspectionDetailsPanel = ({
         annotatedBy: cloneStrings(clonedAnnotated),
         severity: cloneSeverities(clonedSeverity),
         comments: cloneComments(clonedComments),
+        createdAt: cloneTimestamps(clonedCreated),
         statuses: cloneStatuses(clonedStatuses),
       };
     } catch {
@@ -778,6 +847,7 @@ const InspectionDetailsPanel = ({
       setStoredAnnotatedBy([]);
       setStoredSeverity([]);
       setStoredComments([]);
+      setStoredCreatedAt([]);
       setStoredStatuses([]);
       initialStoredRef.current = {
         boxes: [],
@@ -785,6 +855,7 @@ const InspectionDetailsPanel = ({
         annotatedBy: [],
         severity: [],
         comments: [],
+        createdAt: [],
         statuses: [],
       };
     }
@@ -810,6 +881,9 @@ const InspectionDetailsPanel = ({
       const timestampHistoryEntries = parseHistoryEntries(
         inspection.timestampHistory
       );
+      const createdHistoryEntries = parseHistoryEntries(
+        inspection.boxCreatedAtHistory
+      );
       const maxSnapshots = Math.max(
         boxHistoryEntries.length,
         faultHistoryEntries.length,
@@ -817,7 +891,8 @@ const InspectionDetailsPanel = ({
         severityHistoryEntries.length,
         commentHistoryEntries.length,
         statusHistoryEntries.length,
-        timestampHistoryEntries.length
+        timestampHistoryEntries.length,
+        createdHistoryEntries.length
       );
       const snapshots: HistorySnapshot[] = [];
       for (let idx = 0; idx < maxSnapshots; idx += 1) {
@@ -850,13 +925,18 @@ const InspectionDetailsPanel = ({
         const statusFallbackLength = Array.isArray(statusRawEntry)
           ? (statusRawEntry as unknown[]).length
           : 0;
+        const createdRawEntry = createdHistoryEntries[idx];
+        const createdFallbackLength = Array.isArray(createdRawEntry)
+          ? (createdRawEntry as unknown[]).length
+          : 0;
         const targetLength = Math.max(
           boxes.length,
           faultsFallbackLength,
           annotatedFallbackLength,
           severityFallbackLength,
           commentFallbackLength,
-          statusFallbackLength
+          statusFallbackLength,
+          createdFallbackLength
         );
         const effectiveLength = targetLength > 0 ? targetLength : boxes.length;
         const faults = parseFaultTypes(faultsRaw, effectiveLength);
@@ -869,6 +949,10 @@ const InspectionDetailsPanel = ({
           | null
           | undefined;
         const statusesSnapshot = parseStatuses(statusRaw, effectiveLength);
+        const createdSnapshot = parseCreatedAt(
+          createdRawEntry as string | (string | null)[] | null,
+          effectiveLength
+        );
         const timestampEntry = timestampHistoryEntries[idx];
         const timestamp =
           typeof timestampEntry === "string"
@@ -891,6 +975,7 @@ const InspectionDetailsPanel = ({
           severity: severitySnapshot,
           comments: commentsSnapshot,
           statuses: statusesSnapshot,
+          createdAt: createdSnapshot,
           timestamp,
         });
       }
@@ -1028,6 +1113,7 @@ const InspectionDetailsPanel = ({
         annotatedBy: cloneStrings(storedAnnotatedBy),
         severity: cloneSeverities(storedSeverity),
         comments: cloneComments(storedComments),
+        createdAt: cloneTimestamps(storedCreatedAt),
         statuses: cloneStatuses(storedStatuses),
       };
       setPendingAdds([]);
@@ -1638,6 +1724,7 @@ const InspectionDetailsPanel = ({
                   setStoredAnnotatedBy([]);
                   setStoredSeverity([]);
                   setStoredComments([]);
+                  setStoredCreatedAt([]);
                   setStoredStatuses([]);
                   initialStoredRef.current = {
                     boxes: [],
@@ -1645,6 +1732,7 @@ const InspectionDetailsPanel = ({
                     annotatedBy: [],
                     severity: [],
                     comments: [],
+                    createdAt: [],
                     statuses: [],
                   };
                   // Also clear any pending changes
@@ -1692,13 +1780,21 @@ const InspectionDetailsPanel = ({
                     return { ...entry, annotatedBy: annotator };
                   })
                 : [];
+              const createdFromResponse = parseCreatedAt(
+                (res as { boxCreatedAt?: unknown }).boxCreatedAt,
+                normalizedBoxInfo.length
+              );
+              const enrichedBoxInfo = normalizedBoxInfo.map((entry, index) => ({
+                ...entry,
+                createdAt: createdFromResponse[index] ?? new Date().toISOString(),
+              }));
               setAiStats({
                 prob: res.prob,
                 histDistance: res.histDistance,
                 dv95: res.dv95,
                 warmFraction: res.warmFraction,
                 boxes: res.boxes as number[][] | number[],
-                boxInfo: normalizedBoxInfo,
+                boxInfo: enrichedBoxInfo,
                 imageWidth: res.imageWidth,
                 imageHeight: res.imageHeight,
                 overallSeverity: res.overallSeverity,
@@ -1706,7 +1802,7 @@ const InspectionDetailsPanel = ({
               });
               // Sync AI results into stored state so they are included on flush
               const aiBoxes = res.boxes as number[][];
-              const aiBoxInfo = normalizedBoxInfo;
+              const aiBoxInfo = enrichedBoxInfo;
               if (Array.isArray(aiBoxes)) {
                 const clonedBoxes = cloneBoxes(aiBoxes);
                 const aiFaults = aiBoxInfo.map((bi: OverlayBoxInfo) => bi.boxFault || "none");
@@ -1720,12 +1816,14 @@ const InspectionDetailsPanel = ({
                 const statusValues = Array(aiBoxes.length).fill(
                   null as "added" | "edited" | "deleted" | null
                 );
+                const createdValues = aiBoxInfo.map((bi) => bi.createdAt ?? new Date().toISOString());
                 setStoredBoxes(clonedBoxes);
                 setStoredFaultTypes(clonedFaults);
                 // All AI-detected boxes are annotated by "AI"
                 setStoredAnnotatedBy(aiAnnotated);
                 setStoredSeverity(severityValues);
                 setStoredComments(commentValues);
+                setStoredCreatedAt(cloneTimestamps(createdValues));
                 setStoredStatuses(statusValues);
                 initialStoredRef.current = {
                   boxes: cloneBoxes(clonedBoxes),
@@ -1733,6 +1831,7 @@ const InspectionDetailsPanel = ({
                   annotatedBy: cloneStrings(aiAnnotated),
                   severity: cloneSeverities(severityValues),
                   comments: cloneComments(commentValues),
+                  createdAt: cloneTimestamps(createdValues),
                   statuses: cloneStatuses(statusValues),
                 };
                 setPendingAdds([]);
@@ -2480,6 +2579,10 @@ const InspectionDetailsPanel = ({
                               (bi as { status?: "added" | "edited" | "deleted" | null }).status ?? null,
                               selectedSnapshotIndex !== null
                             );
+                            const createdAtValue =
+                              (bi as { createdAt?: string | null }).createdAt ??
+                              (visibleCreatedAt[i] ?? null);
+                            const createdAtText = formatCreatedAtLabel(createdAtValue);
                             return (
                               <li
                                 key={`stored-legend-${i}`}
@@ -2504,6 +2607,11 @@ const InspectionDetailsPanel = ({
                                   {statusText && (
                                     <span className="text-[11px] text-gray-500 dark:text-gray-400">
                                       {statusText}
+                                    </span>
+                                  )}
+                                  {createdAtText && (
+                                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                      Added at {createdAtText}
                                     </span>
                                   )}
                                 </div>

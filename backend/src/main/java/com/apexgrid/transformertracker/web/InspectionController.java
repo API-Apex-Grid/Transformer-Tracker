@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -118,6 +119,7 @@ public class InspectionController {
                 JsonNode currentAnnotated = parseJsonNode(mapper, inspection.getAnnotatedBy());
                 JsonNode currentSeverity = parseJsonNode(mapper, inspection.getSeverity());
                 JsonNode currentComments = parseJsonNode(mapper, inspection.getComment());
+                JsonNode currentCreatedAt = parseJsonNode(mapper, inspection.getBoxCreatedAt());
 
                 ObjectNode currentNode = root.putObject("current");
                 putNullable(currentNode, "timestamp",
@@ -127,6 +129,7 @@ public class InspectionController {
                 currentNode.set("annotatedBy", cloneNode(currentAnnotated));
                 currentNode.set("severity", cloneNode(currentSeverity));
                 currentNode.set("comments", cloneNode(currentComments));
+                currentNode.set("boxCreatedAt", cloneNode(currentCreatedAt));
 
                 ArrayNode boxHistory = asArrayNode(parseJsonNode(mapper, inspection.getBoundingBoxHistory()));
                 ArrayNode faultHistory = asArrayNode(parseJsonNode(mapper, inspection.getFaultTypeHistory()));
@@ -134,9 +137,10 @@ public class InspectionController {
                 ArrayNode severityHistory = asArrayNode(parseJsonNode(mapper, inspection.getSeverityHistory()));
                 ArrayNode commentHistory = asArrayNode(parseJsonNode(mapper, inspection.getCommentHistory()));
                 ArrayNode timestampHistory = asArrayNode(parseJsonNode(mapper, inspection.getTimestampHistory()));
+                ArrayNode createdAtHistory = asArrayNode(parseJsonNode(mapper, inspection.getBoxCreatedAtHistory()));
 
                 ArrayNode history = mapper.createArrayNode();
-                int snapshotCount = maxSize(boxHistory, faultHistory, annotatedHistory, severityHistory, commentHistory, timestampHistory);
+                int snapshotCount = maxSize(boxHistory, faultHistory, annotatedHistory, severityHistory, commentHistory, timestampHistory, createdAtHistory);
                 for (int index = 0; index < snapshotCount; index++) {
                     ObjectNode entry = mapper.createObjectNode();
                     String ts = extractText(timestampHistory, index);
@@ -147,6 +151,7 @@ public class InspectionController {
                     entry.set("annotatedBy", cloneNode(snapshotValue(annotatedHistory, index)));
                     entry.set("severity", cloneNode(snapshotValue(severityHistory, index)));
                     entry.set("comments", cloneNode(snapshotValue(commentHistory, index)));
+                    entry.set("boxCreatedAt", cloneNode(snapshotValue(createdAtHistory, index)));
                     history.add(entry);
                 }
 
@@ -159,6 +164,7 @@ public class InspectionController {
                 currentEntry.set("annotatedBy", cloneNode(currentAnnotated));
                 currentEntry.set("severity", cloneNode(currentSeverity));
                 currentEntry.set("comments", cloneNode(currentComments));
+                currentEntry.set("boxCreatedAt", cloneNode(currentCreatedAt));
                 history.add(currentEntry);
 
                 root.set("history", history);
@@ -363,6 +369,7 @@ public class InspectionController {
         String imageUrl = "data:" + mime + ";base64," + base64;
         i.setImageUrl(imageUrl);
     } catch (Exception ignore) { }
+        ObjectMapper mapper = new ObjectMapper();
         try {
             // Persist only the boxes array as returned by Python
             var boxesNode = result.path("boxes");
@@ -386,6 +393,9 @@ public class InspectionController {
                 StringBuilder sev = new StringBuilder();
                 sev.append('[');
                 boolean firstSev = true;
+                StringBuilder created = new StringBuilder();
+                created.append('[');
+                boolean firstCreated = true;
                 for (var bi : boxInfoNode) {
                     String label = bi.path("boxFault").asText("none");
                     if (!first) sb.append(',');
@@ -406,6 +416,9 @@ public class InspectionController {
                     } else {
                         sev.append("null");
                     }
+                    if (!firstCreated) created.append(',');
+                    firstCreated = false;
+                    created.append('"').append(Instant.now().toString()).append('"');
                 }
                 sb.append(']');
                 i.setFaultTypes(sb.toString());
@@ -413,6 +426,8 @@ public class InspectionController {
                 i.setAnnotatedBy(ann.toString());
                 sev.append(']');
                 i.setSeverity(sev.toString());
+                created.append(']');
+                i.setBoxCreatedAt(created.toString());
             }
             // analyzed image dimensions no longer persisted
         } catch (Exception ignore) { }
@@ -430,6 +445,7 @@ public class InspectionController {
         "imageHeight", result.path("imageHeight").asInt(H),
         "boxes", result.path("boxes"),
         "boxInfo", result.path("boxInfo"),
+        "boxCreatedAt", parseJsonNode(mapper, i.getBoxCreatedAt()),
     // faultType removed from API; UI derives from per-box faultTypes if needed
         // 'annotated' from Python is ignored by the frontend; retain for debugging
         "annotated", result.path("annotated").asText("")
@@ -600,6 +616,30 @@ public class InspectionController {
             commentHist.addNull();
         }
 
+        // boxCreatedAtHistory aligns creation timestamps with snapshots
+        ArrayNode createdHist;
+        String createdHistJson = i.getBoxCreatedAtHistory();
+        if (createdHistJson != null && !createdHistJson.isBlank()) {
+            try {
+                var node = mapper.readTree(createdHistJson);
+                createdHist = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+            } catch (Exception ex) {
+                createdHist = mapper.createArrayNode();
+            }
+        } else {
+            createdHist = mapper.createArrayNode();
+        }
+        String createdJson = i.getBoxCreatedAt();
+        if (createdJson != null && !createdJson.isBlank()) {
+            try {
+                createdHist.add(mapper.readTree(createdJson));
+            } catch (Exception ex) {
+                createdHist.addNull();
+            }
+        } else {
+            createdHist.addNull();
+        }
+
         // recentStatusHistory captures per-box recent status flags aligned with snapshots
         ArrayNode statusHist;
         String statusHistJson = i.getRecentStatusHistory();
@@ -655,6 +695,7 @@ public class InspectionController {
         i.setAnnotatedByHistory(annotatedHist.toString());
         i.setSeverityHistory(severityHist.toString());
         i.setCommentHistory(commentHist.toString());
+    i.setBoxCreatedAtHistory(createdHist.toString());
         i.setRecentStatusHistory(statusHist.toString());
         i.setTimestampHistory(timestampHist.toString());
     }
@@ -749,6 +790,10 @@ public class InspectionController {
         for (int idx = 0; idx < prevDescriptors.size(); idx++) {
             historyFlags.add(null);
         }
+        int[] currentToPrevious = new int[currDescriptors.size()];
+        Arrays.fill(currentToPrevious, -1);
+        int[] previousToCurrent = new int[prevDescriptors.size()];
+        Arrays.fill(previousToCurrent, -1);
 
         // Step 1: exact matches
         for (int idx = 0; idx < currDescriptors.size(); idx++) {
@@ -759,6 +804,7 @@ public class InspectionController {
             int matchIdx = findMatching(prevDescriptors, curr, true);
             if (matchIdx >= 0) {
                 BoxDescriptor prev = prevDescriptors.get(matchIdx);
+                recordMatch(curr, prev, currentToPrevious, previousToCurrent);
                 prev.matched = true;
                 curr.matched = true;
             }
@@ -773,7 +819,7 @@ public class InspectionController {
             if (curr.index >= 0 && curr.index < prevDescriptors.size()) {
                 BoxDescriptor prev = prevDescriptors.get(curr.index);
                 if (prev != null && !prev.matched) {
-                    markEdited(curr, prev, currentFlags, historyFlags);
+                    markEdited(curr, prev, currentFlags, historyFlags, currentToPrevious, previousToCurrent);
                 }
             }
         }
@@ -788,7 +834,7 @@ public class InspectionController {
             if (matchIdx >= 0) {
                 BoxDescriptor prev = prevDescriptors.get(matchIdx);
                 if (prev != null && !prev.matched) {
-                    markEdited(curr, prev, currentFlags, historyFlags);
+                    markEdited(curr, prev, currentFlags, historyFlags, currentToPrevious, previousToCurrent);
                 }
             }
         }
@@ -831,7 +877,7 @@ public class InspectionController {
             }
         }
 
-        return new StatusDiff(currentStatus, historyStatus);
+    return new StatusDiff(currentStatus, historyStatus, currentToPrevious, previousToCurrent);
     }
 
     private static List<BoxDescriptor> buildDescriptors(ArrayNode boxes,
@@ -878,14 +924,29 @@ public class InspectionController {
     private static void markEdited(BoxDescriptor curr,
                                    BoxDescriptor prev,
                                    List<String> currentFlags,
-                                   List<String> historyFlags) {
+                                   List<String> historyFlags,
+                                   int[] currentToPrevious,
+                                   int[] previousToCurrent) {
         prev.matched = true;
         curr.matched = true;
+        recordMatch(curr, prev, currentToPrevious, previousToCurrent);
         if (curr.index >= 0 && curr.index < currentFlags.size()) {
             currentFlags.set(curr.index, "edited");
         }
         if (prev.index >= 0 && prev.index < historyFlags.size()) {
             historyFlags.set(prev.index, "edited");
+        }
+    }
+
+    private static void recordMatch(BoxDescriptor curr,
+                                    BoxDescriptor prev,
+                                    int[] currentToPrevious,
+                                    int[] previousToCurrent) {
+        if (curr.index >= 0 && curr.index < currentToPrevious.length) {
+            currentToPrevious[curr.index] = prev.index;
+        }
+        if (prev.index >= 0 && prev.index < previousToCurrent.length) {
+            previousToCurrent[prev.index] = curr.index;
         }
     }
 
@@ -949,7 +1010,10 @@ public class InspectionController {
                 && Math.abs(a.h - b.h) <= epsilon;
     }
 
-    private record StatusDiff(ArrayNode currentStatus, ArrayNode historyStatus) {}
+    private record StatusDiff(ArrayNode currentStatus,
+                              ArrayNode historyStatus,
+                              int[] currentToPrevious,
+                              int[] previousToCurrent) {}
 
     private static final class BoxDescriptor {
         final int index;
@@ -1135,6 +1199,8 @@ public class InspectionController {
                 i.setTimestampHistory(null);
                 i.setRecentStatus(null);
                 i.setRecentStatusHistory(null);
+                i.setBoxCreatedAt(null);
+                i.setBoxCreatedAtHistory(null);
                 // analyzed image dimensions removed; nothing to clear
             } catch (Exception ignore) { }
             repo.save(i);
@@ -1252,6 +1318,20 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed comment */ }
                 }
 
+                String createdJson = i.getBoxCreatedAt();
+                if (createdJson != null && !createdJson.isBlank()) {
+                    try {
+                        JsonNode createdNode = mapper.readTree(createdJson);
+                        if (createdNode instanceof ArrayNode) {
+                            ArrayNode createdArr = (ArrayNode) createdNode;
+                            if (index >= 0 && index < createdArr.size()) {
+                                createdArr.remove(index);
+                                i.setBoxCreatedAt(createdArr.isEmpty() ? null : createdArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed boxCreatedAt */ }
+                }
+
                 // Clear recent status for current state; deletion is represented only in history
                 i.setRecentStatus(null);
 
@@ -1260,7 +1340,8 @@ public class InspectionController {
                         "ok", true,
                         "boundingBoxes", arr,
                         "faultTypes", i.getFaultTypes(),
-                        "recentStatus", null));
+            "recentStatus", null,
+            "boxCreatedAt", parseJsonNode(mapper, i.getBoxCreatedAt())));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Failed to remove box"));
             }
@@ -1375,6 +1456,20 @@ public class InspectionController {
                     } catch (Exception ignore) { /* ignore malformed comment */ }
                 }
 
+                String createdJson = i.getBoxCreatedAt();
+                if (createdJson != null && !createdJson.isBlank()) {
+                    try {
+                        JsonNode createdNode = mapper.readTree(createdJson);
+                        if (createdNode instanceof ArrayNode) {
+                            ArrayNode createdArr = (ArrayNode) createdNode;
+                            if (matchIdx >= 0 && matchIdx < createdArr.size()) {
+                                createdArr.remove(matchIdx);
+                                i.setBoxCreatedAt(createdArr.isEmpty() ? null : createdArr.toString());
+                            }
+                        }
+                    } catch (Exception ignore) { /* ignore malformed boxCreatedAt */ }
+                }
+
                 i.setRecentStatus(null);
 
                 repo.save(i);
@@ -1382,7 +1477,8 @@ public class InspectionController {
                         "ok", true,
                         "boundingBoxes", arr,
                         "faultTypes", i.getFaultTypes(),
-                        "recentStatus", null));
+            "recentStatus", null,
+            "boxCreatedAt", parseJsonNode(mapper, i.getBoxCreatedAt())));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Failed to remove box"));
             }
@@ -1498,6 +1594,24 @@ public class InspectionController {
                 }
                 i.setComment(commentArr.isEmpty() ? null : commentArr.toString());
 
+                ArrayNode createdArr;
+                String createdJson = i.getBoxCreatedAt();
+                if (createdJson != null && !createdJson.isBlank()) {
+                    try {
+                        var node = mapper.readTree(createdJson);
+                        createdArr = node instanceof ArrayNode ? (ArrayNode) node : mapper.createArrayNode();
+                    } catch (Exception ex) {
+                        createdArr = mapper.createArrayNode();
+                    }
+                } else {
+                    createdArr = mapper.createArrayNode();
+                }
+                while (createdArr.size() < boxesArr.size() - 1) {
+                    createdArr.addNull();
+                }
+                createdArr.add(Instant.now().toString());
+                i.setBoxCreatedAt(createdArr.isEmpty() ? null : createdArr.toString());
+
                 ArrayNode statusArr = mapper.createArrayNode();
                 for (int idx = 0; idx < boxesArr.size(); idx++) {
                     if (idx == boxesArr.size() - 1) {
@@ -1514,7 +1628,8 @@ public class InspectionController {
                         "boundingBoxes", boxesArr,
                         "faultTypes", ftArr,
                         "comments", commentArr,
-                        "recentStatus", statusArr));
+            "recentStatus", statusArr,
+            "boxCreatedAt", createdArr));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Failed to add box"));
             }
@@ -1536,6 +1651,7 @@ public class InspectionController {
                 ArrayNode prevBoxesNode = parseArrayNode(mapper, previousBoxes);
                 ArrayNode prevFaultsNode = parseArrayNode(mapper, previousFaults);
                 ArrayNode prevCommentsNode = parseArrayNode(mapper, previousComments);
+                ArrayNode prevCreatedNode = parseArrayNode(mapper, i.getBoxCreatedAt());
                 
                 // Parse incoming boxes, faultTypes, and annotatedBy from request
                 var boxesPayload = payload.get("boundingBoxes");
@@ -1625,6 +1741,26 @@ public class InspectionController {
                 ArrayNode historyStatusSnapshot = statusDiff.historyStatus();
                 ArrayNode currentStatusSnapshot = statusDiff.currentStatus();
 
+                ArrayNode finalCreatedAt = mapper.createArrayNode();
+                int[] currentToPrevious = statusDiff.currentToPrevious();
+                for (int idx = 0; idx < finalBoxes.size(); idx++) {
+                    String ts = null;
+                    if (idx < currentToPrevious.length) {
+                        int prevIdx = currentToPrevious[idx];
+                        if (prevIdx >= 0 && prevCreatedNode != null && prevIdx < prevCreatedNode.size()) {
+                            JsonNode prevTs = prevCreatedNode.get(prevIdx);
+                            if (prevTs != null && !prevTs.isNull()) {
+                                ts = prevTs.asText(null);
+                            }
+                        }
+                    }
+                    if (ts == null || ts.isBlank()) {
+                        ts = Instant.now().toString();
+                    }
+                    finalCreatedAt.add(ts);
+                }
+                String finalCreatedJson = finalCreatedAt.size() == 0 ? null : finalCreatedAt.toString();
+
                 try { archivePreviousAnalysis(i, actor, historyStatusSnapshot); } catch (Exception ignore) { }
 
                 String finalBoxesJson = finalBoxes.toString();
@@ -1637,6 +1773,7 @@ public class InspectionController {
                 i.setFaultTypes(finalFaultsJson);
                 i.setAnnotatedBy(finalAnnotatedJson);
                 i.setComment(finalCommentsJson);
+                i.setBoxCreatedAt(finalCreatedJson);
                 i.setRecentStatus(hasMeaningfulStatus(currentStatusSnapshot) ? currentStatusSnapshot.toString() : null);
                 repo.save(i);
 
@@ -1657,7 +1794,8 @@ public class InspectionController {
                         "boundingBoxes", finalBoxes,
                         "faultTypes", finalFaults,
                         "comments", finalComments,
-                        "recentStatus", currentStatusSnapshot));
+            "recentStatus", currentStatusSnapshot,
+            "boxCreatedAt", finalCreatedAt));
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Bulk update failed"));
             }
