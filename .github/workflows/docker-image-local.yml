@@ -40,15 +40,42 @@ jobs:
         run: |
           set -euo pipefail
           TARGET=${TRIGGER_BRANCH:-local}
-          echo "Checking changes in backend/ between origin/$TARGET and origin/main"
+          echo "Detecting changes related to backend/ for workflow run. Target branch: $TARGET"
+          # Always fetch main so we have the merged commit available
           git fetch origin main
-          git fetch origin $TARGET || true
-          if git ls-remote --exit-code --heads origin "$TARGET" >/dev/null 2>&1; then
-            CHANGED=$(git diff --name-only origin/$TARGET..origin/main || true)
+
+          # Prefer to use the workflow_run.head_sha (the commit produced by the merge/run)
+          if command -v jq >/dev/null 2>&1; then
+            HEAD_SHA=$(jq -r '.workflow_run.head_sha // empty' "$GITHUB_EVENT_PATH" || true)
           else
-            echo "origin/$TARGET not found — treating as changed"
-            CHANGED="backend/"
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
           fi
+
+          CHANGED=""
+          if [ -n "${HEAD_SHA:-}" ]; then
+            echo "Found workflow head SHA: $HEAD_SHA — attempting to list files changed in that commit"
+            # Try to show files for that SHA. If it's not present locally, try fetching it (fetching main should normally fetch it).
+            if git rev-parse --verify "$HEAD_SHA" >/dev/null 2>&1; then
+              CHANGED=$(git show --name-only --pretty="" "$HEAD_SHA" || true)
+            else
+              git fetch origin "$HEAD_SHA" || true
+              CHANGED=$(git show --name-only --pretty="" "$HEAD_SHA" || true)
+            fi
+          fi
+
+          # If we didn't get any changed files from the head SHA, fall back to comparing branches
+          if [ -z "${CHANGED:-}" ]; then
+            echo "No files found for head SHA — falling back to comparing origin/$TARGET..origin/main"
+            git fetch origin "$TARGET" || true
+            if git ls-remote --exit-code --heads origin "$TARGET" >/dev/null 2>&1; then
+              # Use merge-base (three-dot) diff so we capture files introduced by the merge commit(s)
+              CHANGED=$(git diff --name-only origin/main...origin/$TARGET || true)
+            else
+              echo "origin/$TARGET not found — treating as changed"
+              CHANGED="backend/"
+            fi
+          fi
+
           echo "Changed files:\n$CHANGED"
           if printf "%s" "$CHANGED" | grep -E '^backend/' >/dev/null 2>&1; then
             echo "backend_changed=true" >> $GITHUB_OUTPUT
