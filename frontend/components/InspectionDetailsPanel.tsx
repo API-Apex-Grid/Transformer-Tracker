@@ -9,9 +9,14 @@ import OverlayedThermal, {
 } from "@/components/OverlayedThermal";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
-import { useState, useMemo, useEffect, useRef } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { apiUrl } from "@/lib/api";
-import LoadingScreen from "@/components/LoadingScreen";
 
 const toFinite = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -438,8 +443,8 @@ const summarizeAnnotators = (annotatedBy: string[]): string | null => {
   return "multiple annotators";
 };
 
-const buildSnapshotLabel = (snapshot: HistorySnapshot, index: number, total: number): string => {
-  const ordinal = total - index;
+const buildSnapshotLabel = (snapshot: HistorySnapshot, index: number): string => {
+  const ordinal = index + 1;
   const ts = formatTimestamp(snapshot.timestamp);
   const actor = summarizeAnnotators(snapshot.annotatedBy);
   let label = `Snapshot ${ordinal}`;
@@ -472,11 +477,17 @@ const jsonEqual = (a: unknown, b: unknown): boolean =>
 interface InspectionDetailsPanelProps {
   inspection: Inspection;
   onClose: () => void;
+  onLoadingChange?: (state: { show: boolean; message?: string }) => void;
 }
+
+export type InspectionDetailsPersistOptions = {
+  skipStateReset?: boolean;
+};
 
 const InspectionDetailsPanel = ({
   inspection,
   onClose,
+  onLoadingChange,
 }: InspectionDetailsPanelProps) => {
   const { transformers, reload: reloadTransformers } = useTransformers();
   const { reload } = useInspections();
@@ -696,25 +707,75 @@ const InspectionDetailsPanel = ({
     }, 0);
   }, [overlayToggles, visibleBoxInfo]);
 
-  const historyOptions = useMemo(
-    () =>
-      historySnapshots.map((snapshot, index) => ({
+  const historyOptions = useMemo(() => {
+    return historySnapshots.map((snapshot, index) => {
+      const rawTs = snapshot.timestamp ?? null;
+      const parsed = rawTs ? Date.parse(rawTs) : Number.NaN;
+      const sortValue = Number.isFinite(parsed)
+        ? parsed
+        : Number.MIN_SAFE_INTEGER + index; // ensure missing timestamps sort last but remain stable
+      return {
         index,
-        label: buildSnapshotLabel(snapshot, index, historySnapshots.length),
-      })),
-    [historySnapshots]
+        label: buildSnapshotLabel(snapshot, index),
+        sortValue,
+      };
+    });
+  }, [historySnapshots]);
+
+  const historyOptionsDesc = useMemo(() => {
+    if (historyOptions.length === 0) return [] as Array<{ index: number; label: string }>;
+    const sorted = [...historyOptions];
+    sorted.sort((a, b) => {
+      if (b.sortValue !== a.sortValue) return b.sortValue - a.sortValue;
+      return b.index - a.index;
+    });
+    return sorted.map(({ index, label }) => ({ index, label }));
+  }, [historyOptions]);
+
+  const latestTimestampMatching = useCallback(
+    (predicate?: (args: { index: number; annotatedBy: string | undefined }) => boolean) => {
+      let best: { value: string; time: number } | null = null;
+      for (let idx = 0; idx < storedCreatedAt.length; idx += 1) {
+        const raw = storedCreatedAt[idx];
+        if (!raw) continue;
+        if (predicate) {
+          const ann = storedAnnotatedBy[idx];
+          if (!predicate({ index: idx, annotatedBy: ann })) continue;
+        }
+        const parsed = Date.parse(raw);
+        if (!Number.isFinite(parsed)) continue;
+        if (!best || parsed > best.time) {
+          best = { value: raw, time: parsed };
+        }
+      }
+      return best?.value ?? null;
+    },
+    [storedCreatedAt, storedAnnotatedBy]
   );
 
-  const historyOptionsDesc = useMemo(
-    () => historyOptions.slice().reverse(),
-    [historyOptions]
+  const latestNonAiTimestamp = useMemo(
+    () =>
+      latestTimestampMatching(({ annotatedBy }) =>
+        typeof annotatedBy === "string" ? annotatedBy.trim().toLowerCase() !== "ai" : true
+      ),
+    [latestTimestampMatching]
+  );
+
+  const latestAnyTimestamp = useMemo(
+    () => latestTimestampMatching(),
+    [latestTimestampMatching]
   );
 
   const currentVersionLabel = useMemo(() => {
-    const ts = uploadedAt || inspection.imageUploadedAt || null;
+    const ts =
+      latestNonAiTimestamp ??
+      latestAnyTimestamp ??
+      uploadedAt ??
+      inspection.imageUploadedAt ??
+      null;
     const formatted = formatTimestamp(ts);
     return formatted ? `Latest · ${formatted}` : "Latest (current)";
-  }, [uploadedAt, inspection.imageUploadedAt]);
+  }, [latestNonAiTimestamp, latestAnyTimestamp, uploadedAt, inspection.imageUploadedAt]);
 
   const handleHistorySelect = (value: string) => {
     if (value === "current") {
@@ -979,7 +1040,23 @@ const InspectionDetailsPanel = ({
           timestamp,
         });
       }
-      setHistorySnapshots(snapshots);
+      const sortedSnapshots = snapshots
+        .map((snapshot, index) => ({ snapshot, index }))
+        .sort((a, b) => {
+          const tsA = a.snapshot.timestamp ? Date.parse(a.snapshot.timestamp) : Number.NaN;
+          const tsB = b.snapshot.timestamp ? Date.parse(b.snapshot.timestamp) : Number.NaN;
+          const aValid = Number.isFinite(tsA);
+          const bValid = Number.isFinite(tsB);
+          if (aValid && bValid) {
+            if (tsA !== tsB) return tsB - tsA;
+            return b.index - a.index;
+          }
+          if (aValid) return -1;
+          if (bValid) return 1;
+          return b.index - a.index;
+        })
+        .map(({ snapshot }) => snapshot);
+      setHistorySnapshots(sortedSnapshots);
     } catch {
       setHistorySnapshots([]);
     }
@@ -1065,67 +1142,110 @@ const InspectionDetailsPanel = ({
       // Clear any previous analysis overlays for new image
       setAiStats(null);
     }
-    await reload();
+  await reload({ silent: true });
   };
 
-  // Flush final local state to backend in one update, then reload and close
-  const flushAndClose = async () => {
-    if (!inspection.id) {
-      onClose();
-      return;
-    }
-    if (!hasSessionChanges) {
+  const persistSessionChanges = useCallback(
+    async ({ skipStateReset = false }: InspectionDetailsPersistOptions = {}) => {
+      if (!inspection.id) return;
+      if (!hasSessionChanges) return;
+      try {
+        const username =
+          typeof window !== "undefined"
+            ? localStorage.getItem("username") || ""
+            : "";
+        const finalBoxes = storedBoxes.map((b) => [b[0], b[1], b[2], b[3]]);
+        const finalFaults = storedFaultTypes.slice();
+        const finalAnnotatedBy = storedAnnotatedBy.slice();
+        const finalComments = storedComments.map((value) => {
+          if (typeof value === "string") {
+            const trimmed = value.trim();
+            return trimmed.length > 0 ? trimmed : null;
+          }
+          return null;
+        });
+        await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes/bulk`), {
+          method: "PUT",
+          headers: {
+            "content-type": "application/json",
+            "x-username": username,
+          },
+          body: JSON.stringify({
+            boundingBoxes: finalBoxes,
+            faultTypes: finalFaults,
+            annotatedBy: finalAnnotatedBy,
+            comments: finalComments,
+            tuneModel: tuneModelEnabled,
+          }),
+        });
+        initialStoredRef.current = {
+          boxes: cloneBoxes(storedBoxes),
+          faults: cloneStrings(storedFaultTypes),
+          annotatedBy: cloneStrings(storedAnnotatedBy),
+          severity: cloneSeverities(storedSeverity),
+          comments: cloneComments(storedComments),
+          createdAt: cloneTimestamps(storedCreatedAt),
+          statuses: cloneStatuses(storedStatuses),
+        };
+        if (!skipStateReset) {
+          setPendingAdds([]);
+          setPendingDeletes([]);
+        }
+  await reload({ silent: true });
+      } catch {
+        // best-effort persistence; ignore errors here
+      }
+    },
+    [
+      inspection.id,
+      hasSessionChanges,
+      storedBoxes,
+      storedFaultTypes,
+      storedAnnotatedBy,
+      storedSeverity,
+      storedComments,
+      storedCreatedAt,
+      storedStatuses,
+      tuneModelEnabled,
+      reload,
+    ]
+  );
+
+  const flushAndClose = useCallback(async () => {
+    if (!inspection.id || !hasSessionChanges) {
       onClose();
       return;
     }
     setIsClosing(true);
     try {
-      const username =
-        typeof window !== "undefined" ? localStorage.getItem("username") || "" : "";
-      // Send the final local boxes, faultTypes, and annotatedBy as a single bulk update
-      const finalBoxes = storedBoxes.map((b) => [b[0], b[1], b[2], b[3]]);
-      const finalFaults = storedFaultTypes.slice();
-      const finalAnnotatedBy = storedAnnotatedBy.slice();
-      const finalComments = storedComments.map((value) => {
-        if (typeof value === "string") {
-          const trimmed = value.trim();
-          return trimmed.length > 0 ? trimmed : null;
-        }
-        return null;
-      });
-      await fetch(apiUrl(`/api/inspections/${inspection.id}/boxes/bulk`), {
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-          "x-username": username,
-        },
-        body: JSON.stringify({
-          boundingBoxes: finalBoxes,
-          faultTypes: finalFaults,
-          annotatedBy: finalAnnotatedBy,
-          comments: finalComments,
-          tuneModel: tuneModelEnabled,
-        }),
-      });
-      initialStoredRef.current = {
-        boxes: cloneBoxes(storedBoxes),
-        faults: cloneStrings(storedFaultTypes),
-        annotatedBy: cloneStrings(storedAnnotatedBy),
-        severity: cloneSeverities(storedSeverity),
-        comments: cloneComments(storedComments),
-        createdAt: cloneTimestamps(storedCreatedAt),
-        statuses: cloneStatuses(storedStatuses),
-      };
-      setPendingAdds([]);
-      setPendingDeletes([]);
-      await reload();
-    } catch {
-      // best-effort; still close
+      await persistSessionChanges();
     } finally {
       setIsClosing(false);
       onClose();
     }
-  };
+  }, [inspection.id, hasSessionChanges, onClose, persistSessionChanges]);
+
+  useEffect(() => {
+    return () => {
+      void persistSessionChanges({ skipStateReset: true });
+    };
+  }, [persistSessionChanges]);
+
+  const overlayActive = isExporting || isClosing;
+  const overlayMessage = useMemo(() => {
+    if (isExporting) return "Preparing export…";
+    if (isClosing) return tuneModelEnabled ? "Tuning AI model…" : "Saving inspection…";
+    return undefined;
+  }, [isExporting, isClosing, tuneModelEnabled]);
+
+  useEffect(() => {
+    if (!onLoadingChange) return;
+    onLoadingChange({ show: overlayActive, message: overlayMessage });
+  }, [onLoadingChange, overlayActive, overlayMessage]);
+
+  useEffect(() => () => {
+    onLoadingChange?.({ show: false });
+  }, [onLoadingChange]);
 
   const handleResetModelClick = () => {
     setResetModelMessage(null);
@@ -1558,9 +1678,8 @@ const InspectionDetailsPanel = ({
   }, [baselinePreviewUrl]);
 
   return (
-    <>
-      <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
-      <div className="flex justify-between items-start mb-4">
+    <div className="details-panel border rounded-lg shadow-lg mb-6 p-6 transition-colors">
+        <div className="flex justify-between items-start mb-4">
         <h2 className="text-xl font-bold">Inspection Details</h2>
         <div className="flex items-center gap-4">
           <button
@@ -1738,7 +1857,7 @@ const InspectionDetailsPanel = ({
                   // Also clear any pending changes
                   setPendingAdds([]);
                   setPendingDeletes([]);
-                  await reload();
+                  await reload({ silent: true });
                   await reloadTransformers();
                 } catch {
                   // no-op
@@ -1800,7 +1919,7 @@ const InspectionDetailsPanel = ({
                 overallSeverity: res.overallSeverity,
                 overallSeverityLabel: res.overallSeverityLabel,
               });
-              // Sync AI results into stored state so they are included on flush
+              // Sync AI results into stored state so they can be persisted on close
               const aiBoxes = res.boxes as number[][];
               const aiBoxInfo = enrichedBoxInfo;
               if (Array.isArray(aiBoxes)) {
@@ -1825,24 +1944,11 @@ const InspectionDetailsPanel = ({
                 setStoredComments(commentValues);
                 setStoredCreatedAt(cloneTimestamps(createdValues));
                 setStoredStatuses(statusValues);
-                initialStoredRef.current = {
-                  boxes: cloneBoxes(clonedBoxes),
-                  faults: cloneStrings(clonedFaults),
-                  annotatedBy: cloneStrings(aiAnnotated),
-                  severity: cloneSeverities(severityValues),
-                  comments: cloneComments(commentValues),
-                  createdAt: cloneTimestamps(createdValues),
-                  statuses: cloneStatuses(statusValues),
-                };
-                setPendingAdds([]);
-                setPendingDeletes([]);
               }
               // Persisted on backend; optimistically update local selected weather and image
               setSelectedWeather(selectedWeather);
               // Ensure the uploaded image remains the default shown after analysis
               if (previewUrl) setUploadedUrl(previewUrl);
-              // Reload list to pull updated lastAnalysisWeather and weather
-              void reload();
             }}
           />
 
@@ -2329,7 +2435,7 @@ const InspectionDetailsPanel = ({
                         >
                           <option value="current">{currentVersionLabel}</option>
                           {historyOptionsDesc.map(({ index, label }) => (
-                            <option key={index} value={index}>
+                            <option key={index} value={String(index)}>
                               {label}
                             </option>
                           ))}
@@ -2727,19 +2833,8 @@ const InspectionDetailsPanel = ({
           </div>
         )}
       </div>
-      <LoadingScreen
-        show={isClosing || isExporting}
-        message={
-          isExporting
-            ? "Preparing export…"
-            : tuneModelEnabled
-            ? "Tuning AI model…"
-            : "Loading inspections…"
-        }
-      />
-      </div>
-    </>
-  );
+    </div>
+);
 };
 
 export default InspectionDetailsPanel;

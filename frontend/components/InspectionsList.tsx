@@ -20,14 +20,27 @@ const InspectionsList = ({
   hideTransformerColumn = false,
 }: InspectionListProps) => {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const { updateInspection } = useInspections();
+  const { updateInspection, inspections: allInspections } = useInspections();
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
 
+  const resolveContextIndex = (item: Inspection | undefined): number => {
+    if (!item) return -1;
+    if (item.id) {
+      const byId = allInspections.findIndex((candidate) => candidate.id === item.id);
+      if (byId >= 0) return byId;
+    }
+    return allInspections.findIndex(
+      (candidate) => candidate.inspectionNumber === item.inspectionNumber
+    );
+  };
+
   const toggleFavourite = (index: number) => {
-    const i = inspections[index];
-    if (!i) return;
-    updateInspection(index, { ...i, favourite: !i.favourite });
+    const item = inspections[index];
+    const contextIndex = resolveContextIndex(item);
+    if (!item || contextIndex < 0) return;
+    const baseline = allInspections[contextIndex] ?? item;
+    updateInspection(contextIndex, { ...baseline, favourite: !baseline.favourite });
   };
 
   const toggleMenu = (index: number) => {
