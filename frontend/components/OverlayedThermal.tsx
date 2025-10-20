@@ -17,6 +17,7 @@ export type OverlayBoxInfo = {
   comment?: string | null;
   annotatedBy?: string | null;
   status?: "added" | "edited" | "deleted" | null;
+  createdAt?: string | null;
 };
 
 export type OverlayToggles = {
@@ -100,7 +101,8 @@ const OverlayedThermal: React.FC<OverlayedThermalProps> = ({
       const label = info?.label ?? boxFault;
       const comment = info?.comment ?? null;
       const status = info?.status ?? null;
-      return { x: bx, y: by, w: bw, h: bh, boxFault, label, comment, status };
+      const createdAt = info?.createdAt ?? null;
+      return { x: bx, y: by, w: bw, h: bh, boxFault, label, comment, status, createdAt };
     });
   }, [boxes, boxInfo, naturalWidth, naturalHeight, nat?.w, nat?.h]);
 

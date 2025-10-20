@@ -99,6 +99,14 @@ public class Inspection {
     @Column(name = "recentstatushistory", columnDefinition = "text")
     private String recentStatusHistory;
 
+    // Per-box timestamps (ISO-8601) aligned with boundingBoxes order
+    @Column(name = "boxcreatedat", columnDefinition = "text")
+    private String boxCreatedAt;
+
+    // History of per-box created-at arrays aligned with boundingBoxHistory snapshots
+    @Column(name = "boxcreatedathistory", columnDefinition = "text")
+    private String boxCreatedAtHistory;
+
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -184,4 +192,10 @@ public class Inspection {
 
     public String getRecentStatusHistory() { return recentStatusHistory; }
     public void setRecentStatusHistory(String recentStatusHistory) { this.recentStatusHistory = recentStatusHistory; }
+
+    public String getBoxCreatedAt() { return boxCreatedAt; }
+    public void setBoxCreatedAt(String boxCreatedAt) { this.boxCreatedAt = boxCreatedAt; }
+
+    public String getBoxCreatedAtHistory() { return boxCreatedAtHistory; }
+    public void setBoxCreatedAtHistory(String boxCreatedAtHistory) { this.boxCreatedAtHistory = boxCreatedAtHistory; }
 }
