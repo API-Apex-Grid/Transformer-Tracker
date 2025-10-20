@@ -18,7 +18,7 @@ type InspectionsContextValue = {
   addInspection: (i: Inspection) => void;
   updateInspection: (index: number, i: Inspection) => void;
   deleteInspection: (index: number) => void;
-  reload: () => Promise<void>;
+  reload: (options?: { silent?: boolean }) => Promise<void>;
   lastError: string | null;
   loading: boolean;
   fetchInspectionById: (id: string) => Promise<Inspection | null>;
@@ -31,10 +31,11 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   const [lastError, setLastError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const load = async () => {
+  const load = async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     try {
       setLastError(null);
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetch("/api/inspections?summary=1", { cache: "no-store" });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -106,7 +107,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
       console.error('[InspectionsContext] load failed:', err);
       setLastError(msg);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -234,10 +235,20 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
 
   const deleteInspection = async (index: number) => {
     const id = inspections[index]?.id;
-    if (!id) return;
-  await fetch(apiUrl(`/api/inspections/${id}`), { method: "DELETE" });
-  // Reload to reflect deletion and keep list in sync
-  await load();
+    if (!id) {
+      setInspections((prev) => prev.filter((_, i) => i !== index));
+      return;
+    }
+    const res = await fetch(apiUrl(`/api/inspections/${id}`), { method: "DELETE" });
+    if (!res.ok) {
+      const message = (await res.json().catch(() => ({}))) as { error?: string };
+      const errorText = message?.error || `Failed to delete inspection (${res.status})`;
+      console.error("[InspectionsContext] delete failed:", errorText);
+      setLastError(errorText);
+      return;
+    }
+    setLastError(null);
+    setInspections((prev) => prev.filter((item) => item.id !== id));
   };
 
   const value = useMemo(

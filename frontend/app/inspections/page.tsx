@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import InspectionsList from "@/components/InspectionsList";
-import InspectionDetailsPanel from "@/components/InspectionDetailsPanel";
 import AddInspectionModal from "@/components/AddInspectionModal";
 import EditInspectionModal from "@/components/EditInspectionModal";
 import { Inspection } from "@/types/inspection";
@@ -19,11 +18,8 @@ const InspectionsPage = () => {
     addInspection: addInspectionCtx,
     updateInspection,
     deleteInspection,
-    fetchInspectionById,
+    loading,
   } = useInspections();
-  const [viewingInspection, setViewingInspection] = useState<Inspection | null>(
-    null
-  );
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [username, setUsername] = useState<string | null>(null);
@@ -37,8 +33,6 @@ const InspectionsPage = () => {
   const [favOnly, setFavOnly] = useState(false);
 
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("");
 
   useEffect(() => {
     try {
@@ -64,25 +58,29 @@ const InspectionsPage = () => {
     addInspectionCtx(inspection);
   };
 
-  const openView = async (index: number) => {
-    const i = inspections[index];
-    if (!i) return;
-    try {
-      setLoadingMessage("Loading inspection…");
-      setIsLoading(true);
-      const full = i.id ? await fetchInspectionById(i.id) : null;
-      setViewingInspection(full || i);
-    } finally {
-      setIsLoading(false);
+  const resolveContextIndex = (item: Inspection | undefined): number => {
+    if (!item) return -1;
+    if (item.id) {
+      const byId = inspections.findIndex((candidate) => candidate.id === item.id);
+      if (byId >= 0) return byId;
     }
+    return inspections.findIndex(
+      (candidate) => candidate.inspectionNumber === item.inspectionNumber
+    );
   };
 
-  const closeView = () => {
-    setViewingInspection(null);
+  const openView = (index: number) => {
+    const item = filteredInspections[index];
+    if (!item) return;
+    const identifier = item.id ?? encodeURIComponent(item.inspectionNumber);
+    router.push(`/inspections/${identifier}`);
   };
 
   const openEdit = (index: number) => {
-    setEditingIndex(index);
+    const item = filteredInspections[index];
+    const contextIndex = resolveContextIndex(item);
+    if (!item || contextIndex === -1) return;
+    setEditingIndex(contextIndex);
     setIsEditOpen(true);
   };
 
@@ -97,23 +95,38 @@ const InspectionsPage = () => {
   };
 
   const deleteInspectionHandler = (index: number) => {
-    deleteInspection(index);
+    const item = filteredInspections[index];
+    const contextIndex = resolveContextIndex(item);
+    if (!item || contextIndex === -1) return;
+    deleteInspection(contextIndex);
   };
 
-  const statusOptions = Array.from(
-    new Set(inspections.map((i) => i.status))
-  ).filter(Boolean);
-  const filteredInspections = inspections.filter((i) => {
-    const byInsp =
-      inspQuery.trim() === "" ||
-      i.inspectionNumber.toLowerCase().includes(inspQuery.toLowerCase());
-    const byTf =
-      tfQuery.trim() === "" ||
-      i.transformerNumber.toLowerCase().includes(tfQuery.toLowerCase());
-    const byStatus = statusFilter === "" || i.status === statusFilter;
-    const byFav = !favOnly || !!i.favourite;
-    return byInsp && byTf && byStatus && byFav;
-  });
+  const filteredInspections = useMemo(() => {
+    return inspections.filter((inspection) => {
+      const byInspection =
+        inspQuery.trim() === "" ||
+        inspection.inspectionNumber
+          .toLowerCase()
+          .includes(inspQuery.toLowerCase());
+      const byTransformer =
+        tfQuery.trim() === "" ||
+        inspection.transformerNumber
+          .toLowerCase()
+          .includes(tfQuery.toLowerCase());
+      const byStatus =
+        statusFilter === "" || inspection.status === statusFilter;
+      const byFav = !favOnly || !!inspection.favourite;
+      return byInspection && byTransformer && byStatus && byFav;
+    });
+  }, [inspections, inspQuery, tfQuery, statusFilter, favOnly]);
+
+  const statusOptions = useMemo(
+    () =>
+      Array.from(new Set(inspections.map((inspection) => inspection.status))).filter(
+        Boolean
+      ),
+    [inspections]
+  );
 
   return (
     <>
@@ -129,13 +142,7 @@ const InspectionsPage = () => {
                 APEX-GRID
               </span>
             </div>
-            {viewingInspection ? (
-              <h1 className="text-2xl font-bold">
-                Inspection {viewingInspection.inspectionNumber}
-              </h1>
-            ) : (
-              <h1 className="text-2xl font-bold">All Inspections</h1>
-            )}
+            <h1 className="text-2xl font-bold">All Inspections</h1>
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-3">
@@ -174,93 +181,78 @@ const InspectionsPage = () => {
                 Log out
               </button>
             </div>
-            {!viewingInspection && (
-              <div className="flex bg-gray-200 rounded-lg p-1">
-                <button
-                  onClick={() => router.push("/transformer")}
-                  className="px-4 py-2 rounded-md custombutton font-medium mr-1"
-                >
-                  Transformers
-                </button>
-                <button
-                  disabled={true}
-                  className="px-4 py-2 rounded-md disabledbutton font-medium ml-1"
-                >
-                  Inspections
-                </button>
-              </div>
-            )}
+            <div className="flex bg-gray-200 rounded-lg p-1">
+              <button
+                onClick={() => router.push("/transformer")}
+                className="px-4 py-2 rounded-md custombutton font-medium mr-1"
+              >
+                Transformers
+              </button>
+              <button
+                disabled={true}
+                className="px-4 py-2 rounded-md disabledbutton font-medium ml-1"
+              >
+                Inspections
+              </button>
+            </div>
           </div>
         </div>
 
-        {!viewingInspection && (
-          <AddInspectionModal addInspection={addInspection} />
-        )}
+        <AddInspectionModal addInspection={addInspection} />
 
         {/* Filters */}
-        {!viewingInspection && (
-          <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
-            <input
-              value={inspQuery}
-              onChange={(e) => setInspQuery(e.target.value)}
-              placeholder="Search inspection no."
-              className="px-3 py-2 border rounded-md"
-            />
-            <input
-              value={tfQuery}
-              onChange={(e) => setTfQuery(e.target.value)}
-              placeholder="Search transformer no."
-              className="px-3 py-2 border rounded-md"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border rounded-md"
-            >
-              <option value="">All status</option>
-              {statusOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <label className="inline-flex items-center gap-2 text-sm text-black px-3 py-2">
-              <input
-                type="checkbox"
-                checked={favOnly}
-                onChange={(e) => setFavOnly(e.target.checked)}
-              />
-              Favourites
-            </label>
-            <button
-              onClick={() => {
-                setInspQuery("");
-                setTfQuery("");
-                setStatusFilter("");
-                setFavOnly(false);
-              }}
-              className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
-            >
-              Clear
-            </button>
-          </div>
-        )}
-
-        {viewingInspection && (
-          <InspectionDetailsPanel
-            inspection={viewingInspection}
-            onClose={closeView}
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+          <input
+            value={inspQuery}
+            onChange={(e) => setInspQuery(e.target.value)}
+            placeholder="Search inspection no."
+            className="px-3 py-2 border rounded-md"
           />
-        )}
-
-        {!viewingInspection && (
-          <InspectionsList
-            inspections={filteredInspections}
-            onEdit={openEdit}
-            onDelete={deleteInspectionHandler}
-            onView={openView}
+          <input
+            value={tfQuery}
+            onChange={(e) => setTfQuery(e.target.value)}
+            placeholder="Search transformer no."
+            className="px-3 py-2 border rounded-md"
           />
-        )}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 border rounded-md"
+          >
+            <option value="">All status</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <label className="inline-flex items-center gap-2 text-sm text-black px-3 py-2">
+            <input
+              type="checkbox"
+              checked={favOnly}
+              onChange={(e) => setFavOnly(e.target.checked)}
+            />
+            Favourites
+          </label>
+          <button
+            onClick={() => {
+              setInspQuery("");
+              setTfQuery("");
+              setStatusFilter("");
+              setFavOnly(false);
+            }}
+            className="px-3 py-2 border rounded-md bg-gray-100 hover:bg-gray-200"
+          >
+            Clear
+          </button>
+        </div>
+
+        <InspectionsList
+          inspections={filteredInspections}
+          onEdit={openEdit}
+          onDelete={deleteInspectionHandler}
+          onView={openView}
+        />
 
         <EditInspectionModal
           isOpen={isEditOpen}
@@ -269,7 +261,7 @@ const InspectionsPage = () => {
           onSave={saveEdit}
         />
       </div>
-      <LoadingScreen show={isLoading} message={loadingMessage || "Loading…"} />
+  <LoadingScreen show={loading} message="Loading inspections..." />
     </>
   );
 };

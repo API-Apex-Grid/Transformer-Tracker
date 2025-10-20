@@ -25,13 +25,26 @@ const TransformerList = ({
 
   const closeMenu = () => setOpenMenu(null);
 
-  const { updateTransformer } = useTransformers();
+  const { updateTransformer, transformers: allTransformers } = useTransformers();
+
+  const resolveContextIndex = (item: Transformer | undefined): number => {
+    if (!item) return -1;
+    if (item.id) {
+      const byId = allTransformers.findIndex((candidate) => candidate.id === item.id);
+      if (byId >= 0) return byId;
+    }
+    return allTransformers.findIndex(
+      (candidate) => candidate.transformerNumber === item.transformerNumber
+    );
+  };
 
   const toggleFavourite = (index: number) => {
-    const t = transformers[index];
-    if (!t) return;
-    const updated = { ...t, favourite: !t.favourite } as Transformer;
-    updateTransformer(index, updated);
+    const item = transformers[index];
+    const contextIndex = resolveContextIndex(item);
+    if (!item || contextIndex < 0) return;
+    const baseline = allTransformers[contextIndex] ?? item;
+    const updated = { ...baseline, favourite: !baseline.favourite } as Transformer;
+    updateTransformer(contextIndex, updated);
   };
 
   return (

@@ -164,10 +164,20 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
 
   const deleteTransformer = async (index: number) => {
     const id = transformers[index]?.id;
-    if (!id) return;
-  await fetch(apiUrl(`/api/transformers/${id}`), { method: "DELETE" });
-    setTransformers((prev) => prev.filter((_, i) => i !== index));
-  void load();
+    if (!id) {
+      setTransformers((prev) => prev.filter((_, i) => i !== index));
+      return;
+    }
+    const res = await fetch(apiUrl(`/api/transformers/${id}`), { method: "DELETE" });
+    if (!res.ok) {
+      const message = (await res.json().catch(() => ({}))) as { error?: string };
+      const errorText = message?.error || `Failed to delete transformer (${res.status})`;
+      console.error("[TransformersContext] delete failed:", errorText);
+      setLastError(errorText);
+      return;
+    }
+    setLastError(null);
+    setTransformers((prev) => prev.filter((item) => item.id !== id));
   };
 
   const value = useMemo(
