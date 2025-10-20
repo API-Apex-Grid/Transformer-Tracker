@@ -21,8 +21,19 @@ jobs:
 
       - name: Determine target branch
         run: |
-          # workflow_run payload contains the head_branch (the branch that triggered the original run)
-          echo "TRIGGER_BRANCH=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_ENV
+          set -euo pipefail
+          if command -v jq >/dev/null 2>&1; then
+            TARGET=$(jq -r '.workflow_run.pull_requests[0].base.ref // .workflow_run.head_branch // empty' "$GITHUB_EVENT_PATH" || true)
+          else
+            TARGET="${{ github.event.workflow_run.head_branch }}"
+          fi
+          if [ -z "${TARGET:-}" ]; then
+            echo "TRIGGER_BRANCH=local" >> $GITHUB_ENV
+            echo "Determined TRIGGER_BRANCH=local"
+          else
+            echo "TRIGGER_BRANCH=$TARGET" >> $GITHUB_ENV
+            echo "Determined TRIGGER_BRANCH=$TARGET"
+          fi
 
       - name: Detect backend changes between target and main
         id: detect
