@@ -5,13 +5,19 @@ on:
     workflows: ["Merge main into target"]
     types:
       - completed
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch to compare against main (default: local)'
+        required: false
+        default: 'local'
 
 permissions:
   contents: read
 
 jobs:
   detect-and-build:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,13 +26,18 @@ jobs:
           fetch-depth: 0
 
       - name: Determine target branch
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           set -euo pipefail
+          # Prefer a manually-dispatched input, then PR base (if present), then workflow_run.head_branch
           if command -v jq >/dev/null 2>&1; then
-            TARGET=$(jq -r '.workflow_run.pull_requests[0].base.ref // .workflow_run.head_branch // empty' "$GITHUB_EVENT_PATH" || true)
+            TARGET=$(jq -r '.inputs.target_branch // .workflow_run.pull_requests[0].base.ref // .workflow_run.head_branch // empty' "$GITHUB_EVENT_PATH" || true)
           else
-            TARGET="${{ github.event.workflow_run.head_branch }}"
+            # jq not available; leave TARGET empty (jq is available on ubuntu-latest)
+            TARGET=""
+            echo "jq not found; TARGET will be empty"
           fi
+
           if [ -z "${TARGET:-}" ]; then
             echo "TRIGGER_BRANCH=local" >> $GITHUB_ENV
             echo "Determined TRIGGER_BRANCH=local"
@@ -36,6 +47,7 @@ jobs:
           fi
 
       - name: Detect backend changes between target and main
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         id: detect
         run: |
           set -euo pipefail
@@ -84,7 +96,7 @@ jobs:
           fi
 
       - name: Build and push Docker image
-        if: steps.detect.outputs.backend_changed == 'true'
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.detect.outputs.backend_changed == 'true' }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
