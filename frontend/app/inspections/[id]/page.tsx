@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import InspectionDetailsPanel from "@/components/InspectionDetailsPanel";
@@ -18,6 +18,7 @@ const InspectionDetailPage = () => {
   const { inspections, fetchInspectionById } = useInspections();
 
   const [inspection, setInspection] = useState<Inspection | null>(null);
+  const inspectionRef = useRef<Inspection | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [profileSrc, setProfileSrc] = useState<string>("/avatar.png");
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +32,10 @@ const InspectionDetailPage = () => {
       return { show: state.show, message: state.message };
     });
   }, []);
+
+  useEffect(() => {
+    inspectionRef.current = inspection;
+  }, [inspection]);
 
   useEffect(() => {
     try {
@@ -63,15 +68,33 @@ const InspectionDetailPage = () => {
         }
         return;
       }
-      setIsLoading(true);
-  setLoadingMessage("Loading inspection...");
+      const currentInspection = inspectionRef.current;
       setNotFound(false);
       const existing = inspections.find((candidate) => {
         if (candidate.id && candidate.id === rawId) return true;
         return candidate.inspectionNumber === rawId;
       });
-      let resolved: Inspection | null = existing ?? null;
       const targetId = existing?.id ?? rawId;
+      const targetKey = existing?.id ?? existing?.inspectionNumber ?? rawId;
+      const currentIdentifiers = new Set<string>();
+      if (typeof currentInspection?.id === "string") {
+        currentIdentifiers.add(currentInspection.id);
+      }
+      if (typeof currentInspection?.inspectionNumber === "string") {
+        currentIdentifiers.add(currentInspection.inspectionNumber);
+      }
+      const candidateKeys = new Set<string>();
+      if (typeof rawId === "string") candidateKeys.add(rawId);
+      if (typeof targetId === "string") candidateKeys.add(targetId);
+      if (typeof targetKey === "string") candidateKeys.add(targetKey);
+      const matchesCurrent =
+        currentIdentifiers.size > 0 &&
+        Array.from(candidateKeys).some((key) => currentIdentifiers.has(key));
+      if (!matchesCurrent) {
+        setIsLoading(true);
+        setLoadingMessage("Loading inspection...");
+      }
+      let resolved: Inspection | null = existing ?? currentInspection ?? null;
       try {
         const fetched = await fetchInspectionById(targetId);
         if (fetched) {
@@ -80,17 +103,17 @@ const InspectionDetailPage = () => {
       } catch {
         // ignore fetch failures
       }
+      if (!active) return;
       if (!resolved) {
-        if (active) {
+        if (!currentInspection) {
           setInspection(null);
           setNotFound(true);
         }
-      } else if (active) {
+      } else {
         setInspection(resolved);
+        setNotFound(false);
       }
-      if (active) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     };
     void load();
     return () => {
