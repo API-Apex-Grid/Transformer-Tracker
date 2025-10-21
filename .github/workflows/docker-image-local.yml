@@ -95,6 +95,10 @@ jobs:
             echo "backend_changed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Build with Maven
+        run: mvn -DskipTests package
+        working-directory: backend      
+
       - name: Build and push Docker image
         if: ${{ github.event_name == 'workflow_dispatch' || steps.detect.outputs.backend_changed == 'true' }}
         env:
