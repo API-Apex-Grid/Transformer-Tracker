@@ -60,8 +60,6 @@ create table public.inspections (
 
 create index IF not exists idx_inspections_transformer_id on public.inspections using btree (transformer_id) TABLESPACE pg_default;
 
-create index IF not exists idx_inspections_transformer_id on public.inspections using btree (transformer_id) TABLESPACE pg_default;
-
 create table public.transformers (
   id text not null,
   region text null,
