@@ -47,10 +47,18 @@ create table public.inspections (
   timestamphistory text null,
   timestamp timestamp with time zone null,
   severityhistory text null,
+  comment text null,
+  commenthistory text null,
+  recentstatus text null,
+  recentstatushistory text null,
+  boxcreatedat text null,
+  boxcreatedathistory text null,
   constraint inspections_pkey primary key (id),
   constraint inspections_inspectionnumber_key unique (inspectionnumber),
   constraint fk_inspections_transformer foreign KEY (transformer_id) references transformers (id) on delete CASCADE
-)
+) TABLESPACE pg_default;
+
+create index IF not exists idx_inspections_transformer_id on public.inspections using btree (transformer_id) TABLESPACE pg_default;
 
 create index IF not exists idx_inspections_transformer_id on public.inspections using btree (transformer_id) TABLESPACE pg_default;
 
