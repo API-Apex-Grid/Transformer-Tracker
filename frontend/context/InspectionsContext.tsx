@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Inspection } from "@/types/inspection";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 const parseMaybeJson = (value: unknown): unknown => {
   if (typeof value !== "string") return value;
@@ -36,7 +36,10 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     try {
       setLastError(null);
       if (!silent) setLoading(true);
-      const res = await fetch("/api/inspections?summary=1", { cache: "no-store" });
+      const res = await fetch("/api/inspections?summary=1", {
+        cache: "no-store",
+        headers: authHeaders(),
+      });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
@@ -143,7 +146,10 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
 
   const fetchInspectionById = async (id: string): Promise<Inspection | null> => {
     try {
-      const res = await fetch(`/api/inspections/${id}`, { cache: 'no-store' });
+      const res = await fetch(`/api/inspections/${id}`, {
+        cache: 'no-store',
+        headers: authHeaders(),
+      });
       if (!res.ok) return null;
       const raw = await res.json();
       const normalized: Inspection = ((): Inspection => {
@@ -193,7 +199,10 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     try { username = typeof window !== 'undefined' ? localStorage.getItem('username') : null; } catch {}
     const res = await fetch(apiUrl("/api/inspections"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
       // Spring expects the transformer relation; map transformerNumber into a nested object
       body: JSON.stringify({
         inspectionNumber: i.inspectionNumber,
@@ -218,7 +227,10 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     if (!id) return;
     const res = await fetch(apiUrl(`/api/inspections/${id}`), {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
       body: JSON.stringify({
         inspectionNumber: i.inspectionNumber,
         inspectedDate: i.inspectedDate,
@@ -239,7 +251,10 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
       setInspections((prev) => prev.filter((_, i) => i !== index));
       return;
     }
-    const res = await fetch(apiUrl(`/api/inspections/${id}`), { method: "DELETE" });
+    const res = await fetch(apiUrl(`/api/inspections/${id}`), {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
     if (!res.ok) {
       const message = (await res.json().catch(() => ({}))) as { error?: string };
       const errorText = message?.error || `Failed to delete inspection (${res.status})`;

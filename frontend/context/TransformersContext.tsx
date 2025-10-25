@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Transformer } from "@/types/transformer";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 type TransformersContextValue = {
   transformers: Transformer[];
@@ -29,7 +29,10 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
       setLastError(null);
       setLoading(true);
       // Ask the local API for summary only to reduce payload
-      const res = await fetch("/api/transformers?summary=1", { cache: "no-store" });
+      const res = await fetch("/api/transformers?summary=1", {
+        cache: "no-store",
+        headers: authHeaders(),
+      });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Backend responded ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
@@ -89,7 +92,10 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
 
   const fetchTransformerById = async (id: string): Promise<Transformer | null> => {
     try {
-      const res = await fetch(`/api/transformers/${id}`, { cache: 'no-store' });
+      const res = await fetch(`/api/transformers/${id}`, {
+        cache: 'no-store',
+        headers: authHeaders(),
+      });
       if (!res.ok) return null;
       const t = await res.json();
       return t as Transformer;
@@ -103,6 +109,10 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   const addTransformer = async (t: Transformer) => {
     let username: string | null = null;
     try { username = typeof window !== 'undefined' ? localStorage.getItem('username') : null; } catch {}
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    };
     const now = new Date().toISOString();
     const body: Partial<Transformer> = {
       ...t,
@@ -116,7 +126,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     };
   const res = await fetch(apiUrl("/api/transformers"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
     });
     const created = await res.json();
@@ -154,7 +164,10 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
 
   const res = await fetch(apiUrl(`/api/transformers/${id}`), {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
       body: JSON.stringify(body),
     });
     const updated = await res.json();
@@ -168,7 +181,10 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
       setTransformers((prev) => prev.filter((_, i) => i !== index));
       return;
     }
-    const res = await fetch(apiUrl(`/api/transformers/${id}`), { method: "DELETE" });
+    const res = await fetch(apiUrl(`/api/transformers/${id}`), {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
     if (!res.ok) {
       const message = (await res.json().catch(() => ({}))) as { error?: string };
       const errorText = message?.error || `Failed to delete transformer (${res.status})`;

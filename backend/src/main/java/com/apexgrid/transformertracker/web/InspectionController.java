@@ -17,6 +17,8 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -297,9 +299,11 @@ public class InspectionController {
     public ResponseEntity<?> upload(@PathVariable String id,
                                     @RequestParam("file") MultipartFile file,
                                     @RequestParam("weather") String weather,
-                                    @RequestHeader(value = "x-username", required = false) String uploader) {
+                                    @AuthenticationPrincipal UserDetails principal,
+                                    @RequestHeader(value = "x-username", required = false) String uploaderHeader) {
         return repo.findById(id).map(i -> {
             try {
+                String uploader = principal != null ? principal.getUsername() : uploaderHeader;
                 String base64 = Base64.getEncoder().encodeToString(file.getBytes());
                 String mime = file.getContentType() == null ? "application/octet-stream" : file.getContentType();
                 String imageUrl = "data:" + mime + ";base64," + base64;

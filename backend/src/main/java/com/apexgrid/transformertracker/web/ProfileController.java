@@ -2,9 +2,16 @@ package com.apexgrid.transformertracker.web;
 
 import com.apexgrid.transformertracker.model.User;
 import com.apexgrid.transformertracker.repo.UserRepo;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
@@ -20,8 +27,11 @@ public class ProfileController {
     }
 
     @GetMapping
-    public ResponseEntity<?> getProfile(@RequestParam String username) {
-        var userOpt = userRepo.findByUsername(username);
+    public ResponseEntity<?> getProfile(@AuthenticationPrincipal UserDetails principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+        var userOpt = userRepo.findByUsername(principal.getUsername());
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -33,11 +43,14 @@ public class ProfileController {
     }
 
     @PostMapping("/image")
-    public ResponseEntity<?> updateImage(@RequestBody Map<String, String> body) {
-        String username = body.getOrDefault("username", "");
+    public ResponseEntity<?> updateImage(@AuthenticationPrincipal UserDetails principal,
+                                         @RequestBody Map<String, String> body) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
         String image = body.getOrDefault("image", "");
         
-        var userOpt = userRepo.findByUsername(username);
+        var userOpt = userRepo.findByUsername(principal.getUsername());
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -50,8 +63,11 @@ public class ProfileController {
     }
 
     @PostMapping("/password")
-    public ResponseEntity<?> updatePassword(@RequestBody Map<String, String> body) {
-        String username = body.getOrDefault("username", "");
+    public ResponseEntity<?> updatePassword(@AuthenticationPrincipal UserDetails principal,
+                                            @RequestBody Map<String, String> body) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
         String currentPassword = body.getOrDefault("currentPassword", "");
         String newPassword = body.getOrDefault("newPassword", "");
         
@@ -59,7 +75,7 @@ public class ProfileController {
             return ResponseEntity.badRequest().body(Map.of("error", "New password cannot be empty"));
         }
         
-        var userOpt = userRepo.findByUsername(username);
+        var userOpt = userRepo.findByUsername(principal.getUsername());
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }

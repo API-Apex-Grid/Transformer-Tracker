@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTransformers } from "@/context/TransformersContext";
 import { Transformer } from "@/types/transformer";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 interface AddTransformerModalProps {
   addTransformer: (transformer: Transformer) => void;
@@ -58,7 +58,7 @@ const AddTransformerModal = ({ addTransformer }: AddTransformerModalProps) => {
     try {
       const res = await fetch(
         apiUrl(`/api/transformers?tf=${encodeURIComponent(tfNo)}`),
-        { cache: "no-store" }
+        { cache: "no-store", headers: authHeaders() }
       );
       if (!res.ok) return true; // if API failed, do not block
       const data = await res.json();

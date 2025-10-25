@@ -261,6 +261,8 @@ const TransformerDetailPage = () => {
                     localStorage.removeItem("isLoggedIn");
                     localStorage.removeItem("username");
                     localStorage.removeItem("userImage");
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("tokenExpiresAt");
                   } catch {}
                   router.replace("/");
                 }}

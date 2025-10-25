@@ -31,9 +31,17 @@ export default function Home() {
       // Mark logged-in for simple client gating; also store username and image
       const data = await res.json();
       try {
+        const expiresIn = typeof data.expiresIn === "number" ? data.expiresIn : null;
         localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("username", username);
+        localStorage.setItem("username", data.username || username);
         localStorage.setItem("userImage", data.image || "");
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
+        if (expiresIn) {
+          const expiresAt = Date.now() + expiresIn * 1000;
+          localStorage.setItem("tokenExpiresAt", String(expiresAt));
+        }
         // Notify app that login succeeded so data contexts can reload immediately
         window.dispatchEvent(new Event("app:logged-in"));
       } catch {}

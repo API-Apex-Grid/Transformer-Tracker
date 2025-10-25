@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { apiUrl, authHeaders } from '@/lib/api';
 
 interface ProgressStepProps {
   title: string;
@@ -172,14 +173,13 @@ const ThermalImage: React.FC<ThermalImageProps> = ({
     if (!selectedFile) return;
     try {
       setIsAnalyzing(true);
-      // We use the Next public env base to call Spring backend
-      const { apiUrl } = await import("@/lib/api");
       const form = new FormData();
       form.append('file', selectedFile);
       form.append('weather', weather);
       const res = await fetch(apiUrl(`/api/inspections/${inspectionId}/analyze`), {
         method: 'POST',
-        body: form
+        body: form,
+        headers: authHeaders(),
       });
       const ok = res.ok;
       const data = ok ? await res.json() : null;

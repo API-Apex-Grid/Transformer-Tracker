@@ -4,9 +4,13 @@ import { apiUrl } from "@/lib/api";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const res = await fetch(apiUrl(`/api/transformers/${id}`), { cache: "no-store" });
+  const authHeader = req.headers.get("authorization");
+  const res = await fetch(apiUrl(`/api/transformers/${id}`), {
+    cache: "no-store",
+    headers: authHeader ? { authorization: authHeader } : undefined,
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     return NextResponse.json({ error: "Upstream error", details: text || undefined }, { status: res.status });

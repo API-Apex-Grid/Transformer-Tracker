@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Inspection } from "@/types/inspection";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 interface AddInspectionModalProps {
   addInspection: (inspection: Inspection) => void;
@@ -61,7 +61,7 @@ const AddInspectionModal = ({
     try {
       const res = await fetch(
         apiUrl(`/api/transformers?tf=${encodeURIComponent(transformerNumber)}`),
-        { cache: "no-store" }
+        { cache: "no-store", headers: authHeaders() }
       );
       let exists = false;
       if (res.ok) {

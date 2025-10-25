@@ -16,7 +16,7 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 const toFinite = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -1125,12 +1125,7 @@ const InspectionDetailsPanel = ({
       {
         method: "POST",
         body: formData,
-        headers: {
-          "x-username":
-            typeof window !== "undefined"
-              ? localStorage.getItem("username") || ""
-              : "",
-        },
+        headers: authHeaders(),
       }
     );
     if (res.ok) {
@@ -1150,10 +1145,6 @@ const InspectionDetailsPanel = ({
       if (!inspection.id) return;
       if (!hasSessionChanges) return;
       try {
-        const username =
-          typeof window !== "undefined"
-            ? localStorage.getItem("username") || ""
-            : "";
         const finalBoxes = storedBoxes.map((b) => [b[0], b[1], b[2], b[3]]);
         const finalFaults = storedFaultTypes.slice();
         const finalAnnotatedBy = storedAnnotatedBy.slice();
@@ -1168,7 +1159,7 @@ const InspectionDetailsPanel = ({
           method: "PUT",
           headers: {
             "content-type": "application/json",
-            "x-username": username,
+            ...authHeaders(),
           },
           body: JSON.stringify({
             boundingBoxes: finalBoxes,
@@ -1262,13 +1253,11 @@ const InspectionDetailsPanel = ({
     setIsResettingModel(true);
     setResetModelError(null);
     try {
-      const username =
-        typeof window !== "undefined" ? localStorage.getItem("username") || "" : "";
       const response = await fetch(apiUrl(`/api/inspections/model/reset`), {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-username": username,
+          ...authHeaders(),
         },
       });
       if (!response.ok) {
@@ -1619,7 +1608,10 @@ const InspectionDetailsPanel = ({
     setIsExporting(true);
     try {
       const response = await fetch(
-        apiUrl(`/api/inspections/${inspection.id}/export`)
+        apiUrl(`/api/inspections/${inspection.id}/export`),
+        {
+          headers: authHeaders(),
+        }
       );
       if (!response.ok) {
         throw new Error(`Export failed (${response.status})`);
@@ -1655,12 +1647,7 @@ const InspectionDetailsPanel = ({
     await fetch(apiUrl(`/api/transformers/${transformer.id}/baseline`), {
       method: "POST",
       body: form,
-      headers: {
-        "x-username":
-          typeof window !== "undefined"
-            ? localStorage.getItem("username") || ""
-            : "",
-      },
+      headers: authHeaders(),
     });
     await reloadTransformers();
     // After successful upload and reload, clear local preview to show persisted baseline
@@ -1829,7 +1816,7 @@ const InspectionDetailsPanel = ({
                 try {
                   await fetch(
                     apiUrl(`/api/inspections/${inspection.id}/clear-analysis`),
-                    { method: "POST" }
+                    { method: "POST", headers: authHeaders() }
                   );
                   // Reset local UI state
                   setPreviewUrl(null);

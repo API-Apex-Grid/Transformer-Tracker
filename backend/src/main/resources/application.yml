@@ -12,7 +12,7 @@ spring:
 
 app:
   jwt:
-    secret: change-me-in-prod-32-bytes-minimum-secret
+    secret: ${APP_JWT_SECRET:defaultSecretKey}
     expiry-seconds: 86400
   ai:
     python: py

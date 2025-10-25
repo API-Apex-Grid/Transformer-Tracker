@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, authHeaders } from "@/lib/api";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function ProfilePage() {
@@ -27,14 +27,18 @@ export default function ProfilePage() {
     const u =
       typeof window !== "undefined" ? localStorage.getItem("username") : null;
     setUsername(u);
-    if (u) {
-      fetch(apiUrl(`/api/profile?username=${encodeURIComponent(u)}`))
-        .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-        .then((data) => {
-          setImage(data.image || null);
-        })
-        .catch(() => {});
-    }
+    fetch(apiUrl("/api/profile"), { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((data) => {
+        if (data?.username) {
+          setUsername(data.username);
+          try {
+            localStorage.setItem("username", data.username);
+          } catch {}
+        }
+        setImage(data?.image || null);
+      })
+      .catch(() => {});
   }, [router]);
 
   const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,14 +54,16 @@ export default function ProfilePage() {
   };
 
   const saveImage = async () => {
-    if (!username) return;
     setSaving(true);
     setMessage(null);
     try {
       const res = await fetch(apiUrl("/api/profile/image"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, image }),
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
+        body: JSON.stringify({ image }),
       });
       if (!res.ok) throw new Error("Failed to save image");
       setMessage("Profile image saved");
@@ -73,14 +79,16 @@ export default function ProfilePage() {
   };
 
   const changePassword = async () => {
-    if (!username) return;
     setSaving(true);
     setMessage(null);
     try {
       const res = await fetch(apiUrl("/api/profile/password"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, currentPassword, newPassword }),
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
       if (!res.ok) {
         const text = await res.text();
