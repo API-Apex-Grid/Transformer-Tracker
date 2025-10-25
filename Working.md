@@ -60,16 +60,26 @@
 
 - Inputs: baseline image (PNG) and candidate inspection image (PNG). Optional JSON config supplies parameter overrides; defaults pulled from `DEFAULT_PARAMS`.
 - Parameters may arrive via the generated `params.json` file or `TT_PARAMS` environment variable. Values align with `AiParameterKey` enums.
-- Processing flow:
-  - Convert both images to RGB, optionally crop, and (when re-enabled) align baseline to candidate via SIFT homography (OpenCV). Alignment is currently disabled by default but code is present.
-  - Sample HSV histograms (`h_bins`×`s_bins`) at interval `sample_every`, compute L2 histogram distance, and collect V-channel deltas (`dv95` percentile) as severity drivers.
-  - Build a warm-pixel mask when hue falls within thresholds, saturation/value exceed minimums, and the candidate is brighter than baseline by `contrast_threshold`.
-  - Flood-fill connected components inside the mask, discarding blobs below `min_area_pixels` or `min_area_ratio`. Nested boxes with ≥50% overlapping area are removed.
-  - Classify overall fault (`loose joint`, `wire overload`, `point overload`, or `none`) using area ratios, aspect ratio, and central overlap heuristics.
-  - For every remaining box, compute average/max V deltas, map to a severity score (`severity_lower_delta`/`severity_upper_delta`), and attach per-box metadata (`boxFault`, `severity`, `severityLabel`, `avgDeltaV`, `maxDeltaV`).
-  - Emit JSON summary `{ prob, histDistance, dv95, warmFraction, imageWidth, imageHeight, boxes, boxInfo, faultType, overallSeverity, overallSeverityLabel }`.
+- Outputs: JSON payload containing bounding boxes, per-box metadata, and overall severity metrics that the backend stores alongside inspection records.
 - Dependencies: Pillow, NumPy, optional OpenCV (SIFT); listed in `backend/AI/requirements.txt`.
 - Spring wrapper (`PythonAnalyzerService`) writes temp PNGs plus a params JSON, invokes `app.ai.python` (default `py`), and cleans temp artifacts after reading stdout JSON.
+
+### Processing Flow
+
+- Convert both images to RGB, optionally crop, and (when re-enabled) align baseline to candidate via SIFT homography (OpenCV). Alignment is currently disabled by default but code is present.
+- Sample HSV histograms (`h_bins`×`s_bins`) at interval `sample_every`, compute L2 histogram distance, and collect V-channel deltas (`dv95` percentile) as severity drivers.
+- Build a warm-pixel mask when hue falls within thresholds, saturation/value exceed minimums, and the candidate is brighter than baseline by `contrast_threshold`.
+- Flood-fill connected components inside the mask, discarding blobs below `min_area_pixels` or `min_area_ratio`. Nested boxes with ≥50% overlapping area are removed.
+- Classify overall fault (`loose joint`, `wire overload`, `point overload`, or `none`) using area ratios, aspect ratio, and central overlap heuristics.
+- For every remaining box, compute average/max V deltas, map to a severity score (`severity_lower_delta`/`severity_upper_delta`), and attach per-box metadata (`boxFault`, `severity`, `severityLabel`, `avgDeltaV`, `maxDeltaV`).
+- Emit JSON summary `{ prob, histDistance, dv95, warmFraction, imageWidth, imageHeight, boxes, boxInfo, faultType, overallSeverity, overallSeverityLabel }`.
+
+### Fault Detection Summary
+
+- Detects candidate “hot” pixels by comparing HSV deltas between baseline and inspection frames.
+- Groups those pixels into bounding boxes and drops noise by enforcing minimum size and overlap rules.
+- Assigns each box a fault type and severity based on heat concentration, area ratios, and brightness deltas relative to the baseline.
+- Produces an overall fault classification that reflects the most critical detected hotspot.
 
 ## AI Tuning Feedback Loop (`ParameterTuningService`)
 
@@ -78,6 +88,12 @@
 - Writes the candidate image to disk, computes added/removed box sets (tolerant to ±0.5 px), and builds a payload with previous/final boxes, faults, annotators, comments, box tolerance, and the current parameter snapshot.
 - Invokes `backend/AI/tune_parameters.py`, which measures HSV statistics for each added/removed box and suggests parameter deltas (e.g., relax warm thresholds for missed hotspots, tighten thresholds for false positives). Small deltas (<1e-6) are filtered out.
 - Applies suggested deltas through `AiParameterService.adjustValue`, which clamps to configured min/max and persists to `ai_model_parameters` (Postgres). Updated values are immediately cached and will be used by subsequent analyses.
+
+### Tuning Workflow
+
+- Captures human-labelled adjustments and contrasts them with prior AI output to diagnose where the model over- or under-detected hotspots.
+- Translates those discrepancies into concrete threshold shifts (e.g., hue window, contrast delta, minimum area) via `tune_parameters.py`.
+- Persists the adjusted parameters so the very next analysis run benefits from the feedback without redeploying the service.
 
 ## Performance-Oriented Behaviors
 
