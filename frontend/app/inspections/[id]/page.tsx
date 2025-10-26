@@ -168,10 +168,7 @@ const InspectionDetailPage = () => {
               </button>
               <button
                 onClick={() => router.push("/inspections")}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                View all inspections
-              </button>
+                className="text-sm text-gray-500 hover:text-gray-700"></button>
             </div>
             {inspection && (
               <h1 className="text-2xl font-bold">

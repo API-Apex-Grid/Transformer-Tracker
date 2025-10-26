@@ -3,6 +3,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Inspection } from "@/types/inspection";
 import { apiUrl, authHeaders } from "@/lib/api";
+import {
+  TRANSFORMER_REMOVED_EVENT,
+  TransformerRemovedDetail,
+} from "@/lib/events";
 
 const parseMaybeJson = (value: unknown): unknown => {
   if (typeof value !== "string") return value;
@@ -143,6 +147,31 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
   }, []);
 
   // Do not refetch on route change to avoid unnecessary reloads
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onTransformerRemoved = (event: Event) => {
+      const detail = (event as CustomEvent<TransformerRemovedDetail>).detail;
+      if (!detail) return;
+      const removedId = detail.id ?? undefined;
+      const removedNumber = detail.transformerNumber ?? undefined;
+      if (!removedId && !removedNumber) return;
+      setInspections((prev) =>
+        prev.filter((inspection) => {
+          const nestedTransformer = (inspection as unknown as { transformer?: { id?: string | null; transformerNumber?: string | null } }).transformer;
+          const matchesId = removedId && ((inspection as unknown as { transformerId?: string | null }).transformerId === removedId || nestedTransformer?.id === removedId);
+          const matchesNumber =
+            removedNumber &&
+            ((inspection.transformerNumber && inspection.transformerNumber === removedNumber) || nestedTransformer?.transformerNumber === removedNumber);
+          return !(matchesId || matchesNumber);
+        })
+      );
+    };
+    window.addEventListener(TRANSFORMER_REMOVED_EVENT, onTransformerRemoved as EventListener);
+    return () => {
+      window.removeEventListener(TRANSFORMER_REMOVED_EVENT, onTransformerRemoved as EventListener);
+    };
+  }, []);
 
   const fetchInspectionById = async (id: string): Promise<Inspection | null> => {
     try {

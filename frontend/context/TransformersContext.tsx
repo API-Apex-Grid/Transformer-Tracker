@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Transformer } from "@/types/transformer";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { dispatchTransformerRemoved } from "@/lib/events";
 
 type TransformersContextValue = {
   transformers: Transformer[];
@@ -176,9 +177,14 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
   };
 
   const deleteTransformer = async (index: number) => {
-    const id = transformers[index]?.id;
+    const transformer = transformers[index];
+    if (!transformer) return;
+    const id = transformer.id ?? null;
+    const transformerNumber = transformer.transformerNumber ?? null;
+
     if (!id) {
       setTransformers((prev) => prev.filter((_, i) => i !== index));
+      dispatchTransformerRemoved({ id, transformerNumber });
       return;
     }
     const res = await fetch(apiUrl(`/api/transformers/${id}`), {
@@ -193,7 +199,17 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
       return;
     }
     setLastError(null);
-    setTransformers((prev) => prev.filter((item) => item.id !== id));
+    setTransformers((prev) =>
+      prev.filter((item) => {
+        if (id) {
+          if (item.id) return item.id !== id;
+          // Fallback to transformerNumber if id is missing locally
+          return item.transformerNumber !== transformerNumber;
+        }
+        return item.transformerNumber !== transformerNumber;
+      })
+    );
+    dispatchTransformerRemoved({ id, transformerNumber });
   };
 
   const value = useMemo(

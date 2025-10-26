@@ -6,16 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "db:setup": "prisma generate && prisma migrate dev --name init",
-  "db:push": "prisma db push",
-  "db:migrate:uploadTimestamps": "prisma migrate dev --name add-uploaded-at",
-  "db:generate": "prisma generate",
-  "db:backfill-uploadedAt": "node scripts/backfill-uploaded-at.mjs",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init",
-    "prisma:studio": "prisma studio",
-    "db:reset": "prisma migrate reset -f"
+    "lint": "next lint"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
