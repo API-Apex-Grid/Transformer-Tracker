@@ -115,8 +115,26 @@
 - Triggered by `PUT /api/inspections/{id}/boxes/bulk` (unless the caller sets `tuneModel=false`).
 - Archives the previous AI snapshot via `archivePreviousAnalysis`, then records a `ParameterFeedback` row capturing AI/user box counts, diffs, serialized snapshots, and notes.
 - Writes the candidate image to disk, computes added/removed box sets (tolerant to ±0.5 px), and builds a payload with previous/final boxes, faults, annotators, comments, box tolerance, and the current parameter snapshot.
-- Invokes `backend/AI/tune_parameters.py`, which measures HSV statistics for each added/removed box and suggests parameter deltas (e.g., relax warm thresholds for missed hotspots, tighten thresholds for false positives). Small deltas (<1e-6) are filtered out.
-- Applies suggested deltas through `AiParameterService.adjustValue`, which clamps to configured min/max and persists to `ai_model_parameters` (Postgres). Updated values are immediately cached and will be used by subsequent analyses.
+- Invokes `backend/AI/tune_parameters.py`. The tuner runs a deterministic, heuristic adjustment routine based on per-box HSV statistics and the current parameter snapshot. Key points:
+  - Input: the candidate PNG plus a JSON payload containing `parameters` (current values), `addedBoxes` and `removedBoxes` (arrays of `[x,y,w,h]`). The script computes a global `mean_value` from the candidate image's V channel and then measures each box.
+  - Per-box measurements (from `measure_box`) returned for each box include: `pixel_count`, `area_ratio` (box area / image area), `mean_saturation`, `mean_value`, `mean_delta_value` (V − global mean), `warm_fraction` (fraction of pixels whose hue is inside the warm window), `mean_hue` (circular mean in [0,1]) and `max_value`.
+  - Tuning constants (implemented in the script):
+    - SATURATION_MARGIN = 0.01, VALUE_MARGIN = 0.01, CONTRAST_MARGIN = 0.01
+    - HUE_STEP = 0.01, AREA_RATIO_STEP = 0.0005
+  - Adjustment strategy (high-level):
+    - For `added` boxes (human labeled hotspots that the AI missed) the tuner assumes thresholds are too strict. It decreases thresholds to make detection more permissive:
+      - If `warm_sat_threshold - mean_saturation > SATURATION_MARGIN` then `warm_sat_threshold` is decreased by delta = -min(0.05, max(0.005, sat_diff * 0.5)).
+      - Equivalent logic applies to `warm_val_threshold` and `contrast_threshold` using `mean_value` and `mean_delta_value`.
+      - If `min_area_pixels` is larger than the observed `pixel_count`, it is reduced with a bounded step (delta = -min(50.0, max(5.0, pixel_diff * 0.25))).
+      - If the observed area ratios are smaller than `min_area_ratio`, the script reduces `min_area_ratio` by a small step.
+      - If the box's `warm_fraction >= 0.5`, tune the hue window by nudging `warm_hue_low` up or `warm_hue_high` down toward the measured `mean_hue` (bounded by `HUE_STEP`).
+    - For `removed` boxes (AI boxes the user removed) the tuner assumes thresholds are too permissive. It increases thresholds to tighten detection:
+      - If `mean_saturation - warm_sat_threshold < -SATURATION_MARGIN` then `warm_sat_threshold` is increased by a bounded delta (making it harder to count a pixel as warm).
+      - Similar symmetric adjustments are applied for `warm_val_threshold`, `contrast_threshold`, `min_area_pixels` and `min_area_ratio` (using slightly different step factors and bounds).
+      - Hue adjustments mirror the added-case logic but move the hue bounds away from the problematic `mean_hue`.
+  - Update bookkeeping: updates are accumulated per-parameter (the `apply` helper) and tiny deltas (< 1e-6) are filtered out before returning.
+  - Output: the script prints a JSON object containing `parameter_updates` (map of parameter → delta), `notes` (a short summary string), and counts (`addedCount`, `removedCount`).
+- The backend receives these suggested deltas, then `AiParameterService.adjustValue` clamps each new value to configured min/max, persists the update to `ai_model_parameters` (Postgres), and refreshes the in-memory cache so subsequent analyses immediately use the new parameters.
 
 ### Tuning Workflow
 

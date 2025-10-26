@@ -1,17 +1,17 @@
 # Apex Grid
 
-## Live app
+## 🚀 Live app
 
 - Production (deployed): <https://apex-grid-transformer-tracker.vercel.app/>
 - Want to run everything locally? Use the instructions in `Instructions.md`.
 
-## Auth
+## 🔒 Auth
 
 - Log in with `user1`..`user5` using the same value as the password (e.g., `user3`/`user3`).
 - Backend handles user creation/verification on first successful login at `/api/login`.
 - The UI shows “Logged in as username” and records `uploadedBy` for created/updated entities and images.
 
-## Features
+## 💫 Features
 
 - Transformers and Inspections CRUD (App Router API routes with Prisma)
 - Image uploads stored as base64 in the DB; baseline images can be added/removed
@@ -25,7 +25,7 @@
 - Cascade delete: deleting a Transformer removes its Inspections
 - Now available in dark mode!
 
-## Project structure (high level)
+## 🤖 Project structure (high level)
 
 - `frontend/` — Next.js frontend
   - `app/` — App Router pages
@@ -41,7 +41,7 @@
     - `repository/` — Spring Data JPA repositories
     - `service/` — business logic services
 
-## Project Description
+## 📖 Project Description
 
 - The project has 2 main pages: transformers and inspections.
 - The transformers page allows users to create, read, update, and delete (CRUD) transformer records.
@@ -55,7 +55,21 @@
 - An AI model can be used to analyze and generate insights from the thermal images of transformers.
 ![Screenshot of AI inference page](ai_inference.png)
 
-## For Improvements
+## 🔁 CI / CD
+
+This project uses automated deployments for both frontend and backend:
+
+- Frontend (Next.js) — deployed on Vercel
+  - The `frontend/` directory is connected to Vercel via the GitHub integration. Pushes to `main` (or PR merges depending on your Vercel settings) trigger Vercel builds and automatic deployments of the site.
+
+- Backend (Spring Boot) — deployed on Render via DockerHub
+  - A GitHub Actions workflow builds the backend and pushes a Docker image to Docker Hub. See `.github/workflows/docker-image-deployed.yml` for the workflow (it sets up Java, runs `mvn -DskipTests package`, builds the image, and pushes it to Docker Hub).
+  - The workflow expects the following GitHub Secrets to be configured in this repository:
+    - `DOCKERHUB_USERNAME` — Docker Hub account name
+    - `DOCKERHUB_TOKEN` — Docker Hub access token or password
+  - Docker Hub is configured with a repository that Render watches. When the image is pushed, Docker Hub calls the Render deploy hook which triggers Render to deploy the new container image.
+
+## 🤗 For Improvements
 
 - Feel free to open issues or submit PRs for any bugs, improvements, or new features.
 - For your own use, you are free to customize the project as needed.
