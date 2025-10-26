@@ -3,9 +3,7 @@
 ## Live app
 
 - Production (deployed): <https://apex-grid-transformer-tracker.vercel.app/>
-- Want to run everything locally? Use the "local" branch which is set up for a fully local workflow (Spring Boot + H2 + Next.js). From your repo:
-  - `git checkout local`
-  - Follow the local instructions in the README.
+- Want to run everything locally? Use the instructions in `Instructions.md`.
 
 ## Auth
 
