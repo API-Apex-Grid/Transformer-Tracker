@@ -15,10 +15,10 @@
 
 | Method | Path | Description | Notes |
 | --- | --- | --- | --- |
-| POST | /api/login | Username/password check against `users` table. | Uses BCrypt hashes; returns `{ token: "dev-token", username, image }`. No JWT enforcement yet (`SecurityConfig` permits all requests).|
-| GET | /api/profile | Fetch minimal profile for a username. | Query param `username`; response `{ username, image }`.|
-| POST | /api/profile/image | Update stored base64 avatar. | Body `{ username, image }`; blank image clears it.|
-| POST | /api/profile/password | Change password after verifying `currentPassword`. | Requires `username`, `currentPassword`, `newPassword`.|
+| POST | /api/login | Username/password check against `users` table. | Uses BCrypt hashes; returns `{ token: "<jwt>", username, image }`. The token is a signed JWT; the frontend should store it (e.g. localStorage) and send it as `Authorization: Bearer <jwt>` on subsequent requests. The login endpoint remains public; other endpoints enforce JWT-based auth via `SecurityConfig`. |
+| GET | /api/profile | Fetch minimal profile for the authenticated user. | Auth required: `Authorization: Bearer <jwt>`. The server reads the username from the JWT subject and ignores any `username` query param. Response `{ username, image }`. |
+| POST | /api/profile/image | Update stored base64 avatar. | Auth required. Request body `{ image }` (username is inferred from JWT); blank image clears it. |
+| POST | /api/profile/password | Change password after verifying `currentPassword`. | Auth required. Server uses username from JWT; body must include `currentPassword` and `newPassword`. |
 
 ### Transformers
 
@@ -26,10 +26,10 @@
 | --- | --- | --- | --- |
 | GET | /api/transformers | List transformers. | Query `tf` (exact transformerNumber) and `fav=true` filter; summary proxy drops image blobs for faster list rendering|
 | GET | /api/transformers/{id} | Fetch a single transformer. | Returns full entity including base64 baseline images.|
-| POST | /api/transformers | Create transformer metadata and optional baselines. | Request body mirrors `Transformer` fields; frontend stamps uploader metadata when sending|
-| PUT | /api/transformers/{id} | Update transformer. | Replaces entity by ID; caller should preserve existing IDs when overwriting.|
-| DELETE | /api/transformers/{id} | Remove transformer and cascade inspections. | Responds `{ ok: true }` on success.|
-| POST | /api/transformers/{id}/baseline | Upload baseline thermal image. | `multipart/form-data` with parts `file` (image) and `weather` (`sunny\|cloudy\|rainy`). Optional `x-username` header annotates uploader.|
+| POST | /api/transformers | Create transformer metadata and optional baselines. | Auth required for mutations: `Authorization: Bearer <jwt>`. Request body mirrors `Transformer` fields; the server records `createdBy` from the JWT subject. |
+| PUT | /api/transformers/{id} | Update transformer. | Auth required. Replaces entity by ID; caller should preserve existing IDs when overwriting; `modifiedBy` is set from JWT. |
+| DELETE | /api/transformers/{id} | Remove transformer and cascade inspections. | Auth required. Responds `{ ok: true }` on success; action is attributed to the JWT user. |
+| POST | /api/transformers/{id}/baseline | Upload baseline thermal image. | Auth required. `multipart/form-data` with parts `file` (image) and `weather` (`sunny\|cloudy\|rainy`). The uploader is taken from the JWT; the `x-username` header is deprecated and ignored by the server. |
 
 ### Inspections & Analysis
 
@@ -38,23 +38,52 @@
 | GET | /api/inspections | List inspections. | Optional `fav=true`; frontend uses `summary=1` query on proxy to strip heavy fields.|
 | GET | /api/inspections/{id} | Fetch full inspection. | Includes transformer reference and latest analysis blobs.|
 | GET | /api/inspections/{id}/export | Generate analysis export ZIP. | Packages `metadata.json`, `history.csv`, candidate/baseline images, and plotting script.|
-| POST | /api/inspections | Create inspection linked to transformer. | Body must include `transformer` with `id` or `transformerNumber`.|
-| PUT | /api/inspections/{id} | Update inspection metadata. | Validates transformer reference same as create.|
-| DELETE | /api/inspections/{id} | Delete inspection. | Returns `{ ok: true }`.|
-| POST | /api/inspections/{id}/upload | Store latest inspection image. | `multipart/form-data` (`file`, `weather`); optional `x-username` recorded.|
-| POST | /api/inspections/{id}/analyze | Run AI comparison using uploaded candidate file. | `multipart/form-data` with `file` and `weather`; archives previous AI results before persisting new bounding boxes and per-box metadata.|
-| POST | /api/inspections/{id}/clear-analysis | Remove stored analysis artifacts. | Clears image, boxes, fault metadata, history snapshots.|
-| POST | /api/inspections/{id}/boxes | Append a user-drawn bounding box. | JSON body `{ x,y,w,h,faultType,comment }`; optional `x-username` marks author; response echoes arrays plus updated `recentStatus`.|
-| DELETE | /api/inspections/{id}/boxes/{index} | Delete a box by array index. | Archives prior state, realigns aligned arrays, responds with updated payload.|
-| DELETE | /api/inspections/{id}/boxes | Delete a box by coordinates. | Query params `x,y,w,h`; tolerant to ±0.5 pixel for float rounding.|
-| PUT | /api/inspections/{id}/boxes/bulk | Replace boxes/faults/comments en masse. | Body arrays `boundingBoxes`, `faultTypes`, `annotatedBy`, `comments`, optional `tuneModel` (default `true`); archives previous snapshot and optionally triggers tuning.|
-| POST | /api/inspections/model/reset | Reset AI tunable parameters. | Restores defaults via `AiParameterService` and returns `{ ok, parameters, resetBy }`.|
+| POST | /api/inspections | Create inspection linked to transformer. | Auth required. Body must include `transformer` with `id` or `transformerNumber`. The created record is attributed to the JWT user. |
+| PUT | /api/inspections/{id} | Update inspection metadata. | Auth required. Validates transformer reference same as create; action attributed to JWT user. |
+| DELETE | /api/inspections/{id} | Delete inspection. | Auth required. Returns `{ ok: true }` and records the deleter from JWT. |
+| POST | /api/inspections/{id}/upload | Store latest inspection image. | Auth required. `multipart/form-data` (`file`, `weather`); uploader is taken from JWT; `x-username` header is deprecated and ignored. |
+| POST | /api/inspections/{id}/analyze | Run AI comparison using uploaded candidate file. | Auth required. `multipart/form-data` with `file` and `weather`; archives previous AI results before persisting new bounding boxes and per-box metadata. Analysis runs use parameters cached/persisted server-side. |
+| POST | /api/inspections/{id}/clear-analysis | Remove stored analysis artifacts. | Auth required. Clears image, boxes, fault metadata, history snapshots. |
+| POST | /api/inspections/{id}/boxes | Append a user-drawn bounding box. | Auth required. JSON body `{ x,y,w,h,faultType,comment }`; author is taken from JWT (the `x-username` header is ignored). Response echoes arrays plus updated `recentStatus`. |
+| DELETE | /api/inspections/{id}/boxes/{index} | Delete a box by array index. | Auth required. Archives prior state, realigns aligned arrays, responds with updated payload. |
+| DELETE | /api/inspections/{id}/boxes | Delete a box by coordinates. | Auth required. Query params `x,y,w,h`; tolerant to ±0.5 pixel for float rounding. |
+| PUT | /api/inspections/{id}/boxes/bulk | Replace boxes/faults/comments en masse. | Auth required. Body arrays `boundingBoxes`, `faultTypes`, `annotatedBy`, `comments`, optional `tuneModel` (default `true`); archives previous snapshot and optionally triggers tuning. `annotatedBy` values will be validated/normalized against the JWT user when present. |
+| POST | /api/inspections/model/reset | Reset AI tunable parameters. | Auth required. Typically restricted to admin users (checked via roles/claims in the JWT). Restores defaults via `AiParameterService` and returns `{ ok, parameters, resetBy }`. |
 
 ### Model Parameter Storage
 
 | Method | Path | Description | Notes |
 | --- | --- | --- | --- |
 | GET | *(not exposed)* | Parameters are read server-side only. | `AiParameterService` caches values and supplies them to the analyzer/tuner.|
+
+## Spring Boot architecture (backend)
+
+- Layered structure: the backend follows a conventional Spring Boot layering pattern to keep concerns separated:
+  - Controller: HTTP entrypoints that validate requests, map inputs to domain types, and return HTTP responses (`@RestController`). Controllers should remain thin — orchestrating service calls and shaping the ResponseEntity. Example: `InspectionController` handles upload, analyze, export and box mutation endpoints.
+  - Service: Application/business logic and orchestration (`@Service`). Services perform image/file IO, call downstream tools (the Python analyzer), transform domain data, and coordinate transactions. Example: `PythonAnalyzerService` wraps the external Python process; `ParameterTuningService` and `AiParameterService` encapsulate tuning and parameter persistence logic.
+  - Repository: Persistence layer (`@Repository` or Spring Data `JpaRepository` interfaces). These are simple, CRUD-focused interfaces. Example: `InspectionRepo`, `TransformerRepo` live under `...repo` and map entities to database rows.
+  - Model/Entity: Domain objects (`@Entity`, DTOs) that represent the database schema and API payloads. Look in `backend/src/main/java/com/apexgrid/transformertracker/model/` for inspection/transformer classes and their JSON fields.
+  - Configuration/Resources: `application.properties` / `application.yml` and resource files (export helpers under `src/main/resources/export`) centralize runtime settings and assets.
+
+- Wiring and DI: The app uses constructor injection (preferred) to provide dependencies. Beans are discovered via `@Service`, `@Repository`, `@Component`, and controllers via `@RestController`. This makes unit testing straightforward (mock services/repos and call controllers directly).
+
+- Property binding and environment wiring:
+  - Simple properties are injected with `@Value("${...}")` (see `PythonAnalyzerService` where `app.ai.python` and `app.ai.script` are injected). These properties may be set in `application.yml`, `application.properties`, or via environment variables using Spring Boot relaxed binding (e.g. `APP_AI_PYTHON`, `APP_AI_SCRIPT`). The Dockerfile demonstrates producing environment variables mapped to Spring properties.
+
+- Error handling & responses: Controllers use `ResponseEntity` to control HTTP status and payloads. Services throw exceptions for unexpected states; controllers catch or translate them into friendly client responses (see `InspectionController.analyze` for strategic try/catch and mapping to 400/500 responses).
+
+- Where code lives in this repo (quick map):
+  - Controllers: `backend/src/main/java/com/apexgrid/transformertracker/web/` (e.g. `InspectionController.java`).
+  - Services: `backend/src/main/java/com/apexgrid/transformertracker/ai/` (e.g. `PythonAnalyzerService.java`, `ParameterTuningService.java`, `AiParameterService.java`).
+  - Repositories: `backend/src/main/java/com/apexgrid/transformertracker/repo/` (`InspectionRepo`, `TransformerRepo`).
+  - Models/Entities: `backend/src/main/java/com/apexgrid/transformertracker/model/`.
+  - Resources: `backend/src/main/resources/` (properties, export helpers).
+
+- Best practices used / recommendations:
+  - Keep controllers thin: validate inputs, call services, return DTOs or ResponseEntity.
+  - Business rules belong in services so they are testable without HTTP plumbing.
+  - Repositories expose only persistence operations; complex queries can be placed in repository implementations or service-level methods that combine repo calls.
+  - External process calls (like the Python analyzer) are wrapped in a service (`PythonAnalyzerService`) so the rest of the app doesn't rely on ProcessBuilder details; this wrapper also centralizes retries, timeouts, and parameter handling if you add them later.
 
 ## AI Analysis Pipeline (`backend/AI/analyze.py`)
 
