@@ -22,7 +22,7 @@ Make sure the database is running and accessible. Schema is given below
 
 ```sql
 
-create table public.inspections (
+CREATE TABLE public.inspections (
   id text not null,
   transformer_id text not null,
   inspectionnumber text not null,
@@ -58,9 +58,9 @@ create table public.inspections (
   constraint fk_inspections_transformer foreign KEY (transformer_id) references transformers (id) on delete CASCADE
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_inspections_transformer_id on public.inspections using btree (transformer_id) TABLESPACE pg_default;
+CREATE TABLE IF not exists idx_inspections_transformer_id on public.inspections using btree (transformer_id) TABLESPACE pg_default;
 
-create table public.transformers (
+CREATE TABLE public.transformers (
   id text not null,
   region text null,
   transformernumber text not null,

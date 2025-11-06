@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Inspection } from "@/types/inspection";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { isClientLoggedIn } from "@/lib/auth";
 import {
   TRANSFORMER_REMOVED_EVENT,
   TransformerRemovedDetail,
@@ -37,10 +38,16 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
 
   const load = async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
+    if (!isClientLoggedIn()) {
+      if (!silent) setLoading(false);
+      setInspections([]);
+      setLastError(null);
+      return;
+    }
     try {
       setLastError(null);
       if (!silent) setLoading(true);
-      const res = await fetch("/api/inspections?summary=1", {
+      const res = await fetch(apiUrl("/api/inspections?summary=1"), {
         cache: "no-store",
         headers: authHeaders(),
       });
@@ -120,12 +127,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
 
   // Initial load only after login flag is present
   useEffect(() => {
-    try {
-      const logged = typeof window !== 'undefined' && localStorage.getItem('isLoggedIn') === 'true';
-      if (logged) void load();
-    } catch {
-      // ignore
-    }
+    if (isClientLoggedIn()) void load();
   }, []);
 
   // Reload when the app signals a successful login, or when the window regains focus while logged in
@@ -133,10 +135,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
     if (typeof window === 'undefined') return;
     const onLoggedIn = () => { void load(); };
     const onFocus = () => {
-      try {
-        const logged = localStorage.getItem('isLoggedIn') === 'true';
-        if (logged) void load();
-      } catch { /* ignore */ }
+      if (isClientLoggedIn()) void load();
     };
     window.addEventListener('app:logged-in', onLoggedIn as EventListener);
     window.addEventListener('focus', onFocus);
@@ -175,7 +174,7 @@ export function InspectionsProvider({ children }: { children: React.ReactNode })
 
   const fetchInspectionById = async (id: string): Promise<Inspection | null> => {
     try {
-      const res = await fetch(`/api/inspections/${id}`, {
+      const res = await fetch(apiUrl(`/api/inspections/${id}`), {
         cache: 'no-store',
         headers: authHeaders(),
       });

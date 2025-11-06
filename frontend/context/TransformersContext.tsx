@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Transformer } from "@/types/transformer";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { isClientLoggedIn } from "@/lib/auth";
 import { dispatchTransformerRemoved } from "@/lib/events";
 
 type TransformersContextValue = {
@@ -26,11 +27,17 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
 
   // load from API
   const load = async () => {
+    if (!isClientLoggedIn()) {
+      setTransformers([]);
+      setLastError(null);
+      setLoading(false);
+      return;
+    }
     try {
       setLastError(null);
       setLoading(true);
       // Ask the local API for summary only to reduce payload
-      const res = await fetch("/api/transformers?summary=1", {
+      const res = await fetch(apiUrl("/api/transformers?summary=1"), {
         cache: "no-store",
         headers: authHeaders(),
       });
@@ -63,12 +70,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
 
   // Initial load only after login flag is present
   useEffect(() => {
-    try {
-      const logged = typeof window !== 'undefined' && localStorage.getItem('isLoggedIn') === 'true';
-      if (logged) void load();
-    } catch {
-      // ignore
-    }
+    if (isClientLoggedIn()) void load();
   }, []);
 
   // Reload when app signals login or when window regains focus while logged in
@@ -76,10 +78,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
     if (typeof window === 'undefined') return;
     const onLoggedIn = () => { void load(); };
     const onFocus = () => {
-      try {
-        const logged = localStorage.getItem('isLoggedIn') === 'true';
-        if (logged) void load();
-      } catch { /* ignore */ }
+      if (isClientLoggedIn()) void load();
     };
     window.addEventListener('app:logged-in', onLoggedIn as EventListener);
     window.addEventListener('focus', onFocus);
@@ -93,7 +92,7 @@ export function TransformersProvider({ children }: { children: React.ReactNode }
 
   const fetchTransformerById = async (id: string): Promise<Transformer | null> => {
     try {
-      const res = await fetch(`/api/transformers/${id}`, {
+      const res = await fetch(apiUrl(`/api/transformers/${id}`), {
         cache: 'no-store',
         headers: authHeaders(),
       });

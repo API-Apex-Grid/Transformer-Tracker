@@ -14,6 +14,7 @@ import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 import { Transformer } from "@/types/transformer";
 import { Inspection } from "@/types/inspection";
+import { clearClientSession } from "@/lib/auth";
 
 const TransformerDetailPage = () => {
   const params = useParams<{ id: string }>();
@@ -256,14 +257,8 @@ const TransformerDetailPage = () => {
                 />
               </button>
               <button
-                onClick={() => {
-                  try {
-                    localStorage.removeItem("isLoggedIn");
-                    localStorage.removeItem("username");
-                    localStorage.removeItem("userImage");
-                    localStorage.removeItem("token");
-                    localStorage.removeItem("tokenExpiresAt");
-                  } catch {}
+                onClick={async () => {
+                  await clearClientSession();
                   router.replace("/");
                 }}
                 className="inline-flex items-center rounded-md px-4 py-2 custombutton"

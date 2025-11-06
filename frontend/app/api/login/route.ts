@@ -21,7 +21,28 @@ export async function POST(req: Request) {
 
     const data = await res.json();
     // Expecting backend to return at least { token, username }
-    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
+    const response = NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
+
+    const secure = process.env.NODE_ENV === "production";
+    const rawExpires = typeof data?.expiresIn === "number" && Number.isFinite(data.expiresIn)
+      ? Math.floor(data.expiresIn)
+      : null;
+    const expiresInSeconds = rawExpires && rawExpires > 0 ? rawExpires : 60 * 60 * 12; // default 12h session
+
+    const cookieOptions = {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      secure,
+      path: "/",
+      maxAge: expiresInSeconds,
+    };
+
+    response.cookies.set("tt_logged_in", "1", cookieOptions);
+    if (typeof data?.token === "string" && data.token.length > 0) {
+      response.cookies.set("tt_token", data.token, cookieOptions);
+    }
+
+    return response;
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Login failed" }, { status: 500 });

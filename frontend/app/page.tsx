@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiUrl } from "@/lib/api";
 import LoadingScreen from "@/components/LoadingScreen";
 import ThemeToggle from "@/components/ThemeToggle";
+import { storeClientSession } from "@/lib/auth";
 
 export default function Home() {
   const router = useRouter();
@@ -18,8 +18,9 @@ export default function Home() {
     setError("");
     try {
       setLoading(true);
-      const res = await fetch(apiUrl("/api/login"), {
+      const res = await fetch("/api/login", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
@@ -30,21 +31,15 @@ export default function Home() {
       }
       // Mark logged-in for simple client gating; also store username and image
       const data = await res.json();
-      try {
-        const expiresIn = typeof data.expiresIn === "number" ? data.expiresIn : null;
-        localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("username", data.username || username);
-        localStorage.setItem("userImage", data.image || "");
-        if (data.token) {
-          localStorage.setItem("token", data.token);
-        }
-        if (expiresIn) {
-          const expiresAt = Date.now() + expiresIn * 1000;
-          localStorage.setItem("tokenExpiresAt", String(expiresAt));
-        }
-        // Notify app that login succeeded so data contexts can reload immediately
-        window.dispatchEvent(new Event("app:logged-in"));
-      } catch {}
+      storeClientSession(
+        {
+          username: data.username,
+          image: data.image,
+          token: data.token,
+          expiresIn: data.expiresIn,
+        },
+        username
+      );
       router.push("/transformer");
     } catch {
       setError("Login failed");

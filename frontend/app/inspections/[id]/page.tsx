@@ -9,6 +9,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
 import { useInspections } from "@/context/InspectionsContext";
 import { Inspection } from "@/types/inspection";
+import { clearClientSession } from "@/lib/auth";
 
 const InspectionDetailPage = () => {
   const params = useParams<{ id: string }>();
@@ -199,14 +200,8 @@ const InspectionDetailPage = () => {
                 />
               </button>
               <button
-                onClick={() => {
-                  try {
-                    localStorage.removeItem("isLoggedIn");
-                    localStorage.removeItem("username");
-                    localStorage.removeItem("userImage");
-                    localStorage.removeItem("token");
-                    localStorage.removeItem("tokenExpiresAt");
-                  } catch {}
+                onClick={async () => {
+                  await clearClientSession();
                   router.replace("/");
                 }}
                 className="inline-flex items-center rounded-md px-4 py-2 custombutton"
