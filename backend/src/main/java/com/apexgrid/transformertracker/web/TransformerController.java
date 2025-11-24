@@ -1,7 +1,9 @@
 package com.apexgrid.transformertracker.web;
 
 import com.apexgrid.transformertracker.model.Transformer;
+import com.apexgrid.transformertracker.repo.MaintenanceRecordRepo;
 import com.apexgrid.transformertracker.repo.TransformerRepo;
+import com.apexgrid.transformertracker.web.dto.MaintenanceRecordResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,9 +19,12 @@ import java.util.Map;
 @RequestMapping("/api/transformers")
 public class TransformerController {
     private final TransformerRepo repo;
+    private final MaintenanceRecordRepo maintenanceRecordRepo;
 
-    public TransformerController(TransformerRepo repo) {
+    public TransformerController(TransformerRepo repo,
+                                 MaintenanceRecordRepo maintenanceRecordRepo) {
         this.repo = repo;
+        this.maintenanceRecordRepo = maintenanceRecordRepo;
     }
 
     @GetMapping
@@ -85,5 +90,19 @@ public class TransformerController {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Upload failed"));
             }
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/maintenance-records")
+    public ResponseEntity<?> listMaintenanceRecords(@PathVariable String id) {
+        var transformer = repo.findById(id).or(() -> repo.findByTransformerNumber(id));
+        if (transformer.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Transformer not found"));
+        }
+        var payload = maintenanceRecordRepo
+                .findAllByInspection_Transformer_IdOrderByTimestampDesc(transformer.get().getId())
+                .stream()
+                .map(MaintenanceRecordResponse::fromEntity)
+                .toList();
+        return ResponseEntity.ok(payload);
     }
 }

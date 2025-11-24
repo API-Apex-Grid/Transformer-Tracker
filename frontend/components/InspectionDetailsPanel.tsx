@@ -3062,11 +3062,11 @@ const InspectionDetailsPanel = ({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Voltage</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Voltage (V)</p>
                         <p>{maintenanceRecord.voltage ?? "—"}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Current</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Current (A)</p>
                         <p>{maintenanceRecord.current ?? "—"}</p>
                       </div>
                       <div>
@@ -3163,7 +3163,7 @@ const InspectionDetailsPanel = ({
                       />
                     </label>
                     <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Voltage</span>
+                      <span className="block text-xs uppercase tracking-wide mb-1">Voltage (V)</span>
                       <input
                         type="number"
                         step="any"
@@ -3175,7 +3175,7 @@ const InspectionDetailsPanel = ({
                       />
                     </label>
                     <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Current</span>
+                      <span className="block text-xs uppercase tracking-wide mb-1">Current (A)</span>
                       <input
                         type="number"
                         step="any"

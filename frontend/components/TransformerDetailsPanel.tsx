@@ -1,7 +1,9 @@
 "use client";
 
 import { Transformer } from "@/types/transformer";
-import { useState } from "react";
+import { MaintenanceRecord } from "@/types/maintenance-record";
+import { apiUrl, authHeaders } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface TransformerDetailsPanelProps {
   transformer: Transformer;
@@ -16,12 +18,117 @@ const TransformerDetailsPanel = ({
 }: TransformerDetailsPanelProps) => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [editingWeather, setEditingWeather] = useState<string | null>(null);
+  const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
 
   const baselineImages = {
     sunny: transformer.sunnyImage || null,
     cloudy: transformer.cloudyImage || null,
     windy: transformer.windyImage || null,
   };
+
+  const canLoadMaintenance = Boolean(transformer.id || transformer.transformerNumber);
+
+  const resolveSelectableId = (record: MaintenanceRecord | null | undefined) => {
+    if (!record) return null;
+    return record.id ?? record.inspectionId ?? record.timestamp ?? null;
+  };
+
+  const recordKey = (record: MaintenanceRecord) => {
+    if (record.id) return record.id;
+    if (record.inspectionId && record.timestamp) {
+      return `${record.inspectionId}-${record.timestamp}`;
+    }
+    if (record.timestamp) return record.timestamp;
+    if (record.inspectionId) return record.inspectionId;
+    return `record-${record.inspectorName ?? "unknown"}`;
+  };
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  };
+
+  const selectedRecord = useMemo(() => {
+    if (!maintenanceRecords.length) return null;
+    if (!selectedRecordId) return maintenanceRecords[0];
+    return (
+      maintenanceRecords.find(
+        (record) => resolveSelectableId(record) === selectedRecordId
+      ) ?? maintenanceRecords[0]
+    );
+  }, [maintenanceRecords, selectedRecordId]);
+
+  const highlightedRecordId = selectedRecordId ?? resolveSelectableId(selectedRecord);
+
+  const fetchMaintenanceRecords = useCallback(async () => {
+    if (!canLoadMaintenance) {
+      setMaintenanceRecords([]);
+      setMaintenanceError("Transformer identifier unavailable.");
+      return;
+    }
+    const identifier = encodeURIComponent(
+      transformer.id ?? transformer.transformerNumber ?? ""
+    );
+    setMaintenanceLoading(true);
+    setMaintenanceError(null);
+    try {
+      const response = await fetch(
+        apiUrl(`/api/transformers/${identifier}/maintenance-records`),
+        {
+          headers: authHeaders(),
+          cache: "no-store",
+        }
+      );
+      if (response.status === 404) {
+        setMaintenanceRecords([]);
+        setMaintenanceError("No maintenance records found for this transformer.");
+        setSelectedRecordId(null);
+        return;
+      }
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          text || `Failed to load maintenance records (${response.status})`
+        );
+      }
+      const payload = (await response.json()) as MaintenanceRecord[];
+      setMaintenanceRecords(Array.isArray(payload) ? payload : []);
+      setSelectedRecordId((prev) => {
+        if (!payload.length) return null;
+        if (
+          prev &&
+          payload.some((record) => resolveSelectableId(record) === prev)
+        ) {
+          return prev;
+        }
+        return resolveSelectableId(payload[0]) ?? null;
+      });
+      if (!payload.length) {
+        setMaintenanceError("No maintenance records found for this transformer.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to load maintenance records.";
+      setMaintenanceError(message);
+      setMaintenanceRecords([]);
+      setSelectedRecordId(null);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  }, [canLoadMaintenance, transformer.id, transformer.transformerNumber]);
+
+  useEffect(() => {
+    if (showMaintenanceModal) {
+      void fetchMaintenanceRecords();
+    }
+  }, [showMaintenanceModal, fetchMaintenanceRecords]);
 
   const handleViewImage = (weather: string) => {
     setViewingImage(weather);
@@ -85,25 +192,66 @@ const TransformerDetailsPanel = ({
     setEditingWeather(null);
   };
 
+  const openMaintenanceRecords = () => {
+    if (!canLoadMaintenance) return;
+    setShowMaintenanceModal(true);
+  };
+
+  const closeMaintenanceRecords = () => {
+    setShowMaintenanceModal(false);
+  };
+
+  const handleSelectRecord = (record: MaintenanceRecord) => {
+    setSelectedRecordId(resolveSelectableId(record));
+  };
+
   return (
     <div className="details-panel bg-white text-gray-900 border border-gray-200 rounded-lg shadow-lg mb-6 p-6 transition-colors dark:bg-[#101010] dark:text-gray-100 dark:border-gray-700">
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
         <h2 className="text-xl font-bold">Transformer Details</h2>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openMaintenanceRecords}
+            disabled={!canLoadMaintenance}
+            className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
+            title={
+              canLoadMaintenance
+                ? "View maintenance records for this transformer"
+                : "Maintenance records unavailable without transformer ID"
+            }
           >
-            <path
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+              viewBox="0 0 24 24"
+            >
+              <path d="M3 4h18v4H3z" />
+              <path d="M7 12h10" />
+              <path d="M7 16h6" />
+              <path d="M5 8v12h14V8" />
+            </svg>
+            <span>View maintenance records</span>
+          </button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
@@ -268,6 +416,180 @@ const TransformerDetailsPanel = ({
           ))}
         </div>
       </div>
+
+        {showMaintenanceModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="details-panel bg-white dark:bg-[#111] rounded-lg p-6 w-full max-w-4xl max-h-[85vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Maintenance Records
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Transformer {transformer.transformerNumber || "—"}
+                  </p>
+                </div>
+                <button
+                  onClick={closeMaintenanceRecords}
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {maintenanceLoading ? (
+                <p className="text-sm text-gray-500">Loading maintenance records…</p>
+              ) : maintenanceError ? (
+                <p className="text-sm text-red-600">{maintenanceError}</p>
+              ) : maintenanceRecords.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No maintenance records exist yet for this transformer.
+                </p>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                    {maintenanceRecords.map((record) => {
+                      const key = recordKey(record);
+                      const resolvedId = resolveSelectableId(record);
+                      const isActive =
+                        resolvedId && resolvedId === highlightedRecordId;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => handleSelectRecord(record)}
+                          className={`w-full text-left border rounded-md px-3 py-2 transition-colors ${
+                            isActive
+                              ? "bg-black text-white border-black dark:bg-white dark:text-black"
+                              : "bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-gray-700"
+                          }`}
+                        >
+                          <p className="text-sm font-semibold">
+                            {formatDate(record.timestamp)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Inspector: {record.inspectorName || "—"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Status: {record.status || "—"}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="md:col-span-2 border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-[#0f0f0f]">
+                    {selectedRecord ? (
+                      <div className="space-y-3 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Inspection ID
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {selectedRecord.inspectionId || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Inspection date
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {formatDate(selectedRecord.inspectionDate)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Recorded at
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {formatDate(selectedRecord.timestamp)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Inspector
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {selectedRecord.inspectorName || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Status
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {selectedRecord.status || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Transformer
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {selectedRecord.transformerName || "—"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Voltage (V)
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {selectedRecord.voltage ?? "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Current (A)
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {selectedRecord.current ?? "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-600 dark:text-gray-300">
+                              Efficiency
+                            </p>
+                            <p className="text-gray-900 dark:text-gray-100">
+                              {selectedRecord.efficiency ?? "—"}
+                            </p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-600 dark:text-gray-300">
+                            Recommendation
+                          </p>
+                          <p className="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                            {selectedRecord.recommendation || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-600 dark:text-gray-300">
+                            Remarks
+                          </p>
+                          <p className="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                            {selectedRecord.remarks || "—"}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        Select a record to view its details.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Image Viewer Modal */}
       {viewingImage && (

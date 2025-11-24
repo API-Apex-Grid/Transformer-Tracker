@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.apexgrid.transformertracker.web.dto.MaintenanceRecordResponse;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -394,38 +395,6 @@ public class InspectionController {
             String recommendation,
             String remarks
     ) { }
-
-    public record MaintenanceRecordResponse(
-            String id,
-            String inspectionId,
-            String inspectionDate,
-            String transformerName,
-            String timestamp,
-            String inspectorName,
-            String status,
-            BigDecimal voltage,
-            BigDecimal current,
-            BigDecimal efficiency,
-            String recommendation,
-            String remarks
-    ) {
-        static MaintenanceRecordResponse fromEntity(MaintenanceRecord record) {
-            return new MaintenanceRecordResponse(
-                    record.getId(),
-                    record.getInspection() != null ? record.getInspection().getId() : null,
-                    record.getInspectionDate(),
-                    record.getTransformerName(),
-                    record.getTimestamp(),
-                    record.getInspectorName(),
-                    record.getStatus(),
-                    record.getVoltage(),
-                    record.getCurrent(),
-                    record.getEfficiency(),
-                    record.getRecommendation(),
-                    record.getRemarks()
-            );
-        }
-    }
 
     @PostMapping("/{id}/analyze")
     public ResponseEntity<?> analyze(@PathVariable String id,
