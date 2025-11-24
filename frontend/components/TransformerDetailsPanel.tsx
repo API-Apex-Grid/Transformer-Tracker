@@ -1,15 +1,31 @@
 "use client";
 
 import { Transformer } from "@/types/transformer";
+import { Inspection } from "@/types/inspection";
 import { MaintenanceRecord } from "@/types/maintenance-record";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import MaintenanceAnnotationPreview from "@/components/MaintenanceAnnotationPreview";
+import {
+  parseAnnotatedBy,
+  parseBoundingBoxes,
+  parseFaultTypes,
+  parseSeverities,
+} from "@/lib/inspection-annotations";
 
 interface TransformerDetailsPanelProps {
   transformer: Transformer;
   onClose: () => void;
   onUpdateTransformer?: (updatedTransformer: Transformer) => void;
 }
+
+type InspectionAnnotationSnapshot = {
+  imageUrl: string | null;
+  boxes: number[][];
+  faults: string[];
+  annotatedBy: string[];
+  severity: (number | null)[];
+};
 
 const TransformerDetailsPanel = ({
   transformer,
@@ -23,6 +39,11 @@ const TransformerDetailsPanel = ({
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [annotationSnapshots, setAnnotationSnapshots] = useState<
+    Record<string, InspectionAnnotationSnapshot>
+  >({});
+  const [annotationLoading, setAnnotationLoading] = useState(false);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
 
   const baselineImages = {
     sunny: transformer.sunnyImage || null,
@@ -62,6 +83,11 @@ const TransformerDetailsPanel = ({
       ) ?? maintenanceRecords[0]
     );
   }, [maintenanceRecords, selectedRecordId]);
+
+  const selectedInspectionId = selectedRecord?.inspectionId ?? null;
+  const selectedInspectionAnnotation = selectedInspectionId
+    ? annotationSnapshots[selectedInspectionId] ?? null
+    : null;
 
   const highlightedRecordId = selectedRecordId ?? resolveSelectableId(selectedRecord);
 
@@ -129,6 +155,102 @@ const TransformerDetailsPanel = ({
       void fetchMaintenanceRecords();
     }
   }, [showMaintenanceModal, fetchMaintenanceRecords]);
+
+  useEffect(() => {
+    if (!showMaintenanceModal) {
+      setAnnotationLoading(false);
+      setAnnotationError(null);
+      return;
+    }
+    if (!selectedRecord) {
+      setAnnotationLoading(false);
+      setAnnotationError(null);
+      return;
+    }
+    if (!selectedInspectionId) {
+      setAnnotationLoading(false);
+      setAnnotationError(null);
+      return;
+    }
+    if (selectedInspectionAnnotation) {
+      setAnnotationLoading(false);
+      setAnnotationError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadAnnotations = async () => {
+      try {
+        setAnnotationLoading(true);
+        setAnnotationError(null);
+        const response = await fetch(
+          apiUrl(`/api/inspections/${selectedInspectionId}`),
+          {
+            headers: authHeaders(),
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+        if (!response.ok) {
+          const text = await response.text().catch(() => "");
+          throw new Error(
+            text || `Failed to load inspection ${selectedInspectionId}.`
+          );
+        }
+        const payload = (await response.json()) as Inspection & {
+          transformer?: Transformer;
+        };
+        if (cancelled) return;
+        const boxes = parseBoundingBoxes(payload.boundingBoxes);
+        const faults = parseFaultTypes(payload.faultTypes, boxes.length);
+        const annotated = parseAnnotatedBy(
+          (payload.annotatedBy as string | string[] | null | undefined) ?? null,
+          boxes.length
+        );
+        const severityValues = parseSeverities(payload.severity, boxes.length);
+        const nestedTransformer = (payload as { transformer?: Transformer }).transformer;
+        const fallbackImage =
+          nestedTransformer?.sunnyImage ||
+          nestedTransformer?.cloudyImage ||
+          nestedTransformer?.windyImage ||
+          null;
+        const imageUrl = payload.imageUrl || fallbackImage || null;
+        setAnnotationSnapshots((prev) => ({
+          ...prev,
+          [selectedInspectionId]: {
+            imageUrl,
+            boxes,
+            faults,
+            annotatedBy: annotated,
+            severity: severityValues,
+          },
+        }));
+        setAnnotationLoading(false);
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to load inspection annotations.";
+        setAnnotationError(message);
+        setAnnotationLoading(false);
+      }
+    };
+
+    void loadAnnotations();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [
+    showMaintenanceModal,
+    selectedRecord,
+    selectedInspectionAnnotation,
+    selectedInspectionId,
+  ]);
 
   const handleViewImage = (weather: string) => {
     setViewingImage(weather);
@@ -485,99 +607,125 @@ const TransformerDetailsPanel = ({
                   </div>
                   <div className="md:col-span-2 border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-[#0f0f0f]">
                     {selectedRecord ? (
-                      <div className="space-y-3 text-sm">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-4 text-sm">
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Inspection ID
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {selectedRecord.inspectionId || "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Inspection date
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {formatDate(selectedRecord.inspectionDate)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Recorded at
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {formatDate(selectedRecord.timestamp)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Inspector
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {selectedRecord.inspectorName || "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Status
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {selectedRecord.status || "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Transformer
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {selectedRecord.transformerName || "—"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Voltage (V)
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {selectedRecord.voltage ?? "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Current (A)
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {selectedRecord.current ?? "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-600 dark:text-gray-300">
+                                Efficiency
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100">
+                                {selectedRecord.efficiency ?? "—"}
+                              </p>
+                            </div>
+                          </div>
                           <div>
                             <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Inspection ID
+                              Recommendation
                             </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {selectedRecord.inspectionId || "—"}
+                            <p className="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                              {selectedRecord.recommendation || "—"}
                             </p>
                           </div>
                           <div>
                             <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Inspection date
+                              Remarks
                             </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {formatDate(selectedRecord.inspectionDate)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Recorded at
-                            </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {formatDate(selectedRecord.timestamp)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Inspector
-                            </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {selectedRecord.inspectorName || "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Status
-                            </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {selectedRecord.status || "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Transformer
-                            </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {selectedRecord.transformerName || "—"}
+                            <p className="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                              {selectedRecord.remarks || "—"}
                             </p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div>
-                            <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Voltage (V)
-                            </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {selectedRecord.voltage ?? "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Current (A)
-                            </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {selectedRecord.current ?? "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-600 dark:text-gray-300">
-                              Efficiency
-                            </p>
-                            <p className="text-gray-900 dark:text-gray-100">
-                              {selectedRecord.efficiency ?? "—"}
-                            </p>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-600 dark:text-gray-300">
-                            Recommendation
-                          </p>
-                          <p className="text-gray-900 dark:text-gray-100 whitespace-pre-line">
-                            {selectedRecord.recommendation || "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-600 dark:text-gray-300">
-                            Remarks
-                          </p>
-                          <p className="text-gray-900 dark:text-gray-100 whitespace-pre-line">
-                            {selectedRecord.remarks || "—"}
-                          </p>
-                        </div>
+                        <MaintenanceAnnotationPreview
+                          title="Latest annotations"
+                          subtitle={
+                            selectedRecord.inspectionId
+                              ? `Inspection ${selectedRecord.inspectionId}`
+                              : "No linked inspection"
+                          }
+                          imageUrl={selectedInspectionAnnotation?.imageUrl ?? null}
+                          boxes={selectedInspectionAnnotation?.boxes ?? []}
+                          faults={selectedInspectionAnnotation?.faults ?? []}
+                          annotatedBy={selectedInspectionAnnotation?.annotatedBy ?? []}
+                          severity={selectedInspectionAnnotation?.severity ?? []}
+                          loading={
+                            annotationLoading && Boolean(selectedRecord.inspectionId)
+                          }
+                          error={
+                            selectedRecord.inspectionId ? annotationError : null
+                          }
+                          emptyMessage={
+                            selectedRecord.inspectionId
+                              ? "No annotations available for this inspection."
+                              : "Link this maintenance record to an inspection to view annotations."
+                          }
+                        />
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500">

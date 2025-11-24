@@ -8,6 +8,15 @@ import OverlayedThermal, {
   OverlayToggles,
   OverlayBoxInfo,
 } from "@/components/OverlayedThermal";
+import MaintenanceAnnotationPreview from "@/components/MaintenanceAnnotationPreview";
+import {
+  canonicalizeFault,
+  toDisplayLabel,
+  parseBoundingBoxes,
+  parseFaultTypes,
+  parseAnnotatedBy,
+  parseSeverities,
+} from "@/lib/inspection-annotations";
 import { useTransformers } from "@/context/TransformersContext";
 import { useInspections } from "@/context/InspectionsContext";
 import {
@@ -18,43 +27,6 @@ import {
   useCallback,
 } from "react";
 import { apiUrl, authHeaders } from "@/lib/api";
-
-const toFinite = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number.parseFloat(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
-};
-
-const canonicalizeFault = (fault: string | null | undefined): string => {
-  if (!fault) return "none";
-  const normalized = fault
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/[\-_]+/g, " ");
-  if (!normalized) return "none";
-  if (normalized.includes("loose") && normalized.includes("joint"))
-    return "loose joint";
-  if (normalized.includes("wire") && normalized.includes("overload"))
-    return "wire overload";
-  if (normalized.includes("point") && normalized.includes("overload"))
-    return "point overload";
-  if (normalized === "none" || normalized === "ok" || normalized === "normal")
-    return "none";
-  return normalized;
-};
-
-const toDisplayLabel = (fault: string): string => {
-  if (!fault || fault === "none") return "No classification";
-  return fault
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-};
 
 const faultToToggleKey = (
   fault: string | null | undefined
@@ -70,171 +42,6 @@ const faultToToggleKey = (
     default:
       return null;
   }
-};
-
-const parseBoundingBoxes = (raw: Inspection["boundingBoxes"]): number[][] => {
-  let source: unknown = raw;
-  if (typeof source === "string") {
-    try {
-      source = JSON.parse(source);
-    } catch {
-      return [];
-    }
-  }
-  if (!Array.isArray(source)) return [];
-  if (source.length === 0) return [];
-
-  const boxes: number[][] = [];
-  const maybePush = (
-    x: number | null,
-    y: number | null,
-    w: number | null,
-    h: number | null
-  ) => {
-    if (x === null || y === null || w === null || h === null) return;
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
-    boxes.push([x, y, w, h]);
-  };
-
-  const arraySource = source as unknown[];
-  if (
-    typeof arraySource[0] === "number" ||
-    typeof arraySource[0] === "string"
-  ) {
-    const flat = arraySource as Array<number | string>;
-    for (let i = 0; i + 3 < flat.length; i += 4) {
-      maybePush(
-        toFinite(flat[i]),
-        toFinite(flat[i + 1]),
-        toFinite(flat[i + 2]),
-        toFinite(flat[i + 3])
-      );
-    }
-    return boxes;
-  }
-
-  for (const entry of arraySource) {
-    if (Array.isArray(entry)) {
-      maybePush(
-        toFinite(entry[0]),
-        toFinite(entry[1]),
-        toFinite(entry[2]),
-        toFinite(entry[3])
-      );
-      continue;
-    }
-    if (entry && typeof entry === "object") {
-      const obj = entry as Record<string, unknown>;
-      const x = toFinite(obj.x ?? obj.left ?? obj.startX ?? obj[0]);
-      const y = toFinite(obj.y ?? obj.top ?? obj.startY ?? obj[1]);
-      let w = toFinite(obj.w ?? obj.width ?? obj[2]);
-      let h = toFinite(obj.h ?? obj.height ?? obj[3]);
-      if ((w === null || h === null) && x !== null && y !== null) {
-        const x2 = toFinite(obj.x2 ?? obj.right ?? obj.endX);
-        const y2 = toFinite(obj.y2 ?? obj.bottom ?? obj.endY);
-        if (w === null && x2 !== null) w = x2 - x;
-        if (h === null && y2 !== null) h = y2 - y;
-      }
-      maybePush(x, y, w, h);
-    }
-  }
-
-  return boxes;
-};
-
-const parseFaultTypes = (
-  raw: Inspection["faultTypes"],
-  expectedLength: number
-): string[] => {
-  let source: unknown = raw;
-  if (typeof source === "string") {
-    const original = source;
-    try {
-      const parsed = JSON.parse(original);
-      source = parsed;
-    } catch {
-      source = original
-        .split(/[,;\n]+/)
-        .map((part: string) => part.trim())
-        .filter((part) => part.length > 0);
-    }
-  }
-  const arr: string[] = Array.isArray(source)
-    ? (source as unknown[]).map((item) =>
-        typeof item === "string" ? item : item != null ? String(item) : ""
-      )
-    : typeof source === "string"
-    ? [source]
-    : [];
-
-  const normalized = arr.map((fault) => canonicalizeFault(fault));
-  if (normalized.length < expectedLength) {
-    normalized.push(
-      ...Array.from(
-        { length: expectedLength - normalized.length },
-        () => "none"
-      )
-    );
-  }
-  return normalized.slice(0, expectedLength);
-};
-
-const parseAnnotatedBy = (
-  raw: string | string[] | null | undefined,
-  expectedLength: number
-): string[] => {
-  if (!raw) return Array(expectedLength).fill("user");
-  let source: unknown = raw;
-  if (typeof source === "string") {
-    try {
-      source = JSON.parse(source);
-    } catch {
-      return Array(expectedLength).fill("user");
-    }
-  }
-  if (!Array.isArray(source)) return Array(expectedLength).fill("user");
-  const arr = source.map((item) =>
-    typeof item === "string" ? item : "user"
-  );
-  if (arr.length < expectedLength) {
-    arr.push(...Array(expectedLength - arr.length).fill("user"));
-  }
-  return arr.slice(0, expectedLength);
-};
-
-const parseSeverities = (
-  raw: Inspection["severity"],
-  expectedLength: number
-): (number | null)[] => {
-  if (raw == null) return Array(expectedLength).fill(null);
-  let source: unknown = raw;
-  if (typeof source === "string") {
-    try {
-      source = JSON.parse(source);
-    } catch {
-      source = (source as string)
-        .split(/[,;\n]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((s) => {
-          const n = Number.parseFloat(s);
-          return Number.isFinite(n) ? n : null;
-        });
-    }
-  }
-  if (!Array.isArray(source)) return Array(expectedLength).fill(null);
-  const arr = (source as unknown[]).map((v) => {
-    if (typeof v === "number") return Number.isFinite(v) ? v : null;
-    if (typeof v === "string") {
-      const n = Number.parseFloat(v);
-      return Number.isFinite(n) ? n : null;
-    }
-    return null;
-  });
-  if (arr.length < expectedLength) {
-    arr.push(...Array(expectedLength - arr.length).fill(null));
-  }
-  return arr.slice(0, expectedLength);
 };
 
 const parseComments = (
@@ -3004,8 +2811,8 @@ const InspectionDetailsPanel = ({
           </div>
         )}
         {showMaintenanceModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-            <div className="details-panel w-full max-w-2xl rounded-lg bg-white dark:bg-[#111] p-6 shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6 overflow-y-auto">
+            <div className="details-panel w-full max-w-2xl rounded-lg bg-white dark:bg-[#111] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -3040,9 +2847,85 @@ const InspectionDetailsPanel = ({
               </div>
 
               {maintenanceModalMode === "view" ? (
-                maintenanceRecord ? (
-                  <div className="space-y-4 text-sm text-gray-800 dark:text-gray-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-6">
+                  <MaintenanceAnnotationPreview
+                    title="Latest inspection annotations"
+                    imageUrl={storedImageUrl}
+                    boxes={storedBoxes}
+                    faults={storedFaultTypes}
+                    annotatedBy={storedAnnotatedBy}
+                    severity={storedSeverity}
+                    emptyMessage="No inspection annotations are available yet. Run an analysis or draw boxes before saving maintenance details."
+                  />
+                  {maintenanceRecord ? (
+                    <div className="space-y-4 text-sm text-gray-800 dark:text-gray-100">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Inspection number</p>
+                          <p className="font-semibold">{inspection.inspectionNumber}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Transformer</p>
+                          <p className="font-semibold">{resolvedTransformerNumber || "Unknown"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Inspection date</p>
+                          <p className="font-semibold">{maintenanceRecord.inspectionDate || inspection.inspectedDate || "N/A"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Timestamp</p>
+                          <p className="font-semibold break-words">{maintenanceRecord.timestamp}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Voltage (V)</p>
+                          <p>{maintenanceRecord.voltage ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Current (A)</p>
+                          <p>{maintenanceRecord.current ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Efficiency</p>
+                          <p>{maintenanceRecord.efficiency ?? "—"}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Inspector</p>
+                          <p>{maintenanceRecord.inspectorName || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">Status</p>
+                          <p>{maintenanceRecord.status || "—"}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Recommendation</p>
+                        <p className="whitespace-pre-wrap">{maintenanceRecord.recommendation || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Remarks</p>
+                        <p className="whitespace-pre-wrap">{maintenanceRecord.remarks || "—"}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      No maintenance record exists yet for this inspection.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <form
+                    className="space-y-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleMaintenanceSave();
+                    }}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-xs uppercase tracking-wide text-gray-500">Inspection number</p>
                         <p className="font-semibold">{inspection.inspectionNumber}</p>
@@ -3053,196 +2936,142 @@ const InspectionDetailsPanel = ({
                       </div>
                       <div>
                         <p className="text-xs uppercase tracking-wide text-gray-500">Inspection date</p>
-                        <p className="font-semibold">{maintenanceRecord.inspectionDate || inspection.inspectedDate || "N/A"}</p>
+                        <p className="font-semibold">{inspection.inspectedDate || "N/A"}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Timestamp</p>
-                        <p className="font-semibold break-words">{maintenanceRecord.timestamp}</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Inspection ID</p>
+                        <p className="font-semibold break-words">{inspection.id || "—"}</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Voltage (V)</p>
-                        <p>{maintenanceRecord.voltage ?? "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Current (A)</p>
-                        <p>{maintenanceRecord.current ?? "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Efficiency</p>
-                        <p>{maintenanceRecord.efficiency ?? "—"}</p>
-                      </div>
-                    </div>
+                    {maintenanceFormError && (
+                      <div className="text-sm text-red-600">{maintenanceFormError}</div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Inspector</p>
-                        <p>{maintenanceRecord.inspectorName || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">Status</p>
-                        <p>{maintenanceRecord.status || "—"}</p>
-                      </div>
+                      <label className="text-sm text-gray-700 dark:text-gray-200">
+                        <span className="block text-xs uppercase tracking-wide mb-1">Timestamp *</span>
+                        <input
+                          type="text"
+                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                          placeholder="e.g. 2025-11-24T10:00Z"
+                          value={maintenanceForm.timestamp}
+                          onChange={(event) =>
+                            handleMaintenanceInputChange("timestamp", event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="text-sm text-gray-700 dark:text-gray-200">
+                        <span className="block text-xs uppercase tracking-wide mb-1">Inspector name</span>
+                        <input
+                          type="text"
+                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                          value={maintenanceForm.inspectorName}
+                          onChange={(event) =>
+                            handleMaintenanceInputChange("inspectorName", event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="text-sm text-gray-700 dark:text-gray-200">
+                        <span className="block text-xs uppercase tracking-wide mb-1">Status</span>
+                        <input
+                          type="text"
+                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                          value={maintenanceForm.status}
+                          onChange={(event) =>
+                            handleMaintenanceInputChange("status", event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="text-sm text-gray-700 dark:text-gray-200">
+                        <span className="block text-xs uppercase tracking-wide mb-1">Voltage (V)</span>
+                        <input
+                          type="number"
+                          step="any"
+                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                          value={maintenanceForm.voltage}
+                          onChange={(event) =>
+                            handleMaintenanceInputChange("voltage", event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="text-sm text-gray-700 dark:text-gray-200">
+                        <span className="block text-xs uppercase tracking-wide mb-1">Current (A)</span>
+                        <input
+                          type="number"
+                          step="any"
+                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                          value={maintenanceForm.current}
+                          onChange={(event) =>
+                            handleMaintenanceInputChange("current", event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="text-sm text-gray-700 dark:text-gray-200">
+                        <span className="block text-xs uppercase tracking-wide mb-1">Efficiency</span>
+                        <input
+                          type="number"
+                          step="any"
+                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                          value={maintenanceForm.efficiency}
+                          onChange={(event) =>
+                            handleMaintenanceInputChange("efficiency", event.target.value)
+                          }
+                        />
+                      </label>
                     </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Recommendation</p>
-                      <p className="whitespace-pre-wrap">{maintenanceRecord.recommendation || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Remarks</p>
-                      <p className="whitespace-pre-wrap">{maintenanceRecord.remarks || "—"}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    No maintenance record exists yet for this inspection.
-                  </p>
-                )
-              ) : (
-                <form
-                  className="space-y-4"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void handleMaintenanceSave();
-                  }}
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Inspection number</p>
-                      <p className="font-semibold">{inspection.inspectionNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Transformer</p>
-                      <p className="font-semibold">{resolvedTransformerNumber || "Unknown"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Inspection date</p>
-                      <p className="font-semibold">{inspection.inspectedDate || "N/A"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Inspection ID</p>
-                      <p className="font-semibold break-words">{inspection.id || "—"}</p>
-                    </div>
-                  </div>
-                  {maintenanceFormError && (
-                    <div className="text-sm text-red-600">{maintenanceFormError}</div>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Timestamp *</span>
-                      <input
-                        type="text"
+                    <label className="block text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Recommendation</span>
+                      <textarea
                         className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                        placeholder="e.g. 2025-11-24T10:00Z"
-                        value={maintenanceForm.timestamp}
+                        rows={3}
+                        value={maintenanceForm.recommendation}
                         onChange={(event) =>
-                          handleMaintenanceInputChange("timestamp", event.target.value)
+                          handleMaintenanceInputChange("recommendation", event.target.value)
                         }
                       />
                     </label>
-                    <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Inspector name</span>
-                      <input
-                        type="text"
+                    <label className="block text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Remarks</span>
+                      <textarea
                         className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                        value={maintenanceForm.inspectorName}
+                        rows={3}
+                        value={maintenanceForm.remarks}
                         onChange={(event) =>
-                          handleMaintenanceInputChange("inspectorName", event.target.value)
+                          handleMaintenanceInputChange("remarks", event.target.value)
                         }
                       />
                     </label>
-                    <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Status</span>
-                      <input
-                        type="text"
-                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                        value={maintenanceForm.status}
-                        onChange={(event) =>
-                          handleMaintenanceInputChange("status", event.target.value)
-                        }
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Voltage (V)</span>
-                      <input
-                        type="number"
-                        step="any"
-                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                        value={maintenanceForm.voltage}
-                        onChange={(event) =>
-                          handleMaintenanceInputChange("voltage", event.target.value)
-                        }
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Current (A)</span>
-                      <input
-                        type="number"
-                        step="any"
-                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                        value={maintenanceForm.current}
-                        onChange={(event) =>
-                          handleMaintenanceInputChange("current", event.target.value)
-                        }
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700 dark:text-gray-200">
-                      <span className="block text-xs uppercase tracking-wide mb-1">Efficiency</span>
-                      <input
-                        type="number"
-                        step="any"
-                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                        value={maintenanceForm.efficiency}
-                        onChange={(event) =>
-                          handleMaintenanceInputChange("efficiency", event.target.value)
-                        }
-                      />
-                    </label>
-                  </div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-200">
-                    <span className="block text-xs uppercase tracking-wide mb-1">Recommendation</span>
-                    <textarea
-                      className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                      rows={3}
-                      value={maintenanceForm.recommendation}
-                      onChange={(event) =>
-                        handleMaintenanceInputChange("recommendation", event.target.value)
-                      }
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
+                        onClick={closeMaintenanceModal}
+                        disabled={isSavingMaintenance}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 text-sm rounded bg-green-600 text-white disabled:opacity-60"
+                        disabled={isSavingMaintenance}
+                      >
+                        {isSavingMaintenance
+                          ? "Saving…"
+                          : maintenanceRecord
+                          ? "Update record"
+                          : "Save record"}
+                      </button>
+                    </div>
+                    </form>
+                    <MaintenanceAnnotationPreview
+                      title="Latest inspection annotations"
+                      imageUrl={storedImageUrl}
+                      boxes={storedBoxes}
+                      faults={storedFaultTypes}
+                      annotatedBy={storedAnnotatedBy}
+                      severity={storedSeverity}
+                      emptyMessage="No inspection annotations are available yet. Run an analysis or draw boxes before saving maintenance details."
                     />
-                  </label>
-                  <label className="block text-sm text-gray-700 dark:text-gray-200">
-                    <span className="block text-xs uppercase tracking-wide mb-1">Remarks</span>
-                    <textarea
-                      className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
-                      rows={3}
-                      value={maintenanceForm.remarks}
-                      onChange={(event) =>
-                        handleMaintenanceInputChange("remarks", event.target.value)
-                      }
-                    />
-                  </label>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
-                      onClick={closeMaintenanceModal}
-                      disabled={isSavingMaintenance}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 text-sm rounded bg-green-600 text-white disabled:opacity-60"
-                      disabled={isSavingMaintenance}
-                    >
-                      {isSavingMaintenance
-                        ? "Saving…"
-                        : maintenanceRecord
-                        ? "Update record"
-                        : "Save record"}
-                    </button>
-                  </div>
-                </form>
+                </div>
               )}
             </div>
           </div>
