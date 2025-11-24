@@ -4,8 +4,10 @@ import com.apexgrid.transformertracker.ai.AiParameterService;
 import com.apexgrid.transformertracker.ai.ParameterTuningService;
 import com.apexgrid.transformertracker.ai.PythonAnalyzerService;
 import com.apexgrid.transformertracker.model.Inspection;
+import com.apexgrid.transformertracker.model.MaintenanceRecord;
 import com.apexgrid.transformertracker.model.Transformer;
 import com.apexgrid.transformertracker.repo.InspectionRepo;
+import com.apexgrid.transformertracker.repo.MaintenanceRecordRepo;
 import com.apexgrid.transformertracker.repo.TransformerRepo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +34,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,17 +50,20 @@ import java.util.zip.ZipOutputStream;
 public class InspectionController {
     private final InspectionRepo repo;
     private final TransformerRepo transformerRepo;
+    private final MaintenanceRecordRepo maintenanceRecordRepo;
     private final PythonAnalyzerService pythonAnalyzerService;
     private final ParameterTuningService parameterTuningService;
     private final AiParameterService aiParameterService;
 
     public InspectionController(InspectionRepo repo,
                                 TransformerRepo transformerRepo,
+                                MaintenanceRecordRepo maintenanceRecordRepo,
                                 PythonAnalyzerService pythonAnalyzerService,
                                 ParameterTuningService parameterTuningService,
                                 AiParameterService aiParameterService) {
         this.repo = repo;
         this.transformerRepo = transformerRepo;
+        this.maintenanceRecordRepo = maintenanceRecordRepo;
         this.pythonAnalyzerService = pythonAnalyzerService;
         this.parameterTuningService = parameterTuningService;
         this.aiParameterService = aiParameterService;
@@ -74,6 +80,46 @@ public class InspectionController {
         return repo.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/maintenance-record")
+    public ResponseEntity<?> getMaintenanceRecord(@PathVariable String id) {
+        if (!repo.existsById(id)) {
+            return ResponseEntity.status(404).body(Map.of("error", "Inspection not found"));
+        }
+        var record = maintenanceRecordRepo.findByInspectionId(id);
+        if (record.isPresent()) {
+            return ResponseEntity.ok(MaintenanceRecordResponse.fromEntity(record.get()));
+        }
+        return ResponseEntity.status(404).body(Map.of("error", "Maintenance record not found"));
+    }
+
+    @PostMapping("/{id}/maintenance-record")
+    public ResponseEntity<?> upsertMaintenanceRecord(@PathVariable String id,
+                                                     @RequestBody(required = false) MaintenanceRecordRequest payload) {
+        if (payload == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Request body is required"));
+        }
+        var inspectionOpt = repo.findById(id);
+        if (inspectionOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Inspection not found"));
+        }
+        MaintenanceRecord record = maintenanceRecordRepo.findByInspectionId(id)
+            .orElseGet(MaintenanceRecord::new);
+        Inspection inspection = inspectionOpt.get();
+        record.setInspection(inspection);
+        record.setTransformerName(resolveTransformerName(inspection));
+        record.setInspectionDate(inspection.getInspectedDate());
+        record.setTimestamp(defaultTimestamp(payload.timestamp()));
+        record.setInspectorName(trimToNull(payload.inspectorName()));
+        record.setStatus(trimToNull(payload.status()));
+        record.setVoltage(payload.voltage());
+        record.setCurrent(payload.current());
+        record.setEfficiency(payload.efficiency());
+        record.setRecommendation(trimToNull(payload.recommendation()));
+        record.setRemarks(trimToNull(payload.remarks()));
+        MaintenanceRecord saved = maintenanceRecordRepo.save(record);
+        return ResponseEntity.ok(MaintenanceRecordResponse.fromEntity(saved));
     }
 
     @GetMapping("/{id}/export")
@@ -316,6 +362,69 @@ public class InspectionController {
                 return ResponseEntity.internalServerError().body(Map.of("error", "Upload failed"));
             }
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    private static String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) return null;
+        return value.trim();
+    }
+
+    private static String defaultTimestamp(String candidate) {
+        if (StringUtils.hasText(candidate)) {
+            return candidate.trim();
+        }
+        return Instant.now().toString();
+    }
+
+    private static String resolveTransformerName(Inspection inspection) {
+        Transformer transformer = inspection.getTransformer();
+        if (transformer != null && StringUtils.hasText(transformer.getTransformerNumber())) {
+            return transformer.getTransformerNumber();
+        }
+        return "unknown-transformer";
+    }
+
+    public record MaintenanceRecordRequest(
+            String timestamp,
+            String inspectorName,
+            String status,
+            BigDecimal voltage,
+            BigDecimal current,
+            BigDecimal efficiency,
+            String recommendation,
+            String remarks
+    ) { }
+
+    public record MaintenanceRecordResponse(
+            String id,
+            String inspectionId,
+            String inspectionDate,
+            String transformerName,
+            String timestamp,
+            String inspectorName,
+            String status,
+            BigDecimal voltage,
+            BigDecimal current,
+            BigDecimal efficiency,
+            String recommendation,
+            String remarks
+    ) {
+        static MaintenanceRecordResponse fromEntity(MaintenanceRecord record) {
+            return new MaintenanceRecordResponse(
+                    record.getId(),
+                    record.getInspection() != null ? record.getInspection().getId() : null,
+                    record.getInspectionDate(),
+                    record.getTransformerName(),
+                    record.getTimestamp(),
+                    record.getInspectorName(),
+                    record.getStatus(),
+                    record.getVoltage(),
+                    record.getCurrent(),
+                    record.getEfficiency(),
+                    record.getRecommendation(),
+                    record.getRemarks()
+            );
+        }
     }
 
     @PostMapping("/{id}/analyze")

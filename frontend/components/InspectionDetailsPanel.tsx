@@ -1,6 +1,7 @@
 "use client";
 
 import { Inspection } from "@/types/inspection";
+import { MaintenanceRecord } from "@/types/maintenance-record";
 import { Transformer } from "@/types/transformer";
 import ThermalImage from "@/components/ThermalImage";
 import OverlayedThermal, {
@@ -484,6 +485,51 @@ export type InspectionDetailsPersistOptions = {
   skipStateReset?: boolean;
 };
 
+type MaintenanceFormState = {
+  timestamp: string;
+  inspectorName: string;
+  status: string;
+  voltage: string;
+  current: string;
+  efficiency: string;
+  recommendation: string;
+  remarks: string;
+};
+
+const buildMaintenanceFormState = (
+  record?: MaintenanceRecord | null
+): MaintenanceFormState => ({
+  timestamp: record?.timestamp ?? new Date().toISOString(),
+  inspectorName: record?.inspectorName ?? "",
+  status: record?.status ?? "",
+  voltage:
+    record?.voltage !== undefined && record?.voltage !== null
+      ? String(record.voltage)
+      : "",
+  current:
+    record?.current !== undefined && record?.current !== null
+      ? String(record.current)
+      : "",
+  efficiency:
+    record?.efficiency !== undefined && record?.efficiency !== null
+      ? String(record.efficiency)
+      : "",
+  recommendation: record?.recommendation ?? "",
+  remarks: record?.remarks ?? "",
+});
+
+const numberOrNull = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number.parseFloat(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const stringOrNull = (value: string): string | null => {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 const InspectionDetailsPanel = ({
   inspection,
   onClose,
@@ -602,6 +648,14 @@ const InspectionDetailsPanel = ({
   const [isResettingModel, setIsResettingModel] = useState(false);
   const [resetModelMessage, setResetModelMessage] = useState<string | null>(null);
   const [resetModelError, setResetModelError] = useState<string | null>(null);
+  const [maintenanceRecord, setMaintenanceRecord] = useState<MaintenanceRecord | null>(null);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
+  const [maintenanceFormError, setMaintenanceFormError] = useState<string | null>(null);
+  const [maintenanceForm, setMaintenanceForm] = useState<MaintenanceFormState>(() => buildMaintenanceFormState());
+  const [maintenanceModalMode, setMaintenanceModalMode] = useState<"form" | "view">("form");
+  const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
 
   const transformer = useMemo(
     () =>
@@ -614,6 +668,11 @@ const InspectionDetailsPanel = ({
     const anyObj = inspection as unknown as { transformer?: Transformer };
     return anyObj.transformer;
   }, [inspection]);
+
+  const resolvedTransformerNumber = useMemo(() => {
+    if (inspection.transformerNumber) return inspection.transformerNumber;
+    return nestedTransformer?.transformerNumber ?? "";
+  }, [inspection.transformerNumber, nestedTransformer]);
 
   const effectiveUploadedUrl = useMemo(() => {
     return uploadedUrl ?? (inspection.imageUrl || null);
@@ -1222,6 +1281,56 @@ const InspectionDetailsPanel = ({
     };
   }, [persistSessionChanges]);
 
+  const fetchMaintenanceRecord = useCallback(async () => {
+    if (!inspection.id) {
+      setMaintenanceRecord(null);
+      setMaintenanceError(null);
+      return;
+    }
+    setMaintenanceLoading(true);
+    setMaintenanceError(null);
+    try {
+      const response = await fetch(
+        apiUrl(`/api/inspections/${inspection.id}/maintenance-record`),
+        {
+          headers: authHeaders(),
+          cache: "no-store",
+        }
+      );
+      if (response.status === 404) {
+        setMaintenanceRecord(null);
+        return;
+      }
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          text || `Failed to load maintenance record (${response.status})`
+        );
+      }
+      const payload = (await response.json()) as MaintenanceRecord;
+      setMaintenanceRecord(payload);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to load maintenance record.";
+      setMaintenanceError(message);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  }, [inspection.id]);
+
+  useEffect(() => {
+    setMaintenanceFormError(null);
+    if (!inspection.id) {
+      setMaintenanceRecord(null);
+      setMaintenanceError(null);
+      return;
+    }
+    setMaintenanceRecord(null);
+    void fetchMaintenanceRecord();
+  }, [inspection.id, fetchMaintenanceRecord]);
+
   const overlayActive = isExporting || isClosing;
   const overlayMessage = useMemo(() => {
     if (isExporting) return "Preparing export…";
@@ -1237,6 +1346,85 @@ const InspectionDetailsPanel = ({
   useEffect(() => () => {
     onLoadingChange?.({ show: false });
   }, [onLoadingChange]);
+
+  const openMaintenanceForm = () => {
+    setMaintenanceModalMode("form");
+    setMaintenanceForm(buildMaintenanceFormState(maintenanceRecord));
+    setMaintenanceFormError(null);
+    setShowMaintenanceModal(true);
+  };
+
+  const openMaintenanceViewer = () => {
+    if (!maintenanceRecord) return;
+    setMaintenanceModalMode("view");
+    setMaintenanceFormError(null);
+    setShowMaintenanceModal(true);
+  };
+
+  const closeMaintenanceModal = () => {
+    if (isSavingMaintenance) return;
+    setShowMaintenanceModal(false);
+  };
+
+  const handleMaintenanceInputChange = (
+    field: keyof MaintenanceFormState,
+    value: string
+  ) => {
+    setMaintenanceForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleMaintenanceSave = async () => {
+    if (!inspection.id) return;
+    const trimmedTimestamp = maintenanceForm.timestamp.trim();
+    if (!trimmedTimestamp) {
+      setMaintenanceFormError("Timestamp is required.");
+      return;
+    }
+    setIsSavingMaintenance(true);
+    setMaintenanceFormError(null);
+    try {
+      const payload = {
+        timestamp: trimmedTimestamp,
+        inspectorName: stringOrNull(maintenanceForm.inspectorName),
+        status: stringOrNull(maintenanceForm.status),
+        voltage: numberOrNull(maintenanceForm.voltage),
+        current: numberOrNull(maintenanceForm.current),
+        efficiency: numberOrNull(maintenanceForm.efficiency),
+        recommendation: stringOrNull(maintenanceForm.recommendation),
+        remarks: stringOrNull(maintenanceForm.remarks),
+      };
+      const response = await fetch(
+        apiUrl(`/api/inspections/${inspection.id}/maintenance-record`),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          text || `Failed to save maintenance record (${response.status})`
+        );
+      }
+      const saved = (await response.json()) as MaintenanceRecord;
+      setMaintenanceRecord(saved);
+      setShowMaintenanceModal(false);
+      setMaintenanceForm(buildMaintenanceFormState(saved));
+      setMaintenanceError(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to save maintenance record.";
+      setMaintenanceFormError(message);
+    } finally {
+      setIsSavingMaintenance(false);
+    }
+  };
 
   const handleResetModelClick = () => {
     setResetModelMessage(null);
@@ -1671,6 +1859,56 @@ const InspectionDetailsPanel = ({
         <div className="flex items-center gap-4">
           <button
             type="button"
+            onClick={openMaintenanceForm}
+            disabled={maintenanceLoading}
+            className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Generate or update a maintenance record for this inspection"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <path d="M6 4h9l3 3v13H6z" />
+              <path d="M9 2v4h6" />
+              <path d="M9 13h6" />
+              <path d="M9 17h4" />
+            </svg>
+            <span>
+              {maintenanceLoading
+                ? "Loading maintenance…"
+                : maintenanceRecord
+                ? "Update maintenance record"
+                : "Generate maintenance record"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={openMaintenanceViewer}
+            disabled={!maintenanceRecord || maintenanceLoading}
+            className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
+            title="View the saved maintenance record"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <path d="M1.5 12s3.5-6 10.5-6 10.5 6 10.5 6-3.5 6-10.5 6-10.5-6-10.5-6z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <span>View maintenance record</span>
+          </button>
+          <button
+            type="button"
             onClick={handleExport}
             disabled={!inspection.id || isExporting}
             className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
@@ -1745,6 +1983,10 @@ const InspectionDetailsPanel = ({
           </button>
         </div>
       </div>
+
+      {maintenanceError && (
+        <div className="mb-4 text-sm text-red-600">{maintenanceError}</div>
+      )}
 
       {!showResetModelConfirm && resetModelMessage && (
         <div className="mb-4 text-sm text-green-600">{resetModelMessage}</div>
@@ -2758,6 +3000,250 @@ const InspectionDetailsPanel = ({
                   {isResettingModel ? "Resetting…" : "Yes, reset"}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+        {showMaintenanceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="details-panel w-full max-w-2xl rounded-lg bg-white dark:bg-[#111] p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {maintenanceRecord?.id ? `Record ID: ${maintenanceRecord.id}` : "New maintenance record"}
+                  </p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {maintenanceModalMode === "view"
+                      ? "Maintenance record"
+                      : maintenanceRecord
+                      ? "Update maintenance record"
+                      : "Generate maintenance record"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={closeMaintenanceModal}
+                  disabled={isSavingMaintenance}
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M6 6l12 12M6 18L18 6" />
+                  </svg>
+                </button>
+              </div>
+
+              {maintenanceModalMode === "view" ? (
+                maintenanceRecord ? (
+                  <div className="space-y-4 text-sm text-gray-800 dark:text-gray-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Inspection number</p>
+                        <p className="font-semibold">{inspection.inspectionNumber}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Transformer</p>
+                        <p className="font-semibold">{resolvedTransformerNumber || "Unknown"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Inspection date</p>
+                        <p className="font-semibold">{maintenanceRecord.inspectionDate || inspection.inspectedDate || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Timestamp</p>
+                        <p className="font-semibold break-words">{maintenanceRecord.timestamp}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Voltage</p>
+                        <p>{maintenanceRecord.voltage ?? "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Current</p>
+                        <p>{maintenanceRecord.current ?? "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Efficiency</p>
+                        <p>{maintenanceRecord.efficiency ?? "—"}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Inspector</p>
+                        <p>{maintenanceRecord.inspectorName || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Status</p>
+                        <p>{maintenanceRecord.status || "—"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Recommendation</p>
+                      <p className="whitespace-pre-wrap">{maintenanceRecord.recommendation || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Remarks</p>
+                      <p className="whitespace-pre-wrap">{maintenanceRecord.remarks || "—"}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    No maintenance record exists yet for this inspection.
+                  </p>
+                )
+              ) : (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleMaintenanceSave();
+                  }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Inspection number</p>
+                      <p className="font-semibold">{inspection.inspectionNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Transformer</p>
+                      <p className="font-semibold">{resolvedTransformerNumber || "Unknown"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Inspection date</p>
+                      <p className="font-semibold">{inspection.inspectedDate || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Inspection ID</p>
+                      <p className="font-semibold break-words">{inspection.id || "—"}</p>
+                    </div>
+                  </div>
+                  {maintenanceFormError && (
+                    <div className="text-sm text-red-600">{maintenanceFormError}</div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label className="text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Timestamp *</span>
+                      <input
+                        type="text"
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                        placeholder="e.g. 2025-11-24T10:00Z"
+                        value={maintenanceForm.timestamp}
+                        onChange={(event) =>
+                          handleMaintenanceInputChange("timestamp", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Inspector name</span>
+                      <input
+                        type="text"
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                        value={maintenanceForm.inspectorName}
+                        onChange={(event) =>
+                          handleMaintenanceInputChange("inspectorName", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Status</span>
+                      <input
+                        type="text"
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                        value={maintenanceForm.status}
+                        onChange={(event) =>
+                          handleMaintenanceInputChange("status", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Voltage</span>
+                      <input
+                        type="number"
+                        step="any"
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                        value={maintenanceForm.voltage}
+                        onChange={(event) =>
+                          handleMaintenanceInputChange("voltage", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Current</span>
+                      <input
+                        type="number"
+                        step="any"
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                        value={maintenanceForm.current}
+                        onChange={(event) =>
+                          handleMaintenanceInputChange("current", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="text-sm text-gray-700 dark:text-gray-200">
+                      <span className="block text-xs uppercase tracking-wide mb-1">Efficiency</span>
+                      <input
+                        type="number"
+                        step="any"
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                        value={maintenanceForm.efficiency}
+                        onChange={(event) =>
+                          handleMaintenanceInputChange("efficiency", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-200">
+                    <span className="block text-xs uppercase tracking-wide mb-1">Recommendation</span>
+                    <textarea
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                      rows={3}
+                      value={maintenanceForm.recommendation}
+                      onChange={(event) =>
+                        handleMaintenanceInputChange("recommendation", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="block text-sm text-gray-700 dark:text-gray-200">
+                    <span className="block text-xs uppercase tracking-wide mb-1">Remarks</span>
+                    <textarea
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                      rows={3}
+                      value={maintenanceForm.remarks}
+                      onChange={(event) =>
+                        handleMaintenanceInputChange("remarks", event.target.value)
+                      }
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
+                      onClick={closeMaintenanceModal}
+                      disabled={isSavingMaintenance}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 text-sm rounded bg-green-600 text-white disabled:opacity-60"
+                      disabled={isSavingMaintenance}
+                    >
+                      {isSavingMaintenance
+                        ? "Saving…"
+                        : maintenanceRecord
+                        ? "Update record"
+                        : "Save record"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
