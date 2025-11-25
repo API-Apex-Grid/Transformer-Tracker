@@ -464,6 +464,9 @@ const InspectionDetailsPanel = ({
   const [maintenanceModalMode, setMaintenanceModalMode] = useState<"form" | "view">("form");
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
+  const [isDeletingMaintenance, setIsDeletingMaintenance] = useState(false);
+  const [showDeleteMaintenanceConfirm, setShowDeleteMaintenanceConfirm] = useState(false);
+  const [deleteMaintenanceError, setDeleteMaintenanceError] = useState<string | null>(null);
   const [isReportGenerating, setIsReportGenerating] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
 
@@ -1183,8 +1186,18 @@ const InspectionDetailsPanel = ({
   };
 
   const closeMaintenanceModal = () => {
-    if (isSavingMaintenance) return;
+    if (isSavingMaintenance || isDeletingMaintenance) return;
     setShowMaintenanceModal(false);
+  };
+
+  const openMaintenanceDeleteConfirm = () => {
+    setDeleteMaintenanceError(null);
+    setShowDeleteMaintenanceConfirm(true);
+  };
+
+  const closeMaintenanceDeleteConfirm = () => {
+    if (isDeletingMaintenance) return;
+    setShowDeleteMaintenanceConfirm(false);
   };
 
   const handleMaintenanceInputChange = (
@@ -1195,7 +1208,7 @@ const InspectionDetailsPanel = ({
   };
 
   const handleMaintenanceSave = async () => {
-    if (!inspection.id) return;
+    if (!inspection.id || isSavingMaintenance || isDeletingMaintenance) return;
     const trimmedTimestamp = maintenanceForm.timestamp.trim();
     if (!trimmedTimestamp) {
       setMaintenanceFormError("Timestamp is required.");
@@ -1244,6 +1257,46 @@ const InspectionDetailsPanel = ({
       setMaintenanceFormError(message);
     } finally {
       setIsSavingMaintenance(false);
+    }
+  };
+
+  const handleMaintenanceDelete = async () => {
+    if (!inspection.id || !maintenanceRecord || isDeletingMaintenance || isSavingMaintenance) {
+      return;
+    }
+    setIsDeletingMaintenance(true);
+    setMaintenanceFormError(null);
+    setDeleteMaintenanceError(null);
+    try {
+      const response = await fetch(
+        apiUrl(`/api/inspections/${inspection.id}/maintenance-record`),
+        {
+          method: "DELETE",
+          headers: {
+            ...authHeaders(),
+          },
+        }
+      );
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          text || `Failed to delete maintenance record (${response.status})`
+        );
+      }
+      setMaintenanceRecord(null);
+      setMaintenanceForm(buildMaintenanceFormState());
+      setMaintenanceError(null);
+      setShowDeleteMaintenanceConfirm(false);
+      setShowMaintenanceModal(false);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to delete maintenance record.";
+      setMaintenanceFormError(message);
+      setDeleteMaintenanceError(message);
+    } finally {
+      setIsDeletingMaintenance(false);
     }
   };
 
@@ -3014,12 +3067,12 @@ const InspectionDetailsPanel = ({
                         <span className="block text-xs uppercase tracking-wide mb-1">Timestamp *</span>
                         <input
                           type="text"
-                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-[#111]"
+                          className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-100 dark:bg-[#1a1a1a] cursor-not-allowed"
                           placeholder="e.g. 2025-11-24T10:00Z"
                           value={maintenanceForm.timestamp}
-                          onChange={(event) =>
-                            handleMaintenanceInputChange("timestamp", event.target.value)
-                          }
+                          readOnly
+                          aria-readonly="true"
+                          title="Timestamp is generated automatically"
                         />
                       </label>
                       <label className="text-sm text-gray-700 dark:text-gray-200">
@@ -3103,26 +3156,38 @@ const InspectionDetailsPanel = ({
                         }
                       />
                     </label>
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
-                        onClick={closeMaintenanceModal}
-                        disabled={isSavingMaintenance}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-1.5 text-sm rounded bg-green-600 text-white disabled:opacity-60"
-                        disabled={isSavingMaintenance}
-                      >
-                        {isSavingMaintenance
-                          ? "Saving…"
-                          : maintenanceRecord
-                          ? "Update record"
-                          : "Save record"}
-                      </button>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      {maintenanceRecord && (
+                        <button
+                          type="button"
+                          className="w-full sm:w-auto px-4 py-1.5 text-sm rounded border border-red-200 bg-red-50 text-red-700 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-300 disabled:opacity-60"
+                          onClick={openMaintenanceDeleteConfirm}
+                          disabled={isSavingMaintenance || isDeletingMaintenance}
+                        >
+                          {isDeletingMaintenance ? "Deleting…" : "Delete record"}
+                        </button>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
+                          onClick={closeMaintenanceModal}
+                          disabled={isSavingMaintenance || isDeletingMaintenance}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 text-sm rounded bg-green-600 text-white disabled:opacity-60"
+                          disabled={isSavingMaintenance || isDeletingMaintenance}
+                        >
+                          {isSavingMaintenance
+                            ? "Saving…"
+                            : maintenanceRecord
+                            ? "Update record"
+                            : "Save record"}
+                        </button>
+                      </div>
                     </div>
                     </form>
                     <MaintenanceAnnotationPreview
@@ -3136,6 +3201,41 @@ const InspectionDetailsPanel = ({
                     />
                 </div>
               )}
+            </div>
+          </div>
+        )}
+        {showDeleteMaintenanceConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="details-panel w-full max-w-md rounded-lg bg-white dark:bg-[#111] p-5 shadow-2xl">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Delete maintenance record?
+              </h3>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                This record will be removed permanently and cannot be recovered. Are you sure you want to continue?
+              </p>
+              {deleteMaintenanceError && (
+                <div className="mb-3 text-sm text-red-600" role="alert">
+                  {deleteMaintenanceError}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
+                  onClick={closeMaintenanceDeleteConfirm}
+                  disabled={isDeletingMaintenance}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-1.5 text-sm rounded bg-red-600 text-white disabled:opacity-60"
+                  onClick={() => void handleMaintenanceDelete()}
+                  disabled={isDeletingMaintenance}
+                >
+                  {isDeletingMaintenance ? "Deleting…" : "Delete"}
+                </button>
+              </div>
             </div>
           </div>
         )}

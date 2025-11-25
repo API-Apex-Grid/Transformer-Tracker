@@ -123,6 +123,19 @@ public class InspectionController {
         return ResponseEntity.ok(MaintenanceRecordResponse.fromEntity(saved));
     }
 
+    @DeleteMapping("/{id}/maintenance-record")
+    public ResponseEntity<?> deleteMaintenanceRecord(@PathVariable String id) {
+        if (!repo.existsById(id)) {
+            return ResponseEntity.status(404).body(Map.of("error", "Inspection not found"));
+        }
+        var recordOpt = maintenanceRecordRepo.findByInspectionId(id);
+        if (recordOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Maintenance record not found"));
+        }
+        maintenanceRecordRepo.delete(recordOpt.get());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}/export")
     public ResponseEntity<?> exportInspection(@PathVariable String id) {
         return repo.findById(id).map(inspection -> {
