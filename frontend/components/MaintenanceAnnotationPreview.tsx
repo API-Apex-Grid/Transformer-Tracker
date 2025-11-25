@@ -35,6 +35,7 @@ interface MaintenanceAnnotationPreviewProps {
   error?: string | null;
   emptyMessage?: string;
   className?: string;
+  resetKey?: string | number;
 }
 
 const MaintenanceAnnotationPreview = ({
@@ -49,6 +50,7 @@ const MaintenanceAnnotationPreview = ({
   error = null,
   emptyMessage = "No annotations available for this inspection.",
   className = "",
+  resetKey,
 }: MaintenanceAnnotationPreviewProps) => {
   const normalizedBoxes = useMemo(() => {
     if (!Array.isArray(boxes)) return [];
@@ -111,13 +113,6 @@ const MaintenanceAnnotationPreview = ({
     [legendEntries, normalizedBoxes]
   );
 
-  const overlayResetKey = useMemo(() => {
-    const boxSignature = normalizedBoxes
-      .map((box) => box.map((value) => Math.round(value)).join(","))
-      .join("|");
-    return `${imageUrl ?? "none"}-${boxSignature}`;
-  }, [imageUrl, normalizedBoxes]);
-
   const hasImage = typeof imageUrl === "string" && imageUrl.length > 0;
   const hasAnnotations = normalizedBoxes.length > 0;
 
@@ -155,8 +150,8 @@ const MaintenanceAnnotationPreview = ({
             boxes={normalizedBoxes}
             boxInfo={overlayInfo}
             toggles={TOGGLES_ALWAYS_ON}
-            resetKey={overlayResetKey}
             containerClassName="w-full h-64 border border-gray-200 dark:border-gray-700 rounded overflow-hidden"
+            resetKey={resetKey}
           />
         </div>
         <ol className="mt-3 space-y-2 text-xs text-gray-700 dark:text-gray-300">

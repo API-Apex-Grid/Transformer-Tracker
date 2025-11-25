@@ -27,6 +27,7 @@ import {
   useCallback,
 } from "react";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { downloadMaintenanceReportPdf } from "@/lib/maintenance-report";
 
 const faultToToggleKey = (
   fault: string | null | undefined
@@ -463,6 +464,7 @@ const InspectionDetailsPanel = ({
   const [maintenanceModalMode, setMaintenanceModalMode] = useState<"form" | "view">("form");
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
+  const [isReportGenerating, setIsReportGenerating] = useState(false);
 
   const transformer = useMemo(
     () =>
@@ -1634,6 +1636,32 @@ const InspectionDetailsPanel = ({
     }
   };
 
+  const handleDownloadMaintenanceReport = async () => {
+    if (!maintenanceRecord || isReportGenerating) return;
+    setIsReportGenerating(true);
+    try {
+      await downloadMaintenanceReportPdf({
+        inspection,
+        maintenance: maintenanceRecord,
+        annotations: {
+          boxes: storedBoxes,
+          faults: storedFaultTypes,
+          annotatedBy: storedAnnotatedBy,
+          severity: storedSeverity,
+          comments: storedComments,
+        },
+        imageUrl: storedImageUrl,
+      });
+    } catch (error) {
+      console.error("Failed to download maintenance report", error);
+      if (typeof window !== "undefined") {
+        window.alert("Unable to generate the maintenance report. Please try again.");
+      }
+    } finally {
+      setIsReportGenerating(false);
+    }
+  };
+
   const uploadBaseline = async (file: File, weather: string) => {
     if (!transformer?.id) return;
     const form = new FormData();
@@ -1735,6 +1763,29 @@ const InspectionDetailsPanel = ({
               <path d="M5 21h14" />
             </svg>
             <span>{isExporting ? "Preparing…" : "Export data"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadMaintenanceReport}
+            disabled={!maintenanceRecord || maintenanceLoading || isReportGenerating}
+            className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Download the maintenance form with annotations as a PDF"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <path d="M6 2h9l4 4v16H6z" />
+              <path d="M15 2v5h5" />
+              <path d="M9 13h6" />
+              <path d="M9 17h6" />
+            </svg>
+            <span>{isReportGenerating ? "Preparing…" : "Maintenance PDF"}</span>
           </button>
           <label className="flex items-center gap-2 text-sm">
             <span>Tune model</span>
