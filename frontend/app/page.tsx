@@ -37,6 +37,7 @@ export default function Home() {
           image: data.image,
           token: data.token,
           expiresIn: data.expiresIn,
+          role: data.role,
         },
         username
       );

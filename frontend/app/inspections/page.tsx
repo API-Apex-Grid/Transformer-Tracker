@@ -24,6 +24,7 @@ const InspectionsPage = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   // Ensure client/server render the same initial avatar; update after mount from localStorage
   const [profileSrc, setProfileSrc] = useState<string>("/avatar.png");
 
@@ -45,6 +46,7 @@ const InspectionsPage = () => {
       }
       if (typeof window !== "undefined") {
         setUsername(localStorage.getItem("username"));
+        setUserRole(localStorage.getItem("userRole"));
         const stored = localStorage.getItem("userImage");
         if (stored && stored.length > 0) {
           setProfileSrc(stored);
@@ -151,6 +153,7 @@ const InspectionsPage = () => {
               <span className="text-sm text-gray-700">
                 Logged in as:{" "}
                 <span className="font-medium">{username || "unknown"}</span>
+                {userRole && <span className="font-normal"> ({userRole})</span>}
               </span>
               <button
                 onClick={() => router.push("/profile")}

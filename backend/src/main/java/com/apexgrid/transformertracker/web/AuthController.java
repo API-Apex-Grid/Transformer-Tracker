@@ -46,7 +46,8 @@ public class AuthController {
                     token,
                     jwtService.getExpirySeconds(),
                     user.getUsername(),
-                    user.getImage() != null ? user.getImage() : ""
+                    user.getImage() != null ? user.getImage() : "",
+                    user.getRole() != null ? user.getRole() : ""
             );
             return ResponseEntity.ok(response);
         } catch (BadCredentialsException ex) {

@@ -3,6 +3,7 @@ export type LoginSessionPayload = {
   image?: string | null;
   token?: string | null;
   expiresIn?: number | null;
+  role?: string | null;
 };
 
 export const isClientLoggedIn = (): boolean => {
@@ -20,6 +21,7 @@ export const storeClientSession = (payload: LoginSessionPayload, fallbackUsernam
     const username = payload.username || fallbackUsername || "";
     const image = payload.image || "";
     const token = payload.token || "";
+    const role = payload.role || "";
     const expiresIn = typeof payload.expiresIn === "number" && Number.isFinite(payload.expiresIn)
       ? Math.max(0, Math.floor(payload.expiresIn))
       : null;
@@ -27,6 +29,7 @@ export const storeClientSession = (payload: LoginSessionPayload, fallbackUsernam
     localStorage.setItem("isLoggedIn", "true");
     localStorage.setItem("username", username);
     localStorage.setItem("userImage", image);
+    localStorage.setItem("userRole", role);
     if (token) {
       localStorage.setItem("token", token);
     }
@@ -53,6 +56,7 @@ export const clearClientSession = async () => {
     localStorage.removeItem("isLoggedIn");
     localStorage.removeItem("username");
     localStorage.removeItem("userImage");
+    localStorage.removeItem("userRole");
     localStorage.removeItem("token");
     localStorage.removeItem("tokenExpiresAt");
     window.dispatchEvent(new Event("app:logged-out"));

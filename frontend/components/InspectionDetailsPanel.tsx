@@ -465,6 +465,12 @@ const InspectionDetailsPanel = ({
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
   const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  const isEngineer = useMemo(() => {
+    if (!userRole) return false;
+    return userRole.trim().toLowerCase() === "engineer";
+  }, [userRole]);
 
   const transformer = useMemo(
     () =>
@@ -706,6 +712,12 @@ const InspectionDetailsPanel = ({
     setDrawTarget(null);
     setPendingRect(null);
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setUserRole(localStorage.getItem("userRole"));
+    }
+  }, []);
 
   // When switching to a different inspection, reinitialize weather and image state
   useEffect(() => {
@@ -1695,9 +1707,9 @@ const InspectionDetailsPanel = ({
           <button
             type="button"
             onClick={openMaintenanceForm}
-            disabled={maintenanceLoading}
+            disabled={maintenanceLoading || !isEngineer}
             className="inline-flex items-center gap-2 px-3 py-1 text-sm border rounded custombutton disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Generate or update a maintenance record for this inspection"
+            title={isEngineer ? "Generate or update a maintenance record for this inspection" : "Only engineers can generate or update maintenance records"}
           >
             <svg
               className="w-4 h-4"

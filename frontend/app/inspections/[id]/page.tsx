@@ -21,6 +21,7 @@ const InspectionDetailPage = () => {
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const inspectionRef = useRef<Inspection | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [profileSrc, setProfileSrc] = useState<string>("/avatar.png");
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState<string>("Loading inspection...");
@@ -48,6 +49,7 @@ const InspectionDetailPage = () => {
       }
       if (typeof window !== "undefined") {
         setUsername(localStorage.getItem("username"));
+        setUserRole(localStorage.getItem("userRole"));
         const stored = localStorage.getItem("userImage");
         if (stored && stored.length > 0) {
           setProfileSrc(stored);
@@ -183,6 +185,7 @@ const InspectionDetailPage = () => {
               <span className="text-sm text-gray-700">
                 Logged in as:{" "}
                 <span className="font-medium">{username || "unknown"}</span>
+                {userRole && <span className="font-normal"> ({userRole})</span>}
               </span>
               <button
                 onClick={() => router.push("/profile")}

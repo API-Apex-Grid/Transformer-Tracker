@@ -9,6 +9,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 export default function ProfilePage() {
   const router = useRouter();
   const [username, setUsername] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [hasPickedImage, setHasPickedImage] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -27,6 +28,9 @@ export default function ProfilePage() {
     const u =
       typeof window !== "undefined" ? localStorage.getItem("username") : null;
     setUsername(u);
+    const storedRole =
+      typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
+    setUserRole(storedRole);
     fetch(apiUrl("/api/profile"), { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((data) => {
@@ -147,7 +151,10 @@ export default function ProfilePage() {
           <div className="text-gray-700 dark:text-gray-300 text-sm">
             Logged in as
           </div>
-          <div className="font-medium">{username}</div>
+          <div className="font-medium">
+            {username}
+            {userRole && <span className="font-normal"> ({userRole})</span>}
+          </div>
         </div>
       </div>
 
