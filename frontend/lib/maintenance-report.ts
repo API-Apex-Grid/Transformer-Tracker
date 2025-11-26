@@ -251,28 +251,7 @@ export const downloadMaintenanceReportPdf = async (
     page.drawText(label, { x: x + 8, y: y + 6, size: 11, font: boldFont, color: rgb(1, 1, 1) });
     cursorY = y - 12;
   };
-  const drawDivider = (thickness = 1, color = accent) => {
-    ensureSpace(thickness + 4);
-    const y = cursorY - 4;
-    page.drawLine({
-      start: { x: margin, y },
-      end: { x: margin + contentWidth, y },
-      thickness,
-      color,
-    });
-    cursorY = y - 8;
-  };
-
   // content header removed - avoid repeating title/inspection on every page
-
-  const drawFooter = (pageIndex: number, total: number) => {
-    const footerY = 28;
-    const left = `${inspection.transformerNumber || maintenance.transformerName || "—"}`;
-    page.drawText(left, { x: margin, y: footerY, size: 9, font: times, color: rgb(0.4, 0.4, 0.4) });
-    const right = `Page ${pageIndex} / ${total}`;
-    const textWidth = font.widthOfTextAtSize(right, 9);
-    page.drawText(right, { x: margin + contentWidth - textWidth, y: footerY, size: 9, font: times, color: rgb(0.4, 0.4, 0.4) });
-  };
 
   const drawLabeledTable = (pairs: Array<[string, string | number | null | undefined]>) => {
     const rowH = 20;
@@ -323,7 +302,7 @@ export const downloadMaintenanceReportPdf = async (
         const logoW = 120;
         const logoH = (logoImage.height / logoImage.width) * logoW;
         page.drawImage(logoImage, { x: width - margin - logoW, y: page.getHeight() - margin - logoH + 10, width: logoW, height: logoH });
-      } catch (e) {
+      } catch {
         // ignore logo errors
       }
     }
@@ -453,7 +432,7 @@ export const downloadMaintenanceReportPdf = async (
       });
       const neededHeight = 14 + rows.length * 14;
       ensureSpace(neededHeight + 6);
-      let legendY = cursorY;
+      const legendY = cursorY;
       // draw title
       page.drawText("Legend:", { x: margin, y: legendY, size: labelSize, font: boldFont });
       // draw rows
