@@ -14,6 +14,7 @@ export interface MaintenanceReportOptions {
   maintenance: MaintenanceRecord;
   annotations?: AnnotationPayload;
   imageUrl?: string | null;
+  logoUrl?: string | null;
 }
 
 type AnnotationSummary = {
@@ -203,7 +204,7 @@ export const downloadMaintenanceReportPdf = async (
   if (typeof document === "undefined") {
     throw new Error("PDF generation is only available in the browser");
   }
-  const { inspection, maintenance, annotations, imageUrl } = options;
+  const { inspection, maintenance, annotations, imageUrl, logoUrl } = options;
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage();
@@ -213,6 +214,7 @@ export const downloadMaintenanceReportPdf = async (
 
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const times = await pdfDoc.embedFont(StandardFonts.TimesRoman);
 
   const ensureSpace = (needed: number) => {
     if (cursorY - needed <= margin) {
@@ -220,16 +222,18 @@ export const downloadMaintenanceReportPdf = async (
       cursorY = page.getHeight() - margin;
     }
   };
+  const accent = rgb(0.0, 0.47, 0.75);
 
   const drawTextLine = (
     text: string,
     size = 11,
     weight: "normal" | "bold" = "normal",
-    color = rgb(0, 0, 0)
+    color = rgb(0, 0, 0),
+    x = margin
   ) => {
     ensureSpace(size + lineGap);
     page.drawText(text, {
-      x: margin,
+      x,
       y: cursorY,
       size,
       font: weight === "bold" ? boldFont : font,
@@ -238,8 +242,60 @@ export const downloadMaintenanceReportPdf = async (
     cursorY -= size + lineGap;
   };
 
-  const drawKeyValue = (label: string, value: string) => {
-    drawTextLine(`${label}: ${value}`, 10);
+  const drawSectionHeader = (label: string) => {
+    const height = 22;
+    ensureSpace(height + 8);
+    const x = margin;
+    const y = cursorY - height + 6;
+    page.drawRectangle({ x, y, width: contentWidth, height, color: accent });
+    page.drawText(label, { x: x + 8, y: y + 6, size: 11, font: boldFont, color: rgb(1, 1, 1) });
+    cursorY = y - 12;
+  };
+  const drawDivider = (thickness = 1, color = accent) => {
+    ensureSpace(thickness + 4);
+    const y = cursorY - 4;
+    page.drawLine({
+      start: { x: margin, y },
+      end: { x: margin + contentWidth, y },
+      thickness,
+      color,
+    });
+    cursorY = y - 8;
+  };
+
+  // content header removed - avoid repeating title/inspection on every page
+
+  const drawFooter = (pageIndex: number, total: number) => {
+    const footerY = 28;
+    const left = `${inspection.transformerNumber || maintenance.transformerName || "—"}`;
+    page.drawText(left, { x: margin, y: footerY, size: 9, font: times, color: rgb(0.4, 0.4, 0.4) });
+    const right = `Page ${pageIndex} / ${total}`;
+    const textWidth = font.widthOfTextAtSize(right, 9);
+    page.drawText(right, { x: margin + contentWidth - textWidth, y: footerY, size: 9, font: times, color: rgb(0.4, 0.4, 0.4) });
+  };
+
+  const drawLabeledTable = (pairs: Array<[string, string | number | null | undefined]>) => {
+    const rowH = 20;
+    const rows = pairs.length;
+    const tableH = rows * rowH + 8;
+    ensureSpace(tableH + 8);
+    const x = margin;
+    const y = cursorY;
+    const labelW = 160;
+    const valueX = x + labelW + 12;
+    // light background for table area
+    page.drawRectangle({ x, y: y - tableH + 8, width: contentWidth, height: tableH, color: rgb(0.99, 0.99, 0.99) });
+    // rows
+    for (let i = 0; i < rows; i += 1) {
+      const [k, v] = pairs[i];
+      const value = v === null || v === undefined || (typeof v === "string" && v.trim().length === 0) ? "—" : String(v);
+      const rowY = y - (i * rowH) - 18;
+      // divider line
+      page.drawLine({ start: { x, y: rowY - 4 }, end: { x: x + contentWidth, y: rowY - 4 }, thickness: 0.5, color: rgb(0.9, 0.9, 0.9) });
+      page.drawText(k + ":", { x: x + 8, y: rowY - 2, size: 10, font: boldFont, color: rgb(0.12, 0.12, 0.12) });
+      page.drawText(value, { x: valueX, y: rowY - 2, size: 10, font, color: rgb(0.15, 0.15, 0.15) });
+    }
+    cursorY = y - tableH - 6;
   };
 
   const drawParagraph = (label: string, value?: string | null) => {
@@ -247,34 +303,81 @@ export const downloadMaintenanceReportPdf = async (
     const lines = wrapLines(display, contentWidth, font, 10);
     drawTextLine(label, 11, "bold");
     lines.forEach((line) => drawTextLine(line, 10));
+    cursorY -= 4;
   };
 
-  drawTextLine("Maintenance Report", 18, "bold", rgb(0.1, 0.1, 0.1));
-  drawTextLine(
-    inspection.inspectionNumber
-      ? `Inspection ${inspection.inspectionNumber}`
-      : `Inspection ${inspection.id ?? "Unknown"}`,
-    12
-  );
+  // header
+  // Cover page (title + optional logo) and then header for content pages
+  const drawCoverPage = async () => {
+    // Draw big title
+    const title = "Maintenance Report";
+    const titleSize = 28;
+    const titleWidth = boldFont.widthOfTextAtSize(title, titleSize);
+    page.drawText(title, { x: (width - titleWidth) / 2, y: page.getHeight() - 140, size: titleSize, font: boldFont, color: accent });
 
-  drawTextLine("Inspection Details", 13, "bold");
-  drawKeyValue("Transformer", inspection.transformerNumber || maintenance.transformerName || "—");
-  drawKeyValue("Branch", inspection.branch || "—");
-  drawKeyValue("Inspected", inspection.inspectedDate || maintenance.inspectionDate || "—");
-  drawKeyValue("Maintenance", inspection.maintainanceDate || "—");
-  drawKeyValue("Status", inspection.status || maintenance.status || "—");
-  drawKeyValue("Uploaded by", inspection.uploadedBy || inspection.imageUploadedBy || "—");
+    // Logo (optional)
+    if (logoUrl) {
+      try {
+        const logoBytes = await fetchImageBytes(logoUrl);
+        const logoImage = await pdfDoc.embedPng(logoBytes);
+        const logoW = 120;
+        const logoH = (logoImage.height / logoImage.width) * logoW;
+        page.drawImage(logoImage, { x: width - margin - logoW, y: page.getHeight() - margin - logoH + 10, width: logoW, height: logoH });
+      } catch (e) {
+        // ignore logo errors
+      }
+    }
 
-  cursorY -= 4;
-  drawTextLine("Maintenance Record", 13, "bold");
-  drawKeyValue("Timestamp", maintenance.timestamp || "—");
-  drawKeyValue("Inspector", maintenance.inspectorName || "—");
-  drawKeyValue("Record status", maintenance.status || inspection.status || "—");
-  drawKeyValue("Voltage (V)", formatNumber(maintenance.voltage));
-  drawKeyValue("Current (A)", formatNumber(maintenance.current));
-  drawKeyValue("Efficiency", formatNumber(maintenance.efficiency));
-  drawParagraph("Recommendation", maintenance.recommendation);
-  drawParagraph("Remarks", maintenance.remarks);
+    // Small cover summary: only inspection id (details are in tables below)
+    const small = 11;
+    const inspectionLineY = page.getHeight() - 180;
+    page.drawText(`Inspection: ${inspection.inspectionNumber || inspection.id || "—"}`, { x: margin, y: inspectionLineY, size: small, font: boldFont, color: rgb(0.12,0.12,0.12) });
+
+    // generation date (left aligned under title, slightly below inspection line)
+    const now = new Date();
+    const dateLine = `Report generated: ${now.toISOString().split("T")[0]}`;
+    const dateY = inspectionLineY - 18;
+    page.drawText(dateLine, { x: margin, y: dateY, size: 10, font, color: rgb(0.35,0.35,0.35) });
+
+    // continue on the same page: position cursor below the cover block
+    cursorY = dateY - 50;
+  };
+
+  await drawCoverPage();
+
+  // content header removed to avoid duplicate title
+
+  // Inspection details table
+  drawSectionHeader("Inspection Details");
+  // add small top padding before first table
+  cursorY -= 2;
+  drawLabeledTable([
+    ["Transformer", inspection.transformerNumber || maintenance.transformerName || "—"],
+    ["Branch", inspection.branch || "—"],
+    ["Inspected", inspection.inspectedDate || maintenance.inspectionDate || "—"],
+    ["Status", inspection.status || maintenance.status || "—"],
+    ["Uploaded by", inspection.uploadedBy || inspection.imageUploadedBy || "—"],
+  ]);
+  // spacing between tables
+  cursorY -= 12;
+  drawSectionHeader("Maintenance Record");
+  cursorY -= 2;
+  drawLabeledTable([
+    ["Timestamp", maintenance.timestamp || "—"],
+    ["Inspector", maintenance.inspectorName || "—"],
+    ["Record status", maintenance.status || inspection.status || "—"],
+    ["Voltage (V)", formatNumber(maintenance.voltage)],
+    ["Current (A)", formatNumber(maintenance.current)],
+    ["Efficiency", formatNumber(maintenance.efficiency)],
+  ]);
+  // spacing before recommendations
+  cursorY -= 18;
+  // Recommendation and remarks shown after tables
+  drawTextLine("Recommendation", 11, "bold");
+  drawParagraph("", maintenance.recommendation);
+  cursorY -= 8;
+  drawTextLine("Remarks", 11, "bold");
+  drawParagraph("", maintenance.remarks);
 
   const annotationSummaries = buildAnnotationSummaries(annotations);
 
@@ -305,7 +408,7 @@ export const downloadMaintenanceReportPdf = async (
           width: targetWidth,
           height: targetHeight,
         });
-        cursorY -= targetHeight + 12;
+        cursorY -= targetHeight + 36;
       }
     } catch (error) {
       console.error("Failed to attach thermal image", error);
@@ -313,22 +416,128 @@ export const downloadMaintenanceReportPdf = async (
     }
   }
 
-  drawTextLine("Annotations", 13, "bold");
+  // Annotations (styled table + legend)
+  drawSectionHeader("Annotations");
   if (annotationSummaries.length === 0) {
     drawTextLine("No annotations captured", 10);
   } else {
-    annotationSummaries.forEach((entry) => {
-      const headline = `#${entry.index} ${entry.fault} · Annotated by ${entry.annotator}` +
-        (entry.severity ? ` · Severity ${entry.severity}` : "");
-      drawTextLine(headline, 10, "bold");
-      if (entry.comment) {
-        const lines = wrapLines(entry.comment, contentWidth, font, 10);
-        lines.forEach((line) => drawTextLine(line, 10));
+    // legend (fault colors)
+    const uniqueFaults = Array.from(new Set((annotations?.faults ?? []).map((f) => (f || "none").toLowerCase())));
+    if (uniqueFaults.length > 0) {
+      // Layout legend items left-to-right and wrap to next line when needed
+      const labelSize = 10;
+      const iconSize = 10;
+      const gap = 8; // space between icon and label
+      const itemGap = 18; // space between items
+      // Measure and build items
+      const items = uniqueFaults.map((fault) => {
+        const label = normalizeLabel(fault);
+        const labelWidth = font.widthOfTextAtSize(label, labelSize);
+        return { fault, label, labelWidth };
+      });
+      // compute layout into rows
+      const rows: Array<Array<{ fault: string; label: string; labelWidth: number }>> = [[]];
+      let currentRowWidth = 0;
+      const maxWidth = contentWidth;
+      // reserve space for "Legend:" text on the left
+      const legendTitleWidth = font.widthOfTextAtSize("Legend:", labelSize) + 10;
+      currentRowWidth = legendTitleWidth + itemGap;
+      items.forEach((it) => {
+        const itemWidth = iconSize + gap + it.labelWidth + itemGap;
+        if (currentRowWidth + itemWidth > maxWidth) {
+          rows.push([]);
+          currentRowWidth = 0;
+        }
+        rows[rows.length - 1].push(it);
+        currentRowWidth += itemWidth;
+      });
+      const neededHeight = 14 + rows.length * 14;
+      ensureSpace(neededHeight + 6);
+      let legendY = cursorY;
+      // draw title
+      page.drawText("Legend:", { x: margin, y: legendY, size: labelSize, font: boldFont });
+      // draw rows
+      let rowY = legendY - 14;
+      for (let r = 0; r < rows.length; r += 1) {
+        let x = margin + legendTitleWidth;
+        const row = rows[r];
+        for (let i = 0; i < row.length; i += 1) {
+          const it = row[i];
+          const colorHex = FAULT_COLORS[it.fault] ?? FAULT_COLORS.none;
+          const rr = parseInt(colorHex.slice(1, 3), 16) / 255;
+          const gg = parseInt(colorHex.slice(3, 5), 16) / 255;
+          const bb = parseInt(colorHex.slice(5, 7), 16) / 255;
+          page.drawRectangle({ x, y: rowY - 6, width: iconSize, height: iconSize, color: rgb(rr, gg, bb) });
+          page.drawText(it.label, { x: x + iconSize + gap, y: rowY - 2, size: labelSize, font });
+          x += iconSize + gap + it.labelWidth + itemGap;
+        }
+        rowY -= 14;
       }
-      ensureSpace(4);
-      cursorY -= 4;
+      cursorY = rowY - 8;
+    }
+
+    // table layout columns
+    const tableX = margin;
+    const idxW = 24;
+    const faultW = 180;
+    const annotW = 120;
+    const sevW = 60;
+    const commentX = tableX + idxW + faultW + annotW + sevW + 20;
+    const tableW = contentWidth;
+    // header row
+    ensureSpace(18);
+    page.drawRectangle({ x: tableX, y: cursorY - 14, width: tableW, height: 16, color: rgb(0.95, 0.95, 0.95) });
+    page.drawText("#", { x: tableX + 6, y: cursorY - 10, size: 10, font: boldFont });
+    page.drawText("Fault", { x: tableX + idxW + 6, y: cursorY - 10, size: 10, font: boldFont });
+    page.drawText("Annotator", { x: tableX + idxW + faultW + 6, y: cursorY - 10, size: 10, font: boldFont });
+    page.drawText("Severity", { x: tableX + idxW + faultW + annotW + 6, y: cursorY - 10, size: 10, font: boldFont });
+    cursorY -= 22;
+
+    annotationSummaries.forEach((entry, i) => {
+      const baseY = cursorY;
+      const commentWidth = Math.max(80, contentWidth - (commentX - tableX) - 12);
+      const commentLines = entry.comment ? wrapLines(entry.comment, commentWidth, font, 9) : [];
+      const rowH = Math.max(18, 10 + commentLines.length * 10);
+      ensureSpace(rowH + 6);
+      // alternating background
+      if (i % 2 === 0) {
+        page.drawRectangle({ x: tableX, y: baseY - rowH + 6, width: tableW, height: rowH, color: rgb(0.99, 0.99, 0.99) });
+      }
+      // colored bullet
+      const faultKey = entry.fault.toLowerCase();
+      const colorHex = FAULT_COLORS[faultKey] ?? FAULT_COLORS.none;
+      const r = parseInt(colorHex.slice(1, 3), 16) / 255;
+      const g = parseInt(colorHex.slice(3, 5), 16) / 255;
+      const b = parseInt(colorHex.slice(5, 7), 16) / 255;
+      page.drawCircle({ x: tableX + 10, y: baseY - 6, size: 4, color: rgb(r, g, b) });
+      page.drawText(String(entry.index), { x: tableX + 16, y: baseY - 10, size: 10, font });
+      page.drawText(entry.fault, { x: tableX + idxW + 6, y: baseY - 10, size: 10, font });
+      page.drawText(entry.annotator, { x: tableX + idxW + faultW + 6, y: baseY - 10, size: 10, font });
+      page.drawText(entry.severity ?? "—", { x: tableX + idxW + faultW + annotW + 6, y: baseY - 10, size: 10, font });
+      // comments
+      if (commentLines.length) {
+        let cy = baseY - 10 - 12;
+        commentLines.forEach((line) => {
+          page.drawText(line, { x: commentX, y: cy, size: 9, font, color: rgb(0.2, 0.2, 0.2) });
+          cy -= 10;
+        });
+      }
+      cursorY -= rowH + 6;
     });
   }
+
+  // add footers to all pages
+  const pages = pdfDoc.getPages();
+  pages.forEach((p, i) => {
+    const pageIndex = i + 1;
+    const total = pages.length;
+    const footerY = 28;
+    const left = `${inspection.transformerNumber || maintenance.transformerName || "—"}`;
+    p.drawText(left, { x: margin, y: footerY, size: 9, font: times, color: rgb(0.45, 0.45, 0.45) });
+    const right = `Page ${pageIndex} / ${total}`;
+    const textWidth = font.widthOfTextAtSize(right, 9);
+    p.drawText(right, { x: margin + contentWidth - textWidth, y: footerY, size: 9, font: times, color: rgb(0.45, 0.45, 0.45) });
+  });
 
   const pdfBytes = await pdfDoc.save();
   const byteArray = pdfBytes.buffer.slice(
