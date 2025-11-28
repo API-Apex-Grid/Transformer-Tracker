@@ -247,3 +247,8 @@ input::placeholder {
   background-color: #202020;
   transition: background-color 0.3s;
 }
+
+/* Pointer cursor for all buttons */
+button {
+  cursor: pointer;
+}
