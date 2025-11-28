@@ -115,6 +115,24 @@ CREATE TABLE public.ai_tuning_feedback (
   constraint ai_tuning_feedback_pkey primary key (id)
 ) TABLESPACE pg_default;
 
+CREATE TABLE public.maintenance_records (
+  id text not null,
+  timestamp text not null,
+  transformername text not null,
+  inspectorname text null,
+  status text null,
+  voltage numeric null,
+  current numeric null,
+  efficiency numeric null,
+  reccomendation text null,
+  remarks text null,
+  inspectiondate text null,
+  inspectionid text not null,
+  constraint maintenance_records_pkey primary key (id),
+  constraint maintenance_records_inspectionid_fkey foreign KEY (inspectionid) references inspections (id) on update CASCADE on delete CASCADE,
+  constraint maintenance_records_transformername_fkey foreign KEY (transformername) references transformers (transformernumber) on update CASCADE on delete CASCADE
+) TABLESPACE pg_default;
+
 ```
 
 ### Recommended method: Use Docker for the backend
@@ -152,6 +170,7 @@ mvn clean install
 $env:DB_URL="<your-database-url>"
 $env:DB_USERNAME="<your-database-username>"
 $env:DB_PASSWORD="<your-database-password>"
+$env:APP_JWT_SECRET="<your-jwt-secret-key>"
 
 mvn spring-boot:run
 
