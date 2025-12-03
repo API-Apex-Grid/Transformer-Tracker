@@ -18,11 +18,27 @@ const isAssetRequest = (pathname: string): boolean =>
 const isUnderConstructionEnabled = (): boolean =>
   (process.env.UNDER_CONSTRUCTION ?? "").trim().toLowerCase() === "true";
 
+const isSunsetEnabled = (): boolean =>
+  (process.env.SUNSET ?? "").trim().toLowerCase() === "true";
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isAssetRequest(pathname)) {
     return NextResponse.next();
+  }
+
+  if (isSunsetEnabled()) {
+    if (pathname === "/sunset") {
+      return NextResponse.next();
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = "/sunset";
+    url.search = "";
+    if (pathname.startsWith("/api")) {
+      return NextResponse.redirect(url, { status: 307 });
+    }
+    return NextResponse.redirect(url);
   }
 
   if (isUnderConstructionEnabled()) {

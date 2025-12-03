@@ -1,0 +1,113 @@
+.container {
+    font-family: 'Georgia', serif;
+    height: 100vh;
+    overflow: hidden;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: #2c3e50;
+    position: relative;
+    width: 100vw;
+}
+
+.skyContainer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    background: linear-gradient(180deg, #ff9a9e 0%, #fecfef 20%, #a18cd1 60%, #302b63 100%);
+    background-size: 400% 400%;
+    animation: skyChange 15s ease infinite alternate;
+}
+
+.sun {
+    position: absolute;
+    bottom: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 200px;
+    background: linear-gradient(to top, #fff, #ffcc33);
+    border-radius: 50%;
+    box-shadow: 0 0 80px rgba(255, 204, 51, 0.6);
+    opacity: 0.8;
+    z-index: 1;
+    animation: sunset 4s ease-out forwards;
+}
+
+.content {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    padding: 3rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    opacity: 0;
+    animation: fadeIn 2s ease-in forwards 1s;
+    z-index: 2;
+}
+
+.heading {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    font-weight: 400;
+    letter-spacing: 2px;
+}
+
+.paragraph {
+    font-family: 'Helvetica Neue', sans-serif;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+    color: #e0e0e0;
+}
+
+.quote {
+    font-style: italic;
+    font-size: 0.9rem;
+    color: #bbb;
+    margin-top: 2rem;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    padding-top: 1rem;
+}
+
+.btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 10px 25px;
+    border: 1px solid #fff;
+    color: #fff;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    font-family: 'Helvetica Neue', sans-serif;
+}
+
+.btn:hover {
+    background: #fff;
+    color: #333;
+}
+
+@keyframes sunset {
+    0% { bottom: 60%; opacity: 1; }
+    100% { bottom: -10%; opacity: 0.4; }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes skyChange {
+    0% { background-position: 0% 0%; }
+    50% { background-position: 50% 50%; }
+    100% { background-position: 100% 100%; }
+}
