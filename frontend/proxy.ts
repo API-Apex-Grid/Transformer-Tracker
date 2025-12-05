@@ -21,7 +21,7 @@ const isUnderConstructionEnabled = (): boolean =>
 const isSunsetEnabled = (): boolean =>
   (process.env.SUNSET ?? "").trim().toLowerCase() === "true";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isAssetRequest(pathname)) {
